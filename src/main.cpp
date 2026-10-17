@@ -8,6 +8,7 @@
 #include <QMutex>
 #include <QMutexLocker>
 #include <QTextStream>
+#include <QTimer>
 #include <cstdio>
 
 #include "app/AppPaths.h"
@@ -15,6 +16,7 @@
 #include "analytics/DailyAnalyticsService.h"
 #include "documents/DocumentService.h"
 #include "search/SearchService.h"
+#include "versioning/ReleaseMetadataService.h"
 
 namespace {
 QMutex logMutex;
@@ -58,6 +60,7 @@ int main(int argc, char *argv[])
     QQuickWindow::setTextRenderType(QQuickWindow::NativeTextRendering);
     QCoreApplication::setApplicationName("Argon");
     QCoreApplication::setOrganizationName("Argon");
+    QCoreApplication::setApplicationVersion(QString::fromLatin1(ARGON_VERSION_STRING));
 
     QString pathsError;
     const bool pathsReady = ArgonPaths::ensureDirectoryStructure(&pathsError);
@@ -69,12 +72,23 @@ int main(int argc, char *argv[])
     DailyAnalyticsService dailyAnalyticsService;
     DocumentService documentService;
     SearchService searchService;
+    ReleaseMetadataService releaseMetadataService;
+
+    QObject::connect(
+        &releaseMetadataService,
+        &ReleaseMetadataService::stateChanged,
+        &app,
+        [&releaseMetadataService]() {
+            if (!releaseMetadataService.checking())
+                qInfo().noquote() << "[Versioning]" << releaseMetadataService.status();
+        });
 
     QQmlApplicationEngine engine;
     engine.rootContext()->setContextProperty("appServices", &appServices);
     engine.rootContext()->setContextProperty("dailyAnalyticsService", &dailyAnalyticsService);
     engine.rootContext()->setContextProperty("documentService", &documentService);
     engine.rootContext()->setContextProperty("searchService", &searchService);
+    engine.rootContext()->setContextProperty("releaseMetadataService", &releaseMetadataService);
 
     QObject::connect(
         &engine,
@@ -84,5 +98,9 @@ int main(int argc, char *argv[])
         Qt::QueuedConnection);
 
     engine.loadFromModule("Argon", "Main");
+
+    // This is an asynchronous metadata check only; it never downloads or installs a package.
+    QTimer::singleShot(0, &releaseMetadataService, &ReleaseMetadataService::checkForUpdates);
+
     return app.exec();
 }
