@@ -13,6 +13,7 @@
 #include <cstdint>
 #include <filesystem>
 #include <map>
+#include <memory>
 #include <optional>
 #include <string>
 #include <vector>
@@ -988,7 +989,11 @@ bool recoverPendingTransaction(const Paths &paths, std::wstring &recoveryNote,
                 return false;
             }
         }
-        DeleteFileW(paths.journalFile.c_str());
+        if (!DeleteFileW(paths.journalFile.c_str())
+            && GetLastError() != ERROR_FILE_NOT_FOUND) {
+            error = systemErrorText(L"Could not clear the verified updater transaction record");
+            return false;
+        }
         recoveryNote = L"A previously interrupted updater transaction was verified and recovered.";
         return true;
     }
