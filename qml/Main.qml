@@ -49,6 +49,37 @@ ApplicationWindow {
     property string argonExplorerCurrentPath: ""
     property var argonExplorerEntries: []
 
+    // The status dot reflects the async latest.json check, not package installation.
+    property color releaseStatusColor: {
+        if (releaseMetadataService.checking)
+            return "#E5B83B" // Yellow: connecting/checking.
+        if (!releaseMetadataService.checkSucceeded) {
+            if (releaseMetadataService.status === "Updates have not been checked.")
+                return "#E5B83B"
+            return "#888888" // Gray: metadata check failed.
+        }
+        if (releaseMetadataService.updateAvailable)
+            return "#E34B4B" // Red: a newer published version exists.
+        if (releaseMetadataService.currentVersion === releaseMetadataService.latestVersion)
+            return "#36B56B" // Green: source and published versions match.
+        return "#888888" // Neutral fallback if source is newer than published metadata.
+    }
+    property string releaseStatusTooltip: {
+        if (releaseMetadataService.checking
+                || releaseMetadataService.status === "Updates have not been checked.")
+            return "Connecting to latest.json..."
+        if (!releaseMetadataService.checkSucceeded)
+            return "Could not check latest.json: " + releaseMetadataService.status
+        if (releaseMetadataService.updateAvailable)
+            return "Update available: " + releaseMetadataService.latestVersion
+                    + " (current version " + releaseMetadataService.currentVersion + ")"
+        if (releaseMetadataService.currentVersion === releaseMetadataService.latestVersion)
+            return "Argon source version matches published version "
+                    + releaseMetadataService.latestVersion
+        return "Source version " + releaseMetadataService.currentVersion
+                + " is newer than published version " + releaseMetadataService.latestVersion
+    }
+
     function toggleFullscreen() {
         if (window.visibility === Window.FullScreen) {
             window.showNormal()
@@ -322,7 +353,34 @@ ApplicationWindow {
             Behavior on opacity { NumberAnimation { duration: 420; easing.type: Easing.OutCubic } }
             RowLayout {
                 Layout.fillWidth: true
-                Text { Layout.fillWidth: true; text: "Account"; color: theme.text; font.pixelSize: 16; font.weight: Font.DemiBold }
+                spacing: 7
+                Text { text: "Account"; color: theme.text; font.pixelSize: 16; font.weight: Font.DemiBold }
+
+                Item {
+                    id: releaseStatusHost
+                    Layout.preferredWidth: 16
+                    Layout.preferredHeight: 24
+                    Layout.alignment: Qt.AlignVCenter
+                    Accessible.name: "Release version status"
+
+                    HoverHandler { id: releaseStatusHover }
+                    ToolTip.visible: releaseStatusHover.hovered
+                    ToolTip.delay: 350
+                    ToolTip.text: window.releaseStatusTooltip
+
+                    Rectangle {
+                        anchors.centerIn: parent
+                        width: 8
+                        height: 8
+                        radius: width / 2
+                        color: window.releaseStatusColor
+                        border.width: 1
+                        border.color: "#28FFFFFF"
+                    }
+                }
+
+                Item { Layout.fillWidth: true }
+
                 Button {
                     text: "×"
                     Layout.preferredWidth: 30
