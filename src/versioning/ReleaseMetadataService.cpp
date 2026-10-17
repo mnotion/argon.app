@@ -1,9 +1,11 @@
 #include "ReleaseMetadataService.h"
 
 #include <QCoreApplication>
+#include <QDateTime>
 #include <QNetworkReply>
 #include <QNetworkRequest>
 #include <QUrl>
+#include <QUrlQuery>
 
 #include "LatestReleaseMetadata.h"
 #include "VersionNumber.h"
@@ -101,12 +103,34 @@ void ReleaseMetadataService::checkForUpdates()
     m_status = QStringLiteral("Checking for the latest stable release...");
     emit stateChanged();
 
-    QNetworkRequest request(m_metadataUrl);
+    // Bypass intermediary caches for the public raw GitHub metadata endpoint.
+    // The unique query also makes each periodic request a fresh cache key.
+    QUrl requestUrl = m_metadataUrl;
+    if (requestUrl.host().compare(
+            QStringLiteral("raw.githubusercontent.com"), Qt::CaseInsensitive) == 0) {
+        QUrlQuery query(requestUrl);
+        query.removeAllQueryItems(QStringLiteral("_argon_refresh"));
+        query.addQueryItem(
+            QStringLiteral("_argon_refresh"),
+            QString::number(QDateTime::currentMSecsSinceEpoch()));
+        requestUrl.setQuery(query);
+    }
+
+    QNetworkRequest request(requestUrl);
     request.setRawHeader(QByteArrayLiteral("Accept"), QByteArrayLiteral("application/json"));
+    request.setRawHeader(
+        QByteArrayLiteral("Cache-Control"),
+        QByteArrayLiteral("no-cache, no-store, max-age=0"));
+    request.setRawHeader(QByteArrayLiteral("Pragma"), QByteArrayLiteral("no-cache"));
     request.setHeader(
         QNetworkRequest::UserAgentHeader,
         QStringLiteral("Argon/%1").arg(m_currentVersion));
-    request.setTransferTimeout(15000);
+    // Keep a stalled connection from blocking the next 10-second retry slot.
+    request.setTransferTimeout(8000);
+    request.setAttribute(
+        QNetworkRequest::CacheLoadControlAttribute,
+        QNetworkRequest::AlwaysNetwork);
+    request.setAttribute(QNetworkRequest::CacheSaveControlAttribute, false);
     request.setAttribute(
         QNetworkRequest::RedirectPolicyAttribute,
         QNetworkRequest::NoLessSafeRedirectPolicy);
