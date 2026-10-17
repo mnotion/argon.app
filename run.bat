@@ -6,8 +6,13 @@ rem Use the checked-in Argon folder as the data root for development tests.
 rem Installed builds leave ARGON_DATA_ROOT unset and use %LOCALAPPDATA%\Argon.
 set "ARGON_DATA_ROOT=%~dp0Argon"
 
-call "%~dp0build.bat"
-if errorlevel 1 exit /b %errorlevel%
+call "%~dp0build.bat" /nopause
+if errorlevel 1 (
+    echo.
+    echo [ERROR] Argon could not be built. See the build output above.
+    pause
+    exit /b 1
+)
 
 set "QT_ROOT=C:\Qt\6.12.0\mingw_64"
 set "MINGW_ROOT=C:\Qt\Tools\mingw1310_64"
