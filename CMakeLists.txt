@@ -77,7 +77,13 @@ if(WIN32)
 
     # MinGW needs -municode to use the Unicode wWinMain entry point.
     if(MINGW)
-        target_link_options(ArgonBootstrap PRIVATE -municode)
+        # Keep the standalone recovery executable independent of MinGW runtime DLLs.
+        target_link_options(ArgonBootstrap PRIVATE
+            -municode
+            -static
+            -static-libgcc
+            -static-libstdc++
+        )
     endif()
     target_compile_definitions(ArgonBootstrap PRIVATE
         "ARGON_BOOTSTRAP_VERSION=\"1.0.0.0\""
