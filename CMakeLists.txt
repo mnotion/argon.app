@@ -47,6 +47,15 @@ qt_add_qml_module(Argon
 
 target_link_libraries(Argon PRIVATE Qt6::Quick Qt6::QuickControls2 Qt6::Pdf Qt6::PdfQuick)
 
+# Optional external runtime output directory used by build.bat to assemble
+# the runnable desktop Argon-sim bundle. CMake build intermediates stay in build/.
+if(DEFINED ARGON_RUNTIME_OUTPUT_DIR AND NOT ARGON_RUNTIME_OUTPUT_DIR STREQUAL "")
+    file(MAKE_DIRECTORY "${ARGON_RUNTIME_OUTPUT_DIR}")
+    set_target_properties(Argon PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY "${ARGON_RUNTIME_OUTPUT_DIR}"
+    )
+endif()
+
 if(WIN32)
     set_target_properties(Argon PROPERTIES WIN32_EXECUTABLE TRUE)
 endif()
