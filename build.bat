@@ -68,6 +68,21 @@ echo === Preparing desktop test folder ===
 if not exist "%SIM_ROOT%" mkdir "%SIM_ROOT%"
 if errorlevel 1 goto :build_failed
 
+rem Create the same directory tree that the running application will use.
+rem Repeated builds preserve all UserData, Updates, and Logs content.
+if not exist "%SIM_ROOT%\Updater" mkdir "%SIM_ROOT%\Updater"
+if not exist "%SIM_ROOT%\Bootstrap" mkdir "%SIM_ROOT%\Bootstrap"
+if not exist "%SIM_ROOT%\UserData\Settings" mkdir "%SIM_ROOT%\UserData\Settings"
+if not exist "%SIM_ROOT%\UserData\Cache" mkdir "%SIM_ROOT%\UserData\Cache"
+if not exist "%SIM_ROOT%\UserData\Search QR" mkdir "%SIM_ROOT%\UserData\Search QR"
+if not exist "%SIM_ROOT%\UserData\Documents" mkdir "%SIM_ROOT%\UserData\Documents"
+if not exist "%SIM_ROOT%\UserData\Accounts" mkdir "%SIM_ROOT%\UserData\Accounts"
+if not exist "%SIM_ROOT%\UserData\Analytics\Daily" mkdir "%SIM_ROOT%\UserData\Analytics\Daily"
+if not exist "%SIM_ROOT%\Updates\Downloads" mkdir "%SIM_ROOT%\Updates\Downloads"
+if not exist "%SIM_ROOT%\Updates\Staging" mkdir "%SIM_ROOT%\Updates\Staging"
+if not exist "%SIM_ROOT%\Updates\Backups" mkdir "%SIM_ROOT%\Updates\Backups"
+if not exist "%SIM_ROOT%\Logs" mkdir "%SIM_ROOT%\Logs"
+
 rem App contains only the executable payload. Rebuild it cleanly so stale Qt DLLs
 rem from a previous build cannot remain beside the new executable.
 if exist "%SIM_APP_DIR%" (
