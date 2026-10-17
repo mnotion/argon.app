@@ -99,7 +99,17 @@ int main(int argc, char *argv[])
 
     engine.loadFromModule("Argon", "Main");
 
-    // This is an asynchronous metadata check only; it never downloads or installs a package.
+    // Check immediately, then retry/recheck every 10 seconds for the lifetime of the app.
+    QTimer *releaseMetadataRetryTimer = new QTimer(&app);
+    releaseMetadataRetryTimer->setTimerType(Qt::PreciseTimer);
+    releaseMetadataRetryTimer->setInterval(10000);
+    QObject::connect(
+        releaseMetadataRetryTimer,
+        &QTimer::timeout,
+        &releaseMetadataService,
+        &ReleaseMetadataService::checkForUpdates);
+    releaseMetadataRetryTimer->start();
+
     QTimer::singleShot(0, &releaseMetadataService, &ReleaseMetadataService::checkForUpdates);
 
     return app.exec();
