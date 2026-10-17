@@ -10,7 +10,11 @@ if /I "%~1"=="/nopause" set "KEEP_WINDOW_OPEN=0"
 set "QT_ROOT=C:\Qt\6.12.0\mingw_64"
 set "MINGW_ROOT=C:\Qt\Tools\mingw1310_64"
 set "BUILD_DIR=%~dp0build"
-set "SIM_ROOT=%USERPROFILE%\Desktop\Argon-sim"
+rem Resolve the actual Windows Desktop folder (including OneDrive redirection).
+set "DESKTOP_DIR="
+for /f "usebackq delims=" %%D in (`powershell.exe -NoProfile -Command "[Environment]::GetFolderPath('Desktop')" 2^>nul`) do set "DESKTOP_DIR=%%D"
+if not defined DESKTOP_DIR set "DESKTOP_DIR=%USERPROFILE%\Desktop"
+set "SIM_ROOT=%DESKTOP_DIR%\Argon-sim"
 set "SIM_APP_DIR=%SIM_ROOT%\App"
 set "SIM_STAGE_ROOT=%SIM_ROOT%\.build-stage"
 set "SIM_STAGE_APP_DIR=%SIM_STAGE_ROOT%\App"
@@ -133,6 +137,10 @@ if errorlevel 1 (
     if exist "%PREVIOUS_APP_DIR%" if not exist "%SIM_APP_DIR%" move "%PREVIOUS_APP_DIR%" "%SIM_APP_DIR%" >nul
     goto :build_failed
 )
+
+rem Remove the old runnable executable left by previous build scripts.
+rem Current runnable output belongs under Argon-sim\App.
+if exist "%BUILD_DIR%\Argon.exe" del /f /q "%BUILD_DIR%\Argon.exe"
 
 rem Remove old app payload only after the new bundle has been activated.
 if exist "%PREVIOUS_APP_DIR%" (
