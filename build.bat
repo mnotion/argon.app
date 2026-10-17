@@ -1,4 +1,5 @@
 @echo off
+color 0A
 setlocal EnableExtensions
 cd /d "%~dp0"
 
