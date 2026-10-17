@@ -54,9 +54,25 @@ if errorlevel 1 (
 )
 
 echo.
+echo === Deploying Qt runtime dependencies ===
+if not exist "%QT_ROOT%\bin\windeployqt.exe" (
+    echo [ERROR] windeployqt.exe was not found under "%QT_ROOT%\bin".
+    echo Install the Qt deployment tools for this Qt kit.
+    goto :build_failed
+)
+
+"%QT_ROOT%\bin\windeployqt.exe" --qmldir "%~dp0qml" --compiler-runtime "%BUILD_DIR%\Argon.exe"
+if errorlevel 1 (
+    echo.
+    echo [ERROR] Qt dependency deployment failed. See the output above.
+    goto :build_failed
+)
+
+echo.
 echo ========================================
-echo BUILD SUCCEEDED
+echo BUILD AND DEPLOYMENT SUCCEEDED
 echo Executable: "%BUILD_DIR%\Argon.exe"
+echo Qt runtime DLLs, plugins, and QML modules deployed beside the executable.
 echo ========================================
 if not exist "%BUILD_DIR%\Argon.exe" (
     echo [ERROR] Build command succeeded, but build\Argon.exe was not found.
