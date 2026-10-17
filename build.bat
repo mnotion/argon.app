@@ -138,7 +138,12 @@ if errorlevel 1 (
     goto :build_failed
 )
 
-rem Remove the old runnable executable left by previous build scripts.
+rem Clear runtime payload copies deployed into build/ by earlier versions of this script.
+rem CMake intermediates remain there; the runnable app and Qt payload live under Argon-sim.
+if exist "%BUILD_DIR%\Argon.exe" del /f /q "%BUILD_DIR%\Argon.exe"
+for %%F in ("%BUILD_DIR%\*.dll") do if exist "%%~fF" del /f /q "%%~fF"
+for %%D in (plugins qml translations platforms imageformats iconengines styles tls networkinformation generic printsupport) do if exist "%BUILD_DIR%\%%~D" rmdir /s /q "%BUILD_DIR%\%%~D"
+
 rem Current runnable output belongs under Argon-sim\App.
 if exist "%BUILD_DIR%\Argon.exe" del /f /q "%BUILD_DIR%\Argon.exe"
 
