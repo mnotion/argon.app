@@ -8,7 +8,7 @@
 
 ## Run locally
 The scripts expect Qt at `C:\Qt\6.12.0\mingw_64` and MinGW at `C:\Qt\Tools\mingw1310_64`.
-Double-click `run.bat` to configure, build and launch Argon. Build output is placed in `build\`.
+Double-click `build.bat` to compile Argon and deploy the runnable application plus Qt dependencies to `%USERPROFILE%\Desktop\Argon-sim\App`. The `build\` directory contains only CMake build intermediates. Double-click `run.bat` to build/deploy and launch the desktop test copy; runtime data and logs are kept under `%USERPROFILE%\Desktop\Argon-sim\`.
 
 ## Architecture
 - `src/app/`: application-wide services and lifecycle integration.
