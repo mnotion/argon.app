@@ -1,8 +1,8 @@
 #include <QCoreApplication>
 #include <QByteArray>
+#include <QStringList>
 
 #include <iostream>
-#include <limits>
 
 #include "LatestReleaseMetadata.h"
 #include "VersionNumber.h"
