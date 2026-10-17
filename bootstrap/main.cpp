@@ -1357,6 +1357,8 @@ CheckResult runStatusCheck() {
     return result;
 }
 
+void setControlText(HWND control, const std::wstring &value);
+
 std::wstring checkBootstrapVersionStatus() {
     const std::string localVersion = ARGON_BOOTSTRAP_VERSION;
     std::array<unsigned long long, 4> parsedLocal{};
