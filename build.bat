@@ -144,9 +144,6 @@ if exist "%BUILD_DIR%\Argon.exe" del /f /q "%BUILD_DIR%\Argon.exe"
 for %%F in ("%BUILD_DIR%\*.dll") do if exist "%%~fF" del /f /q "%%~fF"
 for %%D in (plugins qml translations platforms imageformats iconengines styles tls networkinformation generic printsupport) do if exist "%BUILD_DIR%\%%~D" rmdir /s /q "%BUILD_DIR%\%%~D"
 
-rem Current runnable output belongs under Argon-sim\App.
-if exist "%BUILD_DIR%\Argon.exe" del /f /q "%BUILD_DIR%\Argon.exe"
-
 rem Remove old app payload only after the new bundle has been activated.
 if exist "%PREVIOUS_APP_DIR%" (
     rmdir /s /q "%PREVIOUS_APP_DIR%"
