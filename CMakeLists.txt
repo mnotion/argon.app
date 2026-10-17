@@ -60,14 +60,14 @@ target_link_libraries(Argon PRIVATE
 )
 
 # This CMake project version is the application's single version source.
-target_compile_definitions(Argon PRIVATE "ARGON_VERSION_STRING=\"\${PROJECT_VERSION}\"")
+target_compile_definitions(Argon PRIVATE "ARGON_VERSION_STRING=\"${PROJECT_VERSION}\"")
 
 # Optional external runtime output directory used by build.bat to assemble
 # the runnable desktop Argon-sim bundle. CMake build intermediates stay in build/.
 if(DEFINED ARGON_RUNTIME_OUTPUT_DIR AND NOT ARGON_RUNTIME_OUTPUT_DIR STREQUAL "")
-    file(MAKE_DIRECTORY "\${ARGON_RUNTIME_OUTPUT_DIR}")
+    file(MAKE_DIRECTORY "${ARGON_RUNTIME_OUTPUT_DIR}")
     set_target_properties(Argon PROPERTIES
-        RUNTIME_OUTPUT_DIRECTORY "\${ARGON_RUNTIME_OUTPUT_DIR}"
+        RUNTIME_OUTPUT_DIRECTORY "${ARGON_RUNTIME_OUTPUT_DIR}"
     )
 endif()
 
@@ -87,7 +87,7 @@ if(ARGON_BUILD_VERSIONING_TESTS)
         src/versioning/LatestReleaseMetadata.h
     )
     target_include_directories(ArgonVersioningTests PRIVATE
-        "\${CMAKE_CURRENT_SOURCE_DIR}/src/versioning"
+        "${CMAKE_CURRENT_SOURCE_DIR}/src/versioning"
     )
     target_link_libraries(ArgonVersioningTests PRIVATE Qt6::Core)
     add_test(NAME ArgonVersioningTests COMMAND ArgonVersioningTests)
