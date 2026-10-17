@@ -115,6 +115,7 @@ if(ARGON_BUILD_VERSIONING_TESTS)
     add_executable(ArgonVersioningTests
         tests/versioning/VersioningTests.cpp
         src/versioning/VersionNumber.cpp
+        src/versioning/VersionNumber.h
         src/versioning/LatestReleaseMetadata.cpp
         src/versioning/LatestReleaseMetadata.h
     )
