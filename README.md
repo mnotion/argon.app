@@ -12,6 +12,7 @@ Double-click `build.bat` to compile Argon and deploy the runnable application pl
 
 ## Architecture
 - `src/app/`: application-wide services and lifecycle integration.
+- `src/versioning/`: strict three-part version parsing/comparison and latest-release metadata lookup.
 - `src/documents/`: document domain and document operations.
 - `src/ink/`: reserved for the dedicated stylus/ink engine.
 - `src/pdf/`: reserved for PDF integration.
@@ -50,3 +51,22 @@ The application provisions folders but does not copy its own executable into `Ap
 
 ## Status
 The modular shell provisions the runtime directory layout through `AppPaths`. Normal Windows launches use `%LOCALAPPDATA%\Argon`; `run.bat` overrides the root to the repository's `Argon/` folder for development testing. Search content, runtime logs, and daily analytics use the centralized paths. One-time, non-destructive migrations preserve legacy files. Settings persistence, document storage, updater binaries, bootstrap binaries, and ink rendering remain in progress. Build and runtime validation are required after each milestone.
+
+
+## Versioning
+
+The current app version is defined once in the CMake project version (`0.1.0`) and exposed through `QCoreApplication::applicationVersion()` and `AppServices.version`. Versions currently use strict `MAJOR.MINOR.PATCH` form only. Components are compared numerically, so `1.10.0` is newer than `1.9.0`; suffixes such as `-dev` are intentionally not accepted in this first versioning milestone.
+
+`src/versioning/ReleaseMetadataService.*` fetches and validates `latest.json` asynchronously. It only discovers version information; it does not download or install updates. The default metadata URL is in `src/versioning/ReleaseMetadataService.cpp`. Override it for development with `ARGON_LATEST_JSON_URL`. Since `argon.updater` is private, the default raw GitHub URL cannot be read anonymously by installed clients. Do not add a GitHub token to Argon; production checks need a client-accessible metadata endpoint.
+
+### Run the offline versioning tests
+
+From PowerShell at the repository root:
+
+```powershell
+cmake -S . -B build-version-tests -G "MinGW Makefiles" -DCMAKE_PREFIX_PATH="C:\Qt\6.12.0\mingw_64" -DCMAKE_CXX_COMPILER="C:\Qt\Tools\mingw1310_64\bin\g++.exe" -DCMAKE_MAKE_PROGRAM="C:\Qt\Tools\mingw1310_64\bin\mingw32-make.exe" -DARGON_BUILD_VERSIONING_TESTS=ON
+cmake --build build-version-tests --target ArgonVersioningTests --parallel
+ctest --test-dir build-version-tests --output-on-failure
+```
+
+These tests do not require network access and do not modify the normal `build/` directory used by `build.bat`.
