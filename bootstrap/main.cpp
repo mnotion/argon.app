@@ -4,8 +4,11 @@
 #include <winhttp.h>
 #include <bcrypt.h>
 #include <winver.h>
+#include <commctrl.h>
 
 #include <algorithm>
+#include <cctype>
+#include <cwchar>
 #include <array>
 #include <cstdint>
 #include <filesystem>
@@ -1016,7 +1019,7 @@ std::wstring timestampForBackup() {
     SYSTEMTIME now{};
     GetLocalTime(&now);
     wchar_t buffer[64]{};
-    swprintf_s(buffer, L"%04u%02u%02u-%02u%02u%02u-%03u",
+    swprintf(buffer, 64, L"%04u%02u%02u-%02u%02u%02u-%03u",
                now.wYear, now.wMonth, now.wDay, now.wHour,
                now.wMinute, now.wSecond, now.wMilliseconds);
     return buffer;
