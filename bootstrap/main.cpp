@@ -65,7 +65,7 @@ std::wstring widenUtf8(const std::string &value) {
                                             nullptr, 0);
     if (needed <= 0)
         return L"";
-    std::wstring result(static_cast<size_t>(needed), L'\\0');
+    std::wstring result(static_cast<size_t>(needed), L'\0');
     MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, value.data(),
                         static_cast<int>(value.size()), result.data(), needed);
     return result;
@@ -80,7 +80,7 @@ std::string narrowUtf8(const std::wstring &value) {
                                             nullptr, 0, nullptr, nullptr);
     if (needed <= 0)
         return {};
-    std::string result(static_cast<size_t>(needed), '\\0');
+    std::string result(static_cast<size_t>(needed), '\0');
     WideCharToMultiByte(CP_UTF8, WC_ERR_INVALID_CHARS, value.data(),
                         static_cast<int>(value.size()), result.data(), needed,
                         nullptr, nullptr);
@@ -101,7 +101,7 @@ std::wstring systemErrorText(const wchar_t *operation, DWORD code = GetLastError
     if (messageBuffer)
         LocalFree(messageBuffer);
     while (!message.empty()
-           && (message.back() == L'\\r' || message.back() == L'\\n'
+           && (message.back() == L'\r' || message.back() == L'\n'
                || message.back() == L' ')) {
         message.pop_back();
     }
@@ -109,7 +109,7 @@ std::wstring systemErrorText(const wchar_t *operation, DWORD code = GetLastError
 }
 
 std::optional<Paths> resolvePaths(std::wstring &error) {
-    std::vector<wchar_t> buffer(32768, L'\\0');
+    std::vector<wchar_t> buffer(32768, L'\0');
     const DWORD length = GetModuleFileNameW(nullptr, buffer.data(),
                                              static_cast<DWORD>(buffer.size()));
     if (length == 0 || length >= buffer.size()) {
@@ -310,8 +310,8 @@ private:
 
     void skipWhitespace() {
         while (position_ < text_.size()
-               && (text_[position_] == ' ' || text_[position_] == '\\t'
-                   || text_[position_] == '\\r' || text_[position_] == '\\n')) {
+               && (text_[position_] == ' ' || text_[position_] == '\t'
+                   || text_[position_] == '\r' || text_[position_] == '\n')) {
             ++position_;
         }
     }
@@ -362,11 +362,11 @@ private:
             case '"': out.push_back('"'); break;
             case '\\': out.push_back('\\'); break;
             case '/': out.push_back('/'); break;
-            case 'b': out.push_back('\\b'); break;
-            case 'f': out.push_back('\\f'); break;
-            case 'n': out.push_back('\\n'); break;
-            case 'r': out.push_back('\\r'); break;
-            case 't': out.push_back('\\t'); break;
+            case 'b': out.push_back('\b'); break;
+            case 'f': out.push_back('\f'); break;
+            case 'n': out.push_back('\n'); break;
+            case 'r': out.push_back('\r'); break;
+            case 't': out.push_back('\t'); break;
             case 'u': {
                 if (position_ + 4 > text_.size())
                     return false;
@@ -446,7 +446,7 @@ private:
         while (position_ < text_.size()) {
             const char ch = text_[position_];
             if (ch == ',' || ch == '}' || ch == ']' || ch == ' '
-                || ch == '\\t' || ch == '\\r' || ch == '\\n') {
+                || ch == '\t' || ch == '\r' || ch == '\n') {
                 break;
             }
             ++position_;
@@ -726,7 +726,7 @@ bool openSecureGet(const std::wstring &url, HttpHandles &handles,
     WinHttpSetOption(handles.request, WINHTTP_OPTION_REDIRECT_POLICY,
                      &redirectPolicy, sizeof(redirectPolicy));
 #endif
-    const wchar_t *headers = L"Accept: application/json, application/octet-stream\\r\\nCache-Control: no-cache\\r\\n";
+    const wchar_t *headers = L"Accept: application/json, application/octet-stream\r\nCache-Control: no-cache\r\n";
     if (!WinHttpSendRequest(handles.request, headers, static_cast<DWORD>(-1),
                             WINHTTP_NO_REQUEST_DATA, 0, 0, 0)
         || !WinHttpReceiveResponse(handles.request, nullptr)) {
@@ -899,7 +899,7 @@ std::map<std::string, std::string> parseKeyValueLines(const std::string &text) {
     std::map<std::string, std::string> values;
     size_t position = 0;
     while (position < text.size()) {
-        size_t end = text.find_first_of("\\r\\n", position);
+        size_t end = text.find_first_of("\r\n", position);
         if (end == std::string::npos)
             end = text.size();
         const std::string line = text.substr(position, end - position);
@@ -1477,8 +1477,8 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
     windowClass.cbSize = sizeof(windowClass);
     windowClass.lpfnWndProc = windowProcedure;
     windowClass.hInstance = instance;
-    windowClass.hIcon = LoadIconW(nullptr, IDI_APPLICATION);
-    windowClass.hCursor = LoadCursorW(nullptr, IDC_ARROW);
+    windowClass.hIcon = LoadIconW(nullptr, MAKEINTRESOURCEW(32512));
+    windowClass.hCursor = LoadCursorW(nullptr, MAKEINTRESOURCEW(32512));
     windowClass.hbrBackground = reinterpret_cast<HBRUSH>(COLOR_WINDOW + 1);
     windowClass.lpszClassName = kWindowClass;
 
