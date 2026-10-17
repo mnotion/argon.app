@@ -31,6 +31,8 @@ namespace fs = std::filesystem;
 namespace {
 constexpr wchar_t kWindowClass[] = L"ArgonBootstrapWindow";
 constexpr UINT kCheckCompleteMessage = WM_APP + 14;
+constexpr UINT kBootstrapVersionCheckCompleteMessage = WM_APP + 15;
+constexpr UINT_PTR kBootstrapVersionRefreshTimerId = 101;
 constexpr unsigned long long kMaximumMetadataBytes = 1024ULL * 1024ULL;
 constexpr unsigned long long kMaximumUpdaterBytes = 512ULL * 1024ULL * 1024ULL;
 
@@ -38,6 +40,7 @@ HWND g_bootstrapStatus = nullptr;
 HWND g_updaterStatus = nullptr;
 HWND g_details = nullptr;
 HFONT g_headingFont = nullptr;
+volatile LONG g_bootstrapVersionCheckInProgress = 0;
 
 struct CheckResult {
     std::wstring bootstrapStatus;
@@ -726,7 +729,7 @@ bool openSecureGet(const std::wstring &url, HttpHandles &handles,
     WinHttpSetOption(handles.request, WINHTTP_OPTION_REDIRECT_POLICY,
                      &redirectPolicy, sizeof(redirectPolicy));
 #endif
-    const wchar_t *headers = L"Accept: application/json, application/octet-stream\r\nCache-Control: no-cache\r\n";
+    const wchar_t *headers = L"Accept: application/json, application/octet-stream\r\nCache-Control: no-cache, no-store, max-age=0\r\nPragma: no-cache\r\n";
     if (!WinHttpSendRequest(handles.request, headers, static_cast<DWORD>(-1),
                             WINHTTP_NO_REQUEST_DATA, 0, 0, 0)
         || !WinHttpReceiveResponse(handles.request, nullptr)) {
@@ -1354,6 +1357,61 @@ CheckResult runStatusCheck() {
     return result;
 }
 
+std::wstring checkBootstrapVersionStatus() {
+    const std::string localVersion = ARGON_BOOTSTRAP_VERSION;
+    std::array<unsigned long long, 4> parsedLocal{};
+    if (!parseVersion(localVersion, parsedLocal))
+        return L"Installed Bootstrap version is invalid.";
+
+    std::string manifestText;
+    std::wstring networkError;
+    if (!httpGetText(widenUtf8(ARGON_BOOTSTRAP_LATEST_URL), manifestText, networkError))
+        return L"Could not verify Bootstrap's latest version.";
+
+    std::map<std::string, std::string> manifest;
+    std::wstring jsonError;
+    if (!parseJson(manifestText, manifest, jsonError) || !getSchema(manifest, jsonError))
+        return L"Bootstrap release metadata is invalid.";
+
+    const auto latestVersion = field(manifest, "bootstrapVersion");
+    std::array<unsigned long long, 4> parsedLatest{};
+    if (!latestVersion || !parseVersion(*latestVersion, parsedLatest))
+        return L"Bootstrap release metadata has an invalid version.";
+
+    const int comparison = compareVersions(localVersion, *latestVersion);
+    if (comparison < 0) {
+        return L"A newer Bootstrap is available (v"
+            + widenUtf8(*latestVersion) + L").";
+    }
+    if (comparison > 0) {
+        return L"Installed Bootstrap is newer than the configured stable version.";
+    }
+    return L"Bootstrap is up to date (v" + widenUtf8(localVersion) + L").";
+}
+
+void startBootstrapVersionCheck(HWND window) {
+    if (InterlockedCompareExchange(&g_bootstrapVersionCheckInProgress, 1, 0) != 0)
+        return;
+
+    HANDLE thread = CreateThread(nullptr, 0,
+        [](LPVOID parameter) -> DWORD {
+            HWND target = static_cast<HWND>(parameter);
+            auto result = new std::wstring(checkBootstrapVersionStatus());
+            InterlockedExchange(&g_bootstrapVersionCheckInProgress, 0);
+            if (!PostMessageW(target, kBootstrapVersionCheckCompleteMessage, 0,
+                              reinterpret_cast<LPARAM>(result))) {
+                delete result;
+            }
+            return 0;
+        }, window, 0, nullptr);
+    if (thread) {
+        CloseHandle(thread);
+    } else {
+        InterlockedExchange(&g_bootstrapVersionCheckInProgress, 0);
+        setControlText(g_bootstrapStatus, L"Could not start Bootstrap version check.");
+    }
+}
+
 void setControlText(HWND control, const std::wstring &value) {
     if (control)
         SetWindowTextW(control, value.c_str());
@@ -1443,8 +1501,21 @@ LRESULT CALLBACK windowProcedure(HWND window, UINT message,
             setControlText(g_updaterStatus, result->updaterStatus);
             setControlText(g_details, result->details);
         }
+        SetTimer(window, kBootstrapVersionRefreshTimerId, 10000, nullptr);
         return 0;
     }
+    case kBootstrapVersionCheckCompleteMessage: {
+        std::unique_ptr<std::wstring> status(reinterpret_cast<std::wstring *>(lParam));
+        if (status)
+            setControlText(g_bootstrapStatus, *status);
+        return 0;
+    }
+    case WM_TIMER:
+        if (wParam == kBootstrapVersionRefreshTimerId) {
+            startBootstrapVersionCheck(window);
+            return 0;
+        }
+        break;
     case WM_COMMAND:
         if (LOWORD(wParam) == IDCANCEL) {
             DestroyWindow(window);
@@ -1455,6 +1526,7 @@ LRESULT CALLBACK windowProcedure(HWND window, UINT message,
         DestroyWindow(window);
         return 0;
     case WM_DESTROY:
+        KillTimer(window, kBootstrapVersionRefreshTimerId);
         if (g_headingFont) {
             DeleteObject(g_headingFont);
             g_headingFont = nullptr;
