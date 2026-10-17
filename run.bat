@@ -2,6 +2,21 @@
 setlocal EnableExtensions
 cd /d "%~dp0"
 
+echo ========================================
+echo Argon build, deploy, and launch
+echo ========================================
+echo.
+echo === Building and deploying Argon before launch ===
+call "%~dp0build.bat" /nopause
+if errorlevel 1 (
+    echo.
+    echo [ERROR] Build/deployment failed. Argon was not launched.
+    echo Review the diagnostic output above.
+    echo.
+    pause
+    exit /b 1
+)
+
 set "QT_ROOT=C:\Qt\6.12.0\mingw_64"
 set "MINGW_ROOT=C:\Qt\Tools\mingw1310_64"
 rem Resolve the actual Windows Desktop folder (including OneDrive redirection).
@@ -12,16 +27,13 @@ set "SIM_ROOT=%DESKTOP_DIR%\Argon-sim"
 set "SIM_APP_DIR=%SIM_ROOT%\App"
 set "ARGON_DATA_ROOT=%SIM_ROOT%"
 
-echo ========================================
-echo Argon-sim runtime test
-echo ========================================
+echo.
+echo === Running freshly built Argon ===
 echo Test installation: %SIM_ROOT%
 echo.
 
-rem Running must not compile or deploy dependencies. Use build.bat explicitly for that.
 if not exist "%SIM_APP_DIR%\Argon.exe" (
-    echo [ERROR] Deployed Argon.exe was not found at "%SIM_APP_DIR%\Argon.exe".
-    echo Run build.bat first to compile Argon and deploy its Qt dependencies.
+    echo [ERROR] Build succeeded but deployed Argon.exe was not found at "%SIM_APP_DIR%\Argon.exe".
     echo.
     pause
     exit /b 1
