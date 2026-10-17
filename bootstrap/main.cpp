@@ -696,7 +696,8 @@ bool openSecureGet(const std::wstring &url, HttpHandles &handles,
         path += extra;
     }
 
-    handles.session = WinHttpOpen(L"ArgonBootstrap/" ARGON_BOOTSTRAP_VERSION,
+    const std::wstring agent = L"ArgonBootstrap/" + widenUtf8(ARGON_BOOTSTRAP_VERSION);
+    handles.session = WinHttpOpen(agent.c_str(),
                                   WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY,
                                   WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
     if (!handles.session) {
@@ -1019,7 +1020,7 @@ std::wstring timestampForBackup() {
     SYSTEMTIME now{};
     GetLocalTime(&now);
     wchar_t buffer[64]{};
-    swprintf(buffer, 64, L"%04u%02u%02u-%02u%02u%02u-%03u",
+    std::swprintf(buffer, 64, L"%04u%02u%02u-%02u%02u%02u-%03u",
                now.wYear, now.wMonth, now.wDay, now.wHour,
                now.wMinute, now.wSecond, now.wMilliseconds);
     return buffer;
