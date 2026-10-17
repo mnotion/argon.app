@@ -31,8 +31,6 @@ namespace fs = std::filesystem;
 namespace {
 constexpr wchar_t kWindowClass[] = L"ArgonBootstrapWindow";
 constexpr UINT kCheckCompleteMessage = WM_APP + 14;
-constexpr UINT kBootstrapVersionCheckCompleteMessage = WM_APP + 15;
-constexpr UINT_PTR kBootstrapVersionRefreshTimerId = 101;
 constexpr unsigned long long kMaximumMetadataBytes = 1024ULL * 1024ULL;
 constexpr unsigned long long kMaximumUpdaterBytes = 512ULL * 1024ULL * 1024ULL;
 
@@ -40,7 +38,6 @@ HWND g_bootstrapStatus = nullptr;
 HWND g_updaterStatus = nullptr;
 HWND g_details = nullptr;
 HFONT g_headingFont = nullptr;
-volatile LONG g_bootstrapVersionCheckInProgress = 0;
 
 struct CheckResult {
     std::wstring bootstrapStatus;
@@ -1359,61 +1356,6 @@ CheckResult runStatusCheck() {
 
 void setControlText(HWND control, const std::wstring &value);
 
-std::wstring checkBootstrapVersionStatus() {
-    const std::string localVersion = ARGON_BOOTSTRAP_VERSION;
-    std::array<unsigned long long, 4> parsedLocal{};
-    if (!parseVersion(localVersion, parsedLocal))
-        return L"Installed Bootstrap version is invalid.";
-
-    std::string manifestText;
-    std::wstring networkError;
-    if (!httpGetText(widenUtf8(ARGON_BOOTSTRAP_LATEST_URL), manifestText, networkError))
-        return L"Could not verify Bootstrap's latest version.";
-
-    std::map<std::string, std::string> manifest;
-    std::wstring jsonError;
-    if (!parseJson(manifestText, manifest, jsonError) || !getSchema(manifest, jsonError))
-        return L"Bootstrap release metadata is invalid.";
-
-    const auto latestVersion = field(manifest, "bootstrapVersion");
-    std::array<unsigned long long, 4> parsedLatest{};
-    if (!latestVersion || !parseVersion(*latestVersion, parsedLatest))
-        return L"Bootstrap release metadata has an invalid version.";
-
-    const int comparison = compareVersions(localVersion, *latestVersion);
-    if (comparison < 0) {
-        return L"A newer Bootstrap is available (v"
-            + widenUtf8(*latestVersion) + L").";
-    }
-    if (comparison > 0) {
-        return L"Installed Bootstrap is newer than the configured stable version.";
-    }
-    return L"Bootstrap is up to date (v" + widenUtf8(localVersion) + L").";
-}
-
-void startBootstrapVersionCheck(HWND window) {
-    if (InterlockedCompareExchange(&g_bootstrapVersionCheckInProgress, 1, 0) != 0)
-        return;
-
-    HANDLE thread = CreateThread(nullptr, 0,
-        [](LPVOID parameter) -> DWORD {
-            HWND target = static_cast<HWND>(parameter);
-            auto result = new std::wstring(checkBootstrapVersionStatus());
-            InterlockedExchange(&g_bootstrapVersionCheckInProgress, 0);
-            if (!PostMessageW(target, kBootstrapVersionCheckCompleteMessage, 0,
-                              reinterpret_cast<LPARAM>(result))) {
-                delete result;
-            }
-            return 0;
-        }, window, 0, nullptr);
-    if (thread) {
-        CloseHandle(thread);
-    } else {
-        InterlockedExchange(&g_bootstrapVersionCheckInProgress, 0);
-        setControlText(g_bootstrapStatus, L"Could not start Bootstrap version check.");
-    }
-}
-
 void setControlText(HWND control, const std::wstring &value) {
     if (control)
         SetWindowTextW(control, value.c_str());
@@ -1493,35 +1435,21 @@ LRESULT CALLBACK windowProcedure(HWND window, UINT message,
             GetModuleHandleW(nullptr), nullptr);
         setControlFont(closeButton, regularFont);
 
-        // Keep Bootstrap version detection independent from the updater check.
-        // Start immediately and refresh every 10 seconds, like Argon's release checker.
-        SetTimer(window, kBootstrapVersionRefreshTimerId, 10000, nullptr);
-        startBootstrapVersionCheck(window);
+        // Fetch the release manifest once per launch. The same validated
+        // response drives both Bootstrap and updater version statuses.
         startStatusCheck(window);
         return 0;
     }
     case kCheckCompleteMessage: {
         std::unique_ptr<CheckResult> result(reinterpret_cast<CheckResult *>(lParam));
         if (result) {
-            // This worker checks updater state. Do not let it overwrite the
-            // separate Bootstrap version check's result.
+            // One manifest request determines both displayed version statuses.
+            setControlText(g_bootstrapStatus, result->bootstrapStatus);
             setControlText(g_updaterStatus, result->updaterStatus);
             setControlText(g_details, result->details);
         }
         return 0;
     }
-    case kBootstrapVersionCheckCompleteMessage: {
-        std::unique_ptr<std::wstring> status(reinterpret_cast<std::wstring *>(lParam));
-        if (status)
-            setControlText(g_bootstrapStatus, *status);
-        return 0;
-    }
-    case WM_TIMER:
-        if (wParam == kBootstrapVersionRefreshTimerId) {
-            startBootstrapVersionCheck(window);
-            return 0;
-        }
-        break;
     case WM_COMMAND:
         if (LOWORD(wParam) == IDCANCEL) {
             DestroyWindow(window);
@@ -1532,7 +1460,6 @@ LRESULT CALLBACK windowProcedure(HWND window, UINT message,
         DestroyWindow(window);
         return 0;
     case WM_DESTROY:
-        KillTimer(window, kBootstrapVersionRefreshTimerId);
         if (g_headingFont) {
             DeleteObject(g_headingFont);
             g_headingFont = nullptr;
