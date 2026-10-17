@@ -18,22 +18,17 @@ echo ========================================
 echo Test installation: %SIM_ROOT%
 echo.
 
-call "%~dp0build.bat" /nopause
-if errorlevel 1 (
+rem Running must not compile or deploy dependencies. Use build.bat explicitly for that.
+if not exist "%SIM_APP_DIR%\Argon.exe" (
+    echo [ERROR] Deployed Argon.exe was not found at "%SIM_APP_DIR%\Argon.exe".
+    echo Run build.bat first to compile Argon and deploy its Qt dependencies.
     echo.
-    echo [ERROR] Argon could not be built and deployed.
     pause
     exit /b 1
 )
 
 set "PATH=%MINGW_ROOT%\bin;%QT_ROOT%\bin;%PATH%"
 set "QT_QUICK_CONTROLS_STYLE=Basic"
-
-if not exist "%SIM_APP_DIR%\Argon.exe" (
-    echo [ERROR] Deployed Argon.exe was not found at "%SIM_APP_DIR%\Argon.exe".
-    pause
-    exit /b 1
-)
 
 if not exist "%SIM_ROOT%\Logs" mkdir "%SIM_ROOT%\Logs"
 if exist "%SIM_ROOT%\Logs\argon-runtime.log" del "%SIM_ROOT%\Logs\argon-runtime.log"
