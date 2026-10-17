@@ -74,6 +74,11 @@ if(WIN32)
         OUTPUT_NAME "Bootstrap"
         WIN32_EXECUTABLE TRUE
     )
+
+    # MinGW needs -municode to use the Unicode wWinMain entry point.
+    if(MINGW)
+        target_link_options(ArgonBootstrap PRIVATE -municode)
+    endif()
     target_compile_definitions(ArgonBootstrap PRIVATE
         "ARGON_BOOTSTRAP_VERSION=\"1.0.0.0\""
         "ARGON_BOOTSTRAP_LATEST_URL=\"https://raw.githubusercontent.com/mnotion/argon.updater/rel-config/bootstrap-latest.json\""
