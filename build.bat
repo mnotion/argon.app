@@ -12,6 +12,9 @@ set "MINGW_ROOT=C:\Qt\Tools\mingw1310_64"
 set "BUILD_DIR=%~dp0build"
 set "SIM_ROOT=%USERPROFILE%\Desktop\Argon-sim"
 set "SIM_APP_DIR=%SIM_ROOT%\App"
+set "SIM_STAGE_ROOT=%SIM_ROOT%\.build-stage"
+set "SIM_STAGE_APP_DIR=%SIM_STAGE_ROOT%\App"
+set "PREVIOUS_APP_DIR=%SIM_ROOT%\.previous-App"
 set "SOURCE_SEARCH=%~dp0Argon\UserData\Search QR"
 set "TARGET_SEARCH=%SIM_ROOT%\UserData\Search QR"
 
@@ -42,34 +45,9 @@ if not exist "%MINGW_ROOT%\bin\mingw32-make.exe" (
 set "PATH=%MINGW_ROOT%\bin;%QT_ROOT%\bin;%PATH%"
 
 echo.
-echo === Configuring Argon ===
-cmake -S "%~dp0." -B "%BUILD_DIR%" -G "MinGW Makefiles" -DCMAKE_PREFIX_PATH="%QT_ROOT%" -DCMAKE_CXX_COMPILER="%MINGW_ROOT%\bin\g++.exe" -DCMAKE_MAKE_PROGRAM="%MINGW_ROOT%\bin\mingw32-make.exe"
-if errorlevel 1 (
-    echo.
-    echo [ERROR] CMake configuration failed. See output above.
-    goto :build_failed
-)
-
-echo.
-echo === Compiling Argon ===
-cmake --build "%BUILD_DIR%" --parallel
-if errorlevel 1 (
-    echo.
-    echo [ERROR] Compilation failed. See output above.
-    goto :build_failed
-)
-if not exist "%BUILD_DIR%\Argon.exe" (
-    echo [ERROR] Build completed but build\Argon.exe was not found.
-    goto :build_failed
-)
-
-echo.
-echo === Preparing desktop test folder ===
+echo === Preparing Argon-sim data folders ===
 if not exist "%SIM_ROOT%" mkdir "%SIM_ROOT%"
 if errorlevel 1 goto :build_failed
-
-rem Create the same directory tree that the running application will use.
-rem Repeated builds preserve all UserData, Updates, and Logs content.
 if not exist "%SIM_ROOT%\Updater" mkdir "%SIM_ROOT%\Updater"
 if not exist "%SIM_ROOT%\Bootstrap" mkdir "%SIM_ROOT%\Bootstrap"
 if not exist "%SIM_ROOT%\UserData\Settings" mkdir "%SIM_ROOT%\UserData\Settings"
@@ -83,48 +61,85 @@ if not exist "%SIM_ROOT%\Updates\Staging" mkdir "%SIM_ROOT%\Updates\Staging"
 if not exist "%SIM_ROOT%\Updates\Backups" mkdir "%SIM_ROOT%\Updates\Backups"
 if not exist "%SIM_ROOT%\Logs" mkdir "%SIM_ROOT%\Logs"
 
-rem App contains only the executable payload. Rebuild it cleanly so stale Qt DLLs
-rem from a previous build cannot remain beside the new executable.
-if exist "%SIM_APP_DIR%" (
-    rmdir /s /q "%SIM_APP_DIR%"
-    if exist "%SIM_APP_DIR%" (
-        echo [ERROR] Could not replace "%SIM_APP_DIR%".
-        echo Close any running Argon-sim instance and run build.bat again.
-        goto :build_failed
-    )
+rem Clean only the temporary build payload. Never delete UserData, Updates, or Logs.
+if exist "%SIM_STAGE_ROOT%" rmdir /s /q "%SIM_STAGE_ROOT%"
+if exist "%SIM_STAGE_ROOT%" (
+    echo [ERROR] Could not clear temporary staging folder: "%SIM_STAGE_ROOT%"
+    goto :build_failed
 )
-mkdir "%SIM_APP_DIR%"
+mkdir "%SIM_STAGE_APP_DIR%"
 if errorlevel 1 goto :build_failed
 
 echo.
-echo === Copying Argon.exe to Argon-sim ===
-copy /y "%BUILD_DIR%\Argon.exe" "%SIM_APP_DIR%\Argon.exe"
+echo === Configuring Argon ===
+cmake -S "%~dp0." -B "%BUILD_DIR%" -G "MinGW Makefiles" -DCMAKE_PREFIX_PATH="%QT_ROOT%" -DCMAKE_CXX_COMPILER="%MINGW_ROOT%\bin\g++.exe" -DCMAKE_MAKE_PROGRAM="%MINGW_ROOT%\bin\mingw32-make.exe" -DARGON_RUNTIME_OUTPUT_DIR="%SIM_STAGE_APP_DIR%"
 if errorlevel 1 (
-    echo [ERROR] Could not copy Argon.exe to the desktop test folder.
+    echo.
+    echo [ERROR] CMake configuration failed. See output above.
+    goto :build_failed
+)
+
+echo.
+echo === Compiling Argon into desktop staging ===
+cmake --build "%BUILD_DIR%" --parallel
+if errorlevel 1 (
+    echo.
+    echo [ERROR] Compilation failed. See output above.
+    goto :build_failed
+)
+if not exist "%SIM_STAGE_APP_DIR%\Argon.exe" (
+    echo [ERROR] Build finished but staged Argon.exe was not created.
+    echo Check the CMake runtime output configuration.
     goto :build_failed
 )
 
 echo.
 echo === Deploying Qt DLLs, plugins, and QML modules ===
-"%QT_ROOT%\bin\windeployqt.exe" --qmldir "%~dp0qml" --compiler-runtime "%SIM_APP_DIR%\Argon.exe"
+"%QT_ROOT%\bin\windeployqt.exe" --qmldir "%~dp0qml" --compiler-runtime "%SIM_STAGE_APP_DIR%\Argon.exe"
 if errorlevel 1 (
     echo [ERROR] Qt dependency deployment failed. See output above.
     goto :build_failed
 )
 
 echo.
-echo === Preparing test data ===
-if not exist "%TARGET_SEARCH%" mkdir "%TARGET_SEARCH%"
-if errorlevel 1 (
-    echo [ERROR] Could not create the Argon-sim Search QR test folder.
-    goto :build_failed
-)
-
-rem Seed representative test files only when absent. Never overwrite user test files.
+echo === Preparing representative Search QR test data ===
 if exist "%SOURCE_SEARCH%\README.md" if not exist "%TARGET_SEARCH%\README.md" copy "%SOURCE_SEARCH%\README.md" "%TARGET_SEARCH%\README.md" >nul
 if exist "%SOURCE_SEARCH%\LDA1.pdf" if not exist "%TARGET_SEARCH%\LDA1.pdf" copy "%SOURCE_SEARCH%\LDA1.pdf" "%TARGET_SEARCH%\LDA1.pdf" >nul
 if exist "%SOURCE_SEARCH%\LDA1 (2).pdf" if not exist "%TARGET_SEARCH%\LDA1 (2).pdf" copy "%SOURCE_SEARCH%\LDA1 (2).pdf" "%TARGET_SEARCH%\LDA1 (2).pdf" >nul
 if exist "%SOURCE_SEARCH%\LDA1 (3).pdf" if not exist "%TARGET_SEARCH%\LDA1 (3).pdf" copy "%SOURCE_SEARCH%\LDA1 (3).pdf" "%TARGET_SEARCH%\LDA1 (3).pdf" >nul
+
+echo.
+echo === Activating new desktop app bundle ===
+rem Keep the previous bundle until the fully-deployed staging bundle is ready.
+if exist "%PREVIOUS_APP_DIR%" rmdir /s /q "%PREVIOUS_APP_DIR%"
+if exist "%PREVIOUS_APP_DIR%" (
+    echo [ERROR] Could not clear previous app backup.
+    echo Close any old Argon-sim instance and rebuild.
+    goto :build_failed
+)
+
+if exist "%SIM_APP_DIR%" (
+    move "%SIM_APP_DIR%" "%PREVIOUS_APP_DIR%" >nul
+    if errorlevel 1 (
+        echo [ERROR] Could not move the existing App folder to backup.
+        echo Close any running Argon-sim instance and retry.
+        goto :build_failed
+    )
+)
+
+move "%SIM_STAGE_APP_DIR%" "%SIM_APP_DIR%" >nul
+if errorlevel 1 (
+    echo [ERROR] Could not activate the new Argon-sim app folder.
+    if exist "%PREVIOUS_APP_DIR%" if not exist "%SIM_APP_DIR%" move "%PREVIOUS_APP_DIR%" "%SIM_APP_DIR%" >nul
+    goto :build_failed
+)
+
+rem Remove old app payload only after the new bundle has been activated.
+if exist "%PREVIOUS_APP_DIR%" (
+    rmdir /s /q "%PREVIOUS_APP_DIR%"
+    if exist "%PREVIOUS_APP_DIR%" echo [WARNING] Previous payload could not be cleaned; it remains at "%PREVIOUS_APP_DIR%".
+)
+if exist "%SIM_STAGE_ROOT%" rmdir /s /q "%SIM_STAGE_ROOT%"
 
 echo.
 echo ========================================
@@ -133,6 +148,7 @@ echo Runnable app: "%SIM_APP_DIR%\Argon.exe"
 echo Test data:    "%TARGET_SEARCH%"
 echo User data:    "%SIM_ROOT%\UserData"
 echo Logs:         "%SIM_ROOT%\Logs"
+echo CMake intermediates only: "%BUILD_DIR%"
 echo ========================================
 if "%KEEP_WINDOW_OPEN%"=="1" (
     echo.
