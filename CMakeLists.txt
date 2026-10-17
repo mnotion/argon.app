@@ -62,8 +62,41 @@ target_link_libraries(Argon PRIVATE
 # This CMake project version is the application's single version source.
 target_compile_definitions(Argon PRIVATE "ARGON_VERSION_STRING=\"${PROJECT_VERSION}\"")
 
+# The bootstrap is a native Windows executable. It deliberately does not link
+# Qt, so it can still open when the Qt runtime or Argon itself is damaged.
+# It checks release metadata over HTTPS and only replaces an updater after
+# validating package size, SHA-256, and embedded PE version.
+if(WIN32)
+    add_executable(ArgonBootstrap WIN32
+        bootstrap/main.cpp
+    )
+    set_target_properties(ArgonBootstrap PROPERTIES
+        OUTPUT_NAME "Bootstrap"
+        WIN32_EXECUTABLE TRUE
+    )
+    target_compile_definitions(ArgonBootstrap PRIVATE
+        "ARGON_BOOTSTRAP_VERSION=\"1.0.0.0\""
+        "ARGON_BOOTSTRAP_LATEST_URL=\"https://raw.githubusercontent.com/mnotion/argon.updater/rel-config/bootstrap-latest.json\""
+    )
+    target_link_libraries(ArgonBootstrap PRIVATE
+        winhttp
+        bcrypt
+        version
+        comctl32
+    )
+
+    # The dev launcher supplies a clean staging destination. Without it, CMake's
+    # normal target output directory is used for direct developer builds.
+    if(DEFINED ARGON_BOOTSTRAP_OUTPUT_DIR AND NOT ARGON_BOOTSTRAP_OUTPUT_DIR STREQUAL "")
+        file(MAKE_DIRECTORY "${ARGON_BOOTSTRAP_OUTPUT_DIR}")
+        set_target_properties(ArgonBootstrap PROPERTIES
+            RUNTIME_OUTPUT_DIRECTORY "${ARGON_BOOTSTRAP_OUTPUT_DIR}"
+        )
+    endif()
+endif()
+
 # Optional external runtime output directory used by build.bat to assemble
-# the runnable desktop Argon-sim bundle. CMake build intermediates stay in build/.
+# the runnable desktop Argon-sim bundle. Build intermediates stay in build/.
 if(DEFINED ARGON_RUNTIME_OUTPUT_DIR AND NOT ARGON_RUNTIME_OUTPUT_DIR STREQUAL "")
     file(MAKE_DIRECTORY "${ARGON_RUNTIME_OUTPUT_DIR}")
     set_target_properties(Argon PROPERTIES
@@ -82,7 +115,6 @@ if(ARGON_BUILD_VERSIONING_TESTS)
     add_executable(ArgonVersioningTests
         tests/versioning/VersioningTests.cpp
         src/versioning/VersionNumber.cpp
-        src/versioning/VersionNumber.h
         src/versioning/LatestReleaseMetadata.cpp
         src/versioning/LatestReleaseMetadata.h
     )
