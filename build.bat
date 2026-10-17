@@ -3,7 +3,7 @@ setlocal EnableExtensions
 cd /d "%~dp0"
 
 rem Keep the window open when launched directly.
-rem /nopause is available for external automation; run.bat never invokes this build.
+rem /nopause lets run.bat build/deploy without pausing before it launches the app.
 set "KEEP_WINDOW_OPEN=1"
 if /I "%~1"=="/nopause" set "KEEP_WINDOW_OPEN=0"
 
