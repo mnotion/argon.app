@@ -1493,17 +1493,21 @@ LRESULT CALLBACK windowProcedure(HWND window, UINT message,
             GetModuleHandleW(nullptr), nullptr);
         setControlFont(closeButton, regularFont);
 
+        // Keep Bootstrap version detection independent from the updater check.
+        // Start immediately and refresh every 10 seconds, like Argon's release checker.
+        SetTimer(window, kBootstrapVersionRefreshTimerId, 10000, nullptr);
+        startBootstrapVersionCheck(window);
         startStatusCheck(window);
         return 0;
     }
     case kCheckCompleteMessage: {
         std::unique_ptr<CheckResult> result(reinterpret_cast<CheckResult *>(lParam));
         if (result) {
-            setControlText(g_bootstrapStatus, result->bootstrapStatus);
+            // This worker checks updater state. Do not let it overwrite the
+            // separate Bootstrap version check's result.
             setControlText(g_updaterStatus, result->updaterStatus);
             setControlText(g_details, result->details);
         }
-        SetTimer(window, kBootstrapVersionRefreshTimerId, 10000, nullptr);
         return 0;
     }
     case kBootstrapVersionCheckCompleteMessage: {
