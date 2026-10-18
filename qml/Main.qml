@@ -49,7 +49,7 @@ ApplicationWindow {
     property string argonExplorerCurrentPath: ""
     property var argonExplorerEntries: []
 
-    // One indicator reflects both application releases and the companion updater.
+    // One concise status covers the application and companion updater.
     property color releaseStatusColor: {
         if (releaseMetadataService.checking || updaterStatusService.checking)
             return "#E5B83B"
@@ -60,10 +60,18 @@ ApplicationWindow {
             return "#36B56B"
         return "#888888"
     }
-    property string releaseStatusTooltip:
-        "Argon: " + releaseMetadataService.status
-        + "\nUpdater: " + updaterStatusService.status
-        + "\n" + updaterStatusService.packageStatus
+    property string releaseStatusText: {
+        if (releaseMetadataService.checking || updaterStatusService.checking)
+            return "Checking"
+        if ((releaseMetadataService.checkSucceeded && releaseMetadataService.updateAvailable)
+                || (updaterStatusService.checkSucceeded && updaterStatusService.updateAvailable))
+            return "Update available"
+        if (releaseMetadataService.checkSucceeded && updaterStatusService.checkSucceeded)
+            return "Up to date"
+        if (releaseMetadataService.checkSucceeded || updaterStatusService.checkSucceeded)
+            return "Partially checked"
+        return "Unavailable"
+    }
 
     function toggleFullscreen() {
         if (window.visibility === Window.FullScreen) {
@@ -342,29 +350,6 @@ ApplicationWindow {
                 spacing: 7
                 Text { text: "Account"; color: theme.text; font.pixelSize: 16; font.weight: Font.DemiBold }
 
-                Item {
-                    id: releaseStatusHost
-                    Layout.preferredWidth: 16
-                    Layout.preferredHeight: 24
-                    Layout.alignment: Qt.AlignVCenter
-                    Accessible.name: "Release version status"
-
-                    HoverHandler { id: releaseStatusHover }
-                    ToolTip.visible: releaseStatusHover.hovered
-                    ToolTip.delay: 350
-                    ToolTip.text: window.releaseStatusTooltip
-
-                    Rectangle {
-                        anchors.centerIn: parent
-                        width: 8
-                        height: 8
-                        radius: width / 2
-                        color: window.releaseStatusColor
-                        border.width: 1
-                        border.color: "#28FFFFFF"
-                    }
-                }
-
                 Item { Layout.fillWidth: true }
 
                 Button {
@@ -382,9 +367,30 @@ ApplicationWindow {
             }
             Rectangle { Layout.fillWidth: true; height: 1; color: theme.border }
 
+            RowLayout {
+                Layout.fillWidth: true
+                visible: !window.profileExpanded
+                spacing: 6
+
+                Text {
+                    text: "Updates"
+                    color: theme.text
+                    font.pixelSize: 13
+                    font.weight: Font.DemiBold
+                }
+                Text {
+                    Layout.fillWidth: true
+                    text: "— " + window.releaseStatusText
+                    color: window.releaseStatusColor
+                    font.pixelSize: 12
+                    elide: Text.ElideRight
+                }
+            }
+
             Rectangle {
                 id: updatesCard
                 Layout.fillWidth: true
+                visible: window.profileExpanded
                 radius: 12
                 color: theme.surface
                 border.color: theme.border
@@ -394,59 +400,37 @@ ApplicationWindow {
                     id: updatesColumn
                     anchors.fill: parent
                     anchors.margins: 10
-                    spacing: 8
-
-                    RowLayout {
-                        Layout.fillWidth: true
-                        Text {
-                            Layout.fillWidth: true
-                            text: "Updates"
-                            color: theme.text
-                            font.pixelSize: 14
-                            font.weight: Font.DemiBold
-                        }
-                        Text {
-                            text: releaseMetadataService.checking || updaterStatusService.checking
-                                  ? "Checking" : ((releaseMetadataService.checkSucceeded && releaseMetadataService.updateAvailable)
-                                                    || (updaterStatusService.checkSucceeded && updaterStatusService.updateAvailable)
-                                                 ? "Available" : "Status")
-                            color: window.releaseStatusColor
-                            font.pixelSize: 10
-                            font.weight: Font.DemiBold
-                        }
-                    }
-
-                    Rectangle { Layout.fillWidth: true; height: 1; color: theme.border }
+                    spacing: 10
 
                     ColumnLayout {
                         Layout.fillWidth: true
-                        spacing: 3
+                        spacing: 5
+
                         Text {
-                            text: "Argon application"
+                            text: "Argon"
                             color: theme.accent
-                            font.pixelSize: 11
+                            font.pixelSize: 13
                             font.weight: Font.DemiBold
                         }
                         Text {
                             Layout.fillWidth: true
-                            text: "Installed v" + releaseMetadataService.currentVersion
-                                  + (releaseMetadataService.latestVersion.length > 0
-                                     ? "  ·  Stable v" + releaseMetadataService.latestVersion : "")
+                            text: "Installed: " + (releaseMetadataService.currentVersion.length > 0
+                                                   ? releaseMetadataService.currentVersion : "unknown")
                             color: theme.text
-                            font.pixelSize: 11
-                            wrapMode: Text.WordWrap
+                            font.pixelSize: 12
                         }
                         Text {
                             Layout.fillWidth: true
-                            text: releaseMetadataService.status
+                            text: "Stable: " + (releaseMetadataService.latestVersion.length > 0
+                                                 ? releaseMetadataService.latestVersion : "checking")
                             color: theme.mutedText
-                            font.pixelSize: 10
-                            wrapMode: Text.WordWrap
+                            font.pixelSize: 12
                         }
                         Button {
                             visible: releaseMetadataService.checkSucceeded
+                                     && releaseMetadataService.updateAvailable
                                      && releaseMetadataService.releaseNotesUrl.length > 0
-                            text: releaseMetadataService.updateAvailable ? "View Argon update" : "Argon release notes"
+                            text: "Update"
                             onClicked: Qt.openUrlExternally(releaseMetadataService.releaseNotesUrl)
                         }
                     }
@@ -455,70 +439,34 @@ ApplicationWindow {
 
                     ColumnLayout {
                         Layout.fillWidth: true
-                        spacing: 3
+                        spacing: 5
+
                         Text {
-                            text: "Argon Updater"
+                            text: "Updater"
                             color: theme.accent
-                            font.pixelSize: 11
+                            font.pixelSize: 13
                             font.weight: Font.DemiBold
                         }
                         Text {
                             Layout.fillWidth: true
-                            text: "Installed v" + (updaterStatusService.installedVersion.length > 0
+                            text: "Installed: " + (updaterStatusService.installedVersion.length > 0
                                                    ? updaterStatusService.installedVersion : "unknown")
-                                  + (updaterStatusService.latestVersion.length > 0
-                                     ? "  ·  Stable v" + updaterStatusService.latestVersion : "")
                             color: theme.text
-                            font.pixelSize: 11
-                            wrapMode: Text.WordWrap
+                            font.pixelSize: 12
                         }
                         Text {
                             Layout.fillWidth: true
-                            text: updaterStatusService.status
-                            color: updaterStatusService.checkSucceeded && updaterStatusService.updateAvailable ? theme.accent : theme.mutedText
-                            font.pixelSize: 10
-                            wrapMode: Text.WordWrap
-                        }
-                        Text {
-                            Layout.fillWidth: true
-                            text: updaterStatusService.packageStatus
+                            text: "Stable: " + (updaterStatusService.latestVersion.length > 0
+                                                 ? updaterStatusService.latestVersion : "checking")
                             color: theme.mutedText
-                            font.pixelSize: 10
-                            wrapMode: Text.WordWrap
-                        }
-                        Text {
-                            Layout.fillWidth: true
-                            visible: updaterStatusService.details.length > 0
-                            text: updaterStatusService.details
-                            color: theme.mutedText
-                            font.pixelSize: 10
-                            wrapMode: Text.WordWrap
-                            maximumLineCount: 4
-                            elide: Text.ElideRight
+                            font.pixelSize: 12
                         }
                         Button {
                             visible: updaterStatusService.checkSucceeded
                                      && updaterStatusService.updateAvailable
                                      && updaterStatusService.packageAvailable
-                            text: "Install updater update"
+                            text: "Update"
                             onClicked: updaterInstallDialog.open()
-                        }
-                        Button {
-                            visible: updaterStatusService.releaseNotesUrl.length > 0
-                            text: "Updater release notes"
-                            onClicked: Qt.openUrlExternally(updaterStatusService.releaseNotesUrl)
-                        }
-                    }
-
-                    RowLayout {
-                        Layout.fillWidth: true
-                        Item { Layout.fillWidth: true }
-                        Button {
-                            text: "Check now"
-                            onClicked: {
-                                releaseMetadataService.checkForUpdates()
-                                updaterStatusService.checkForUpdates()
-                            }
                         }
                     }
                 }
