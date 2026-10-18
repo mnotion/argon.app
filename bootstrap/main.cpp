@@ -22,8 +22,8 @@
 #define ARGON_BOOTSTRAP_VERSION "1.0.0.0"
 #endif
 
-#ifndef ARGON_BOOTSTRAP_LATEST_URL
-#define ARGON_BOOTSTRAP_LATEST_URL "https://raw.githubusercontent.com/mnotion/argon.updater/rel-config/bootstrap-latest.json?rev=5"
+#ifndef ARGON_UPDATER_METADATA_URL
+#define ARGON_UPDATER_METADATA_URL "https://raw.githubusercontent.com/mnotion/argon.updater/rel-config/bootstrap-latest.json?rev=5"
 #endif
 
 namespace fs = std::filesystem;
@@ -914,9 +914,9 @@ bool cacheBootstrapMetadata(const std::string &text, std::wstring &error) {
     return writeTextAtomically(*path, text, error);
 }
 
-bool parseBootstrapMetadata(const std::string &text,
+bool parseUpdaterReleaseMetadata(const std::string &text,
                             std::map<std::string, std::string> &manifest,
-                            std::string &latestBootstrap,
+                            std::string &latestUpdater,
                             std::wstring &error) {
     if (!parseJson(text, manifest, error) || !getSchema(manifest, error))
         return false;
@@ -927,7 +927,7 @@ bool parseBootstrapMetadata(const std::string &text,
         error = L"Metadata does not contain a valid four-part updaterVersion.";
         return false;
     }
-    latestBootstrap = *version;
+    latestUpdater = *version;
     return true;
 }
 
@@ -1282,22 +1282,22 @@ CheckResult runStatusCheck() {
 
     std::string manifestText;
     std::wstring networkError;
-    if (!httpGetText(widenUtf8(ARGON_BOOTSTRAP_LATEST_URL), manifestText, networkError)) {
+    if (!httpGetText(widenUtf8(ARGON_UPDATER_METADATA_URL), manifestText, networkError)) {
         std::string cachedText;
         std::map<std::string, std::string> cachedManifest;
-        std::string cachedBootstrap;
+        std::string cachedUpdaterVersion;
         std::wstring cacheError;
         if (loadCachedBootstrapMetadata(cachedText, cacheError)
-            && parseBootstrapMetadata(cachedText, cachedManifest,
-                                      cachedBootstrap, cacheError)) {
+            && parseUpdaterReleaseMetadata(cachedText, cachedManifest,
+                                      cachedUpdaterVersion, cacheError)) {
             const auto cachedInstalledUpdater = readPeVersion(paths.updaterExecutable);
             result.updaterVersionStatus = describeUpdaterVersion(
-                cachedInstalledUpdater, cachedBootstrap, true);
-            result.latestUpdaterVersion = cachedBootstrap;
+                cachedInstalledUpdater, cachedUpdaterVersion, true);
+            result.latestUpdaterVersion = cachedUpdaterVersion;
             if (cachedInstalledUpdater)
                 result.installedUpdaterVersion = narrowUtf8(*cachedInstalledUpdater);
             result.updateAvailable = !cachedInstalledUpdater
-                || (compareVersions(narrowUtf8(*cachedInstalledUpdater), cachedBootstrap).value_or(0) < 0);
+                || (compareVersions(narrowUtf8(*cachedInstalledUpdater), cachedUpdaterVersion).value_or(0) < 0);
 
             const auto cachedUpdater = field(cachedManifest, "updaterVersion");
             std::array<unsigned long long, 4> parsedCachedUpdater{};
@@ -1360,8 +1360,8 @@ CheckResult runStatusCheck() {
 
     std::map<std::string, std::string> manifest;
     std::wstring jsonError;
-    std::string latestBootstrapVersion;
-    if (!parseBootstrapMetadata(manifestText, manifest, latestBootstrapVersion, jsonError)) {
+    std::string latestUpdaterVersion;
+    if (!parseUpdaterReleaseMetadata(manifestText, manifest, latestUpdaterVersion, jsonError)) {
         result.updaterVersionStatus = L"Release metadata is invalid; the published updater version cannot be trusted.";
         result.packageStatus = L"No updater changes were made.";
         result.details = L"bootstrap-latest.json could not be validated: " + jsonError
@@ -1371,14 +1371,14 @@ CheckResult runStatusCheck() {
 
     const auto installedUpdaterForStatus = readPeVersion(paths.updaterExecutable);
     result.updaterVersionStatus = describeUpdaterVersion(
-        installedUpdaterForStatus, latestBootstrapVersion, false);
+        installedUpdaterForStatus, latestUpdaterVersion, false);
     result.checkSucceeded = true;
-    result.latestUpdaterVersion = latestBootstrapVersion;
+    result.latestUpdaterVersion = latestUpdaterVersion;
     if (installedUpdaterForStatus)
         result.installedUpdaterVersion = narrowUtf8(*installedUpdaterForStatus);
     result.updateAvailable = !installedUpdaterForStatus
         || (compareVersions(narrowUtf8(*installedUpdaterForStatus),
-                            latestBootstrapVersion).value_or(0) < 0);
+                            latestUpdaterVersion).value_or(0) < 0);
     if (const auto notes = field(manifest, "releaseNotesUrl"))
         result.releaseNotesUrl = *notes;
 
