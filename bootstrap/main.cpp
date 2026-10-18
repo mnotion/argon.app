@@ -1135,6 +1135,50 @@ std::wstring timestampForBackup() {
     return buffer;
 }
 
+class ScopedUpdaterOperationLock {
+public:
+    explicit ScopedUpdaterOperationLock(const fs::path &installationRoot) {
+        // The same installation path maps to the same named mutex in every process.
+        // This serializes recovery, metadata checks, downloads, and replacement.
+        std::wstring key = installationRoot.lexically_normal().wstring();
+        uint64_t hash = 14695981039346656037ULL;
+        for (wchar_t ch : key) {
+            if (ch >= L'A' && ch <= L'Z')
+                ch = static_cast<wchar_t>(ch - L'A' + L'a');
+            hash ^= static_cast<uint64_t>(static_cast<uint16_t>(ch));
+            hash *= 1099511628211ULL;
+        }
+
+        wchar_t mutexName[80]{};
+        std::swprintf(mutexName, sizeof(mutexName) / sizeof(mutexName[0]),
+                      L"Local\\ArgonBootstrapOperation-%016llX",
+                      static_cast<unsigned long long>(hash));
+        handle_ = CreateMutexW(nullptr, FALSE, mutexName);
+        if (!handle_)
+            return;
+
+        const DWORD waitResult = WaitForSingleObject(handle_, 0);
+        acquired_ = waitResult == WAIT_OBJECT_0 || waitResult == WAIT_ABANDONED;
+    }
+
+    ~ScopedUpdaterOperationLock() {
+        if (handle_) {
+            if (acquired_)
+                ReleaseMutex(handle_);
+            CloseHandle(handle_);
+        }
+    }
+
+    bool acquired() const { return acquired_; }
+
+    ScopedUpdaterOperationLock(const ScopedUpdaterOperationLock &) = delete;
+    ScopedUpdaterOperationLock &operator=(const ScopedUpdaterOperationLock &) = delete;
+
+private:
+    HANDLE handle_ = nullptr;
+    bool acquired_ = false;
+};
+
 bool performSafeReplacement(const Paths &paths, const fs::path &downloadFilePath,
                             const std::string &version, const std::string &expectedHash,
                             std::wstring &details, std::wstring &error) {
@@ -1263,6 +1307,14 @@ CheckResult runStatusCheck(bool installUpdater = false) {
         return result;
     }
     const Paths paths = *pathsOption;
+
+    ScopedUpdaterOperationLock operationLock(paths.root);
+    if (!operationLock.acquired()) {
+        result.updaterVersionStatus = L"Another Bootstrap operation is already running.";
+        result.packageStatus = L"No updater changes were made.";
+        result.details = L"This installation is already being checked or updated by another Bootstrap process. Close the other Bootstrap window and retry.";
+        return result;
+    }
 
     for (const fs::path &directory : {paths.updaterDirectory, paths.downloadsDirectory,
                                       paths.stagingDirectory, paths.backupsDirectory}) {
