@@ -512,10 +512,10 @@ bool parseVersion(const std::string &value, std::array<unsigned long long, 4> &p
     return true;
 }
 
-int compareVersions(const std::string &left, const std::string &right) {
+std::optional<int> compareVersions(const std::string &left, const std::string &right) {
     std::array<unsigned long long, 4> a{}, b{};
     if (!parseVersion(left, a) || !parseVersion(right, b))
-        return 0;
+        return std::nullopt;
     for (size_t i = 0; i < a.size(); ++i) {
         if (a[i] < b[i]) return -1;
         if (a[i] > b[i]) return 1;
@@ -929,7 +929,13 @@ bool parseBootstrapMetadata(const std::string &text,
 std::wstring describeBootstrapVersion(const std::string &installed,
                                       const std::string &latest,
                                       bool offline) {
-    const int comparison = compareVersions(installed, latest);
+    const auto comparisonResult = compareVersions(installed, latest);
+    if (!comparisonResult) {
+        return offline
+            ? L"Offline — cached Bootstrap version could not be compared safely; reconnect to verify."
+            : L"Bootstrap version comparison failed; installed version or live metadata is invalid.";
+    }
+    const int comparison = *comparisonResult;
     if (offline) {
         if (comparison < 0) {
             return L"Offline — cached metadata says Bootstrap v"
@@ -1225,6 +1231,13 @@ CheckResult runStatusCheck() {
     result.bootstrapStatus = L"Checking Bootstrap v"
         + widenUtf8(localBootstrapVersion) + L"...";
     result.updaterStatus = L"Checking installed updater...";
+    std::array<unsigned long long, 4> localBootstrapParts{};
+    if (!parseVersion(localBootstrapVersion, localBootstrapParts)) {
+        result.bootstrapStatus = L"Bootstrap's built-in version is invalid.";
+        result.updaterStatus = L"Updater status unavailable.";
+        result.details = L"The build's ARGON_BOOTSTRAP_VERSION must contain exactly four numeric components. No files were changed.";
+        return result;
+    }
 
     std::wstring pathError;
     const auto pathsOption = resolvePaths(pathError);
@@ -1277,12 +1290,14 @@ CheckResult runStatusCheck() {
                         + widenUtf8(*cachedUpdater) + L".";
                 } else {
                     const std::string installedUpdater = narrowUtf8(*localUpdaterVersion);
-                    const int comparison = compareVersions(installedUpdater, *cachedUpdater);
-                    if (comparison < 0) {
+                    const auto comparison = compareVersions(installedUpdater, *cachedUpdater);
+                    if (!comparison) {
+                        result.updaterStatus = L"Offline — updater versions could not be compared safely.";
+                    } else if (*comparison < 0) {
                         result.updaterStatus = L"Offline — a newer updater may be available (last-known v"
                             + widenUtf8(*cachedUpdater) + L"; installed v"
                             + *localUpdaterVersion + L").";
-                    } else if (comparison > 0) {
+                    } else if (*comparison > 0) {
                         result.updaterStatus = L"Offline — installed updater v"
                             + *localUpdaterVersion + L" is newer than last-known stable v"
                             + widenUtf8(*cachedUpdater) + L".";
@@ -1355,7 +1370,13 @@ CheckResult runStatusCheck() {
     const auto currentUpdater = readPeVersion(paths.updaterExecutable);
     if (currentUpdater) {
         const std::string localUpdaterVersion = narrowUtf8(*currentUpdater);
-        const int updaterComparison = compareVersions(localUpdaterVersion, *latestUpdater);
+        const auto updaterComparisonResult = compareVersions(localUpdaterVersion, *latestUpdater);
+        if (!updaterComparisonResult) {
+            result.updaterStatus = L"Installed updater version could not be compared safely.";
+            result.details += L"No updater changes were made because its version metadata is invalid.";
+            return result;
+        }
+        const int updaterComparison = *updaterComparisonResult;
         if (updaterComparison == 0) {
             result.updaterStatus = L"Updater is up to date (v" + *currentUpdater + L").";
             result.details += recoveryNote.empty()
@@ -1407,7 +1428,12 @@ CheckResult runStatusCheck() {
         result.details = L"directory.json does not match the requested updater version or has invalid minimumBootstrapVersion. No files were changed.";
         return result;
     }
-    if (compareVersions(localBootstrapVersion, *minimumBootstrap) < 0) {
+    const auto minimumComparison = compareVersions(localBootstrapVersion, *minimumBootstrap);
+    if (!minimumComparison) {
+        result.details = L"Bootstrap and minimumBootstrapVersion could not be compared safely. No files were changed.";
+        return result;
+    }
+    if (*minimumComparison < 0) {
         result.details = L"This updater package requires Bootstrap v"
             + widenUtf8(*minimumBootstrap) + L" or newer. The installed Bootstrap cannot safely install it.";
         return result;
