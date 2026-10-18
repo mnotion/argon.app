@@ -34,15 +34,20 @@ constexpr UINT kCheckCompleteMessage = WM_APP + 14;
 constexpr unsigned long long kMaximumMetadataBytes = 1024ULL * 1024ULL;
 constexpr unsigned long long kMaximumUpdaterBytes = 512ULL * 1024ULL * 1024ULL;
 
-HWND g_bootstrapStatus = nullptr;
-HWND g_updaterStatus = nullptr;
+HWND g_updaterVersionStatus = nullptr;
+HWND g_packageStatus = nullptr;
 HWND g_details = nullptr;
 HFONT g_headingFont = nullptr;
 
 struct CheckResult {
-    std::wstring bootstrapStatus;
-    std::wstring updaterStatus;
+    std::wstring updaterVersionStatus;
+    std::wstring packageStatus;
     std::wstring details;
+    bool checkSucceeded = false;
+    bool updateAvailable = false;
+    std::string installedUpdaterVersion;
+    std::string latestUpdaterVersion;
+    std::string releaseNotesUrl;
 };
 
 struct Paths {
@@ -916,51 +921,59 @@ bool parseBootstrapMetadata(const std::string &text,
     if (!parseJson(text, manifest, error) || !getSchema(manifest, error))
         return false;
 
-    const auto version = field(manifest, "bootstrapVersion");
+    const auto version = field(manifest, "updaterVersion");
     std::array<unsigned long long, 4> parsed{};
     if (!version || !parseVersion(*version, parsed)) {
-        error = L"Metadata does not contain a valid four-part bootstrapVersion.";
+        error = L"Metadata does not contain a valid four-part updaterVersion.";
         return false;
     }
     latestBootstrap = *version;
     return true;
 }
 
-std::wstring describeBootstrapVersion(const std::string &installed,
-                                      const std::string &latest,
-                                      bool offline) {
-    const auto comparisonResult = compareVersions(installed, latest);
+std::wstring describeUpdaterVersion(const std::optional<std::wstring> &installed,
+                                     const std::string &latest,
+                                     bool offline) {
+    if (!installed) {
+        return offline
+            ? L"Offline — installed ArgonUpdater.exe version is unavailable; last-known stable is v"
+                + widenUtf8(latest) + L"."
+            : L"ArgonUpdater.exe is missing or has no valid Windows file-version resource. Published version: v"
+                + widenUtf8(latest) + L".";
+    }
+    const std::string installedText = narrowUtf8(*installed);
+    const auto comparisonResult = compareVersions(installedText, latest);
     if (!comparisonResult) {
         return offline
-            ? L"Offline — cached Bootstrap version could not be compared safely; reconnect to verify."
-            : L"Bootstrap version comparison failed; installed version or live metadata is invalid.";
+            ? L"Offline — updater versions could not be compared; reconnect to verify."
+            : L"Updater version comparison failed; installed file-version metadata is invalid.";
     }
+
     const int comparison = *comparisonResult;
     if (offline) {
         if (comparison < 0) {
-            return L"Offline — cached metadata says Bootstrap v"
-                + widenUtf8(latest) + L" is newer than installed v"
-                + widenUtf8(installed) + L"; reconnect to verify.";
+            return L"Offline — last-known stable Argon Updater v" + widenUtf8(latest)
+                + L" is newer than installed v" + *installed + L"; reconnect to verify.";
         }
         if (comparison > 0) {
-            return L"Offline — installed Bootstrap v" + widenUtf8(installed)
+            return L"Offline — installed Argon Updater v" + *installed
                 + L" is newer than last-known stable v" + widenUtf8(latest)
                 + L"; reconnect to verify.";
         }
-        return L"Offline — installed v" + widenUtf8(installed)
+        return L"Offline — installed Argon Updater v" + *installed
             + L" matches last-known stable v" + widenUtf8(latest)
             + L"; live status is unverified.";
     }
 
     if (comparison < 0) {
-        return L"A newer Bootstrap is available (v" + widenUtf8(latest)
-            + L"; installed v" + widenUtf8(installed) + L").";
+        return L"Argon Updater update available: v" + widenUtf8(latest)
+            + L" (installed v" + *installed + L").";
     }
     if (comparison > 0) {
-        return L"Installed Bootstrap v" + widenUtf8(installed)
+        return L"Installed Argon Updater v" + *installed
             + L" is newer than configured stable v" + widenUtf8(latest) + L".";
     }
-    return L"Bootstrap is up to date (v" + widenUtf8(installed) + L").";
+    return L"Argon Updater is up to date (v" + *installed + L").";
 }
 
 bool validHashMatches(const fs::path &path, const std::string &expected,
@@ -1228,13 +1241,12 @@ bool performSafeReplacement(const Paths &paths, const fs::path &downloadFilePath
 CheckResult runStatusCheck() {
     CheckResult result;
     const std::string localBootstrapVersion = ARGON_BOOTSTRAP_VERSION;
-    result.bootstrapStatus = L"Checking Bootstrap v"
-        + widenUtf8(localBootstrapVersion) + L"...";
-    result.updaterStatus = L"Checking installed updater...";
+    result.updaterVersionStatus = L"Checking installed ArgonUpdater.exe version...";
+    result.packageStatus = L"Checking updater package status...";
     std::array<unsigned long long, 4> localBootstrapParts{};
     if (!parseVersion(localBootstrapVersion, localBootstrapParts)) {
-        result.bootstrapStatus = L"Bootstrap's built-in version is invalid.";
-        result.updaterStatus = L"Updater status unavailable.";
+        result.updaterVersionStatus = L"Bootstrap's built-in version is invalid.";
+        result.packageStatus = L"Updater status unavailable.";
         result.details = L"The build's ARGON_BOOTSTRAP_VERSION must contain exactly four numeric components. No files were changed.";
         return result;
     }
@@ -1242,8 +1254,8 @@ CheckResult runStatusCheck() {
     std::wstring pathError;
     const auto pathsOption = resolvePaths(pathError);
     if (!pathsOption) {
-        result.bootstrapStatus = L"Bootstrap could not resolve its install directory.";
-        result.updaterStatus = L"Updater status unavailable.";
+        result.updaterVersionStatus = L"Bootstrap could not resolve its install directory.";
+        result.packageStatus = L"Updater status unavailable.";
         result.details = pathError;
         return result;
     }
@@ -1252,8 +1264,8 @@ CheckResult runStatusCheck() {
     for (const fs::path &directory : {paths.updaterDirectory, paths.downloadsDirectory,
                                       paths.stagingDirectory, paths.backupsDirectory}) {
         if (!ensureDirectory(directory, pathError)) {
-            result.bootstrapStatus = L"Bootstrap safety check could not start.";
-            result.updaterStatus = L"No updater changes were made.";
+            result.updaterVersionStatus = L"Bootstrap safety check could not start.";
+            result.packageStatus = L"No updater changes were made.";
             result.details = pathError;
             return result;
         }
@@ -1262,8 +1274,8 @@ CheckResult runStatusCheck() {
     std::wstring recoveryNote;
     std::wstring recoveryError;
     if (!recoverPendingTransaction(paths, recoveryNote, recoveryError)) {
-        result.bootstrapStatus = L"Bootstrap paused for safety.";
-        result.updaterStatus = L"Pending updater recovery requires attention.";
+        result.updaterVersionStatus = L"Bootstrap paused for safety.";
+        result.packageStatus = L"Pending updater recovery requires attention.";
         result.details = recoveryError + L"\r\nNo new update was attempted.";
         return result;
     }
@@ -1278,38 +1290,44 @@ CheckResult runStatusCheck() {
         if (loadCachedBootstrapMetadata(cachedText, cacheError)
             && parseBootstrapMetadata(cachedText, cachedManifest,
                                       cachedBootstrap, cacheError)) {
-            result.bootstrapStatus = describeBootstrapVersion(
-                localBootstrapVersion, cachedBootstrap, true);
+            const auto cachedInstalledUpdater = readPeVersion(paths.updaterExecutable);
+            result.updaterVersionStatus = describeUpdaterVersion(
+                cachedInstalledUpdater, cachedBootstrap, true);
+            result.latestUpdaterVersion = cachedBootstrap;
+            if (cachedInstalledUpdater)
+                result.installedUpdaterVersion = narrowUtf8(*cachedInstalledUpdater);
+            result.updateAvailable = !cachedInstalledUpdater
+                || (compareVersions(narrowUtf8(*cachedInstalledUpdater), cachedBootstrap).value_or(0) < 0);
 
             const auto cachedUpdater = field(cachedManifest, "updaterVersion");
             std::array<unsigned long long, 4> parsedCachedUpdater{};
             const auto localUpdaterVersion = readPeVersion(paths.updaterExecutable);
             if (cachedUpdater && parseVersion(*cachedUpdater, parsedCachedUpdater)) {
                 if (!localUpdaterVersion) {
-                    result.updaterStatus = L"Offline — updater is not installed or has no version resource; last-known stable is v"
+                    result.packageStatus = L"Offline — ArgonUpdater.exe is not installed or has no version resource; last-known stable is v"
                         + widenUtf8(*cachedUpdater) + L".";
                 } else {
                     const std::string installedUpdater = narrowUtf8(*localUpdaterVersion);
                     const auto comparison = compareVersions(installedUpdater, *cachedUpdater);
                     if (!comparison) {
-                        result.updaterStatus = L"Offline — updater versions could not be compared safely.";
+                        result.packageStatus = L"Offline — updater versions could not be compared safely.";
                     } else if (*comparison < 0) {
-                        result.updaterStatus = L"Offline — a newer updater may be available (last-known v"
+                        result.packageStatus = L"Offline — a newer updater may be available (last-known v"
                             + widenUtf8(*cachedUpdater) + L"; installed v"
                             + *localUpdaterVersion + L").";
                     } else if (*comparison > 0) {
-                        result.updaterStatus = L"Offline — installed updater v"
+                        result.packageStatus = L"Offline — installed updater v"
                             + *localUpdaterVersion + L" is newer than last-known stable v"
                             + widenUtf8(*cachedUpdater) + L".";
                     } else {
-                        result.updaterStatus = L"Offline — installed updater v"
+                        result.packageStatus = L"Offline — installed updater v"
                             + *localUpdaterVersion + L" matches last-known stable; live status is unverified.";
                     }
                 }
             } else {
-                result.updaterStatus = localUpdaterVersion
-                    ? L"Offline — installed updater: v" + *localUpdaterVersion
-                    : L"Offline — updater is not installed or has no version resource.";
+                result.packageStatus = localUpdaterVersion
+                    ? L"Offline — installed ArgonUpdater.exe: v" + *localUpdaterVersion
+                    : L"Offline — ArgonUpdater.exe is not installed or has no version resource.";
             }
             result.details = networkError
                 + L"\r\nUsing previously cached release metadata as a hint only. "
@@ -1319,12 +1337,17 @@ CheckResult runStatusCheck() {
             return result;
         }
 
-        result.bootstrapStatus = L"Offline — latest Bootstrap version is unknown (installed v"
-            + widenUtf8(localBootstrapVersion) + L").";
+        const auto offlineInstalledUpdater = readPeVersion(paths.updaterExecutable);
+        result.updaterVersionStatus = offlineInstalledUpdater
+            ? L"Offline — latest Argon Updater version is unknown (installed v"
+                + *offlineInstalledUpdater + L")."
+            : L"Offline — installed ArgonUpdater.exe version is unavailable; latest version is unknown.";
+        if (offlineInstalledUpdater)
+            result.installedUpdaterVersion = narrowUtf8(*offlineInstalledUpdater);
         const auto localUpdaterVersion = readPeVersion(paths.updaterExecutable);
-        result.updaterStatus = localUpdaterVersion
-            ? L"Offline — installed updater: v" + *localUpdaterVersion
-            : L"Offline — updater is not installed or has no version resource.";
+        result.packageStatus = localUpdaterVersion
+            ? L"Offline — installed ArgonUpdater.exe: v" + *localUpdaterVersion
+            : L"Offline — ArgonUpdater.exe is not installed or has no version resource.";
         result.details = networkError
             + L"\r\nNo usable cached metadata exists, so latest versions cannot be confirmed. "
               L"No files were changed.";
@@ -1339,15 +1362,25 @@ CheckResult runStatusCheck() {
     std::wstring jsonError;
     std::string latestBootstrapVersion;
     if (!parseBootstrapMetadata(manifestText, manifest, latestBootstrapVersion, jsonError)) {
-        result.bootstrapStatus = L"Release metadata is invalid; the latest Bootstrap version cannot be trusted.";
-        result.updaterStatus = L"No updater changes were made.";
+        result.updaterVersionStatus = L"Release metadata is invalid; the latest Bootstrap version cannot be trusted.";
+        result.packageStatus = L"No updater changes were made.";
         result.details = L"bootstrap-latest.json could not be validated: " + jsonError
             + L"\r\nNo files were changed.";
         return result;
     }
 
-    result.bootstrapStatus = describeBootstrapVersion(
-        localBootstrapVersion, latestBootstrapVersion, false);
+    const auto installedUpdaterForStatus = readPeVersion(paths.updaterExecutable);
+    result.updaterVersionStatus = describeUpdaterVersion(
+        installedUpdaterForStatus, latestBootstrapVersion, false);
+    result.checkSucceeded = true;
+    result.latestUpdaterVersion = latestBootstrapVersion;
+    if (installedUpdaterForStatus)
+        result.installedUpdaterVersion = narrowUtf8(*installedUpdaterForStatus);
+    result.updateAvailable = !installedUpdaterForStatus
+        || (compareVersions(narrowUtf8(*installedUpdaterForStatus),
+                            latestBootstrapVersion).value_or(0) < 0);
+    if (const auto notes = field(manifest, "releaseNotesUrl"))
+        result.releaseNotesUrl = *notes;
 
     std::wstring cacheWriteError;
     const bool metadataCached = cacheBootstrapMetadata(manifestText, cacheWriteError);
@@ -1357,8 +1390,8 @@ CheckResult runStatusCheck() {
     std::array<unsigned long long, 4> parsedVersion{};
     if (!latestUpdater || !parseVersion(*latestUpdater, parsedVersion)
         || !directoryUrl || !validHttpsUrl(*directoryUrl)) {
-        result.updaterStatus = L"No updater changes were made.";
-        result.details = L"Bootstrap version status was checked live, but updater metadata is incomplete or invalid. "
+        result.packageStatus = L"No updater changes were made.";
+        result.details = L"ArgonUpdater.exe version metadata was checked live, but package metadata is incomplete or invalid. "
             L"bootstrap-latest.json must contain a valid updaterVersion and HTTPS directoryUrl.";
         if (!cacheWriteError.empty())
             result.details += L"\r\nMetadata cache: " + cacheWriteError;
@@ -1372,33 +1405,33 @@ CheckResult runStatusCheck() {
         const std::string localUpdaterVersion = narrowUtf8(*currentUpdater);
         const auto updaterComparisonResult = compareVersions(localUpdaterVersion, *latestUpdater);
         if (!updaterComparisonResult) {
-            result.updaterStatus = L"Installed updater version could not be compared safely.";
+            result.packageStatus = L"Installed updater version could not be compared safely.";
             result.details += L"No updater changes were made because its version metadata is invalid.";
             return result;
         }
         const int updaterComparison = *updaterComparisonResult;
         if (updaterComparison == 0) {
-            result.updaterStatus = L"Updater is up to date (v" + *currentUpdater + L").";
+            result.packageStatus = L"Installed ArgonUpdater.exe matches the published version.";
             result.details += recoveryNote.empty()
-                ? L"Release metadata was verified over HTTPS. No files needed changing."
+                ? L"Published updater metadata was verified over HTTPS. No files needed changing."
                 : recoveryNote + L"\r\nRelease metadata was verified over HTTPS.";
             return result;
         }
         if (updaterComparison > 0) {
-            result.updaterStatus = L"Installed updater v" + *currentUpdater
+            result.packageStatus = L"Installed updater v" + *currentUpdater
                 + L" is newer than stable v" + widenUtf8(*latestUpdater) + L".";
             result.details += L"No downgrade was attempted. Release metadata was verified over HTTPS.";
             if (!recoveryNote.empty())
                 result.details += L"\r\n" + recoveryNote;
             return result;
         }
-        result.updaterStatus = L"Updater update available: v"
+        result.packageStatus = L"Updater update available: v"
             + widenUtf8(*latestUpdater) + L" (installed v" + *currentUpdater + L").";
     } else if (fileExists(paths.updaterExecutable)) {
-        result.updaterStatus = L"Updater update available: local version could not be read; latest is v"
+        result.packageStatus = L"Updater update available: local version could not be read; latest is v"
             + widenUtf8(*latestUpdater) + L".";
     } else {
-        result.updaterStatus = L"Updater is not installed; latest version is v"
+        result.packageStatus = L"Updater is not installed; latest version is v"
             + widenUtf8(*latestUpdater) + L".";
     }
 
@@ -1505,11 +1538,57 @@ CheckResult runStatusCheck() {
         return result;
     }
 
-    result.updaterStatus = L"Updater is up to date (v" + widenUtf8(*latestUpdater) + L").";
+    result.packageStatus = L"ArgonUpdater.exe update installed and verified (v" + widenUtf8(*latestUpdater) + L").";
     result.details += L"Release metadata was verified over HTTPS and updater integrity checks passed. ";
     if (!recoveryNote.empty())
         result.details += L"\r\n" + recoveryNote;
     return result;
+}
+
+std::string jsonEscape(const std::string &value) {
+    std::string output;
+    output.reserve(value.size() + 16);
+    for (unsigned char ch : value) {
+        switch (ch) {
+        case '"': output += "\\\""; break;
+        case '\\': output += "\\\\"; break;
+        case '\b': output += "\\b"; break;
+        case '\f': output += "\\f"; break;
+        case '\n': output += "\\n"; break;
+        case '\r': output += "\\r"; break;
+        case '\t': output += "\\t"; break;
+        default:
+            if (ch < 0x20) {
+                static constexpr char hex[] = "0123456789abcdef";
+                output += "\\u00";
+                output.push_back(hex[(ch >> 4) & 0x0F]);
+                output.push_back(hex[ch & 0x0F]);
+            } else {
+                output.push_back(static_cast<char>(ch));
+            }
+        }
+    }
+    return output;
+}
+
+bool writeBackgroundStatus(const CheckResult &result, std::wstring &error) {
+    const auto paths = resolvePaths(error);
+    if (!paths)
+        return false;
+    const fs::path statusPath = paths->root / L"Updates" / L"Status" / L"updater-status.json";
+    const std::string json =
+        "{\\n"
+        "  \\"schemaVersion\\": 1,\\n"
+        "  \\"checkSucceeded\\": " + std::string(result.checkSucceeded ? "true" : "false") + ",\\n"
+        "  \\"updateAvailable\\": " + std::string(result.updateAvailable ? "true" : "false") + ",\\n"
+        "  \\"installedVersion\\": \\"" + jsonEscape(result.installedUpdaterVersion) + "\\",\\n"
+        "  \\"latestVersion\\": \\"" + jsonEscape(result.latestUpdaterVersion) + "\\",\\n"
+        "  \\"status\\": \\"" + jsonEscape(narrowUtf8(result.updaterVersionStatus)) + "\\",\\n"
+        "  \\"packageStatus\\": \\"" + jsonEscape(narrowUtf8(result.packageStatus)) + "\\",\\n"
+        "  \\"details\\": \\"" + jsonEscape(narrowUtf8(result.details)) + "\\",\\n"
+        "  \\"releaseNotesUrl\\": \\"" + jsonEscape(result.releaseNotesUrl) + "\\"\\n"
+        "}\\n";
+    return writeTextAtomically(statusPath, json, error);
 }
 
 void setControlText(HWND control, const std::wstring &value);
@@ -1525,8 +1604,8 @@ void setControlFont(HWND control, HFONT font) {
 }
 
 void startStatusCheck(HWND window) {
-    setControlText(g_bootstrapStatus, L"Checking Bootstrap metadata...");
-    setControlText(g_updaterStatus, L"Checking installed updater...");
+    setControlText(g_updaterVersionStatus, L"Checking ArgonUpdater.exe version...");
+    setControlText(g_packageStatus, L"Checking installed updater...");
     setControlText(g_details, L"Contacting the stable metadata endpoint over HTTPS. Existing updater files remain untouched until a complete package passes validation.");
 
     HANDLE thread = CreateThread(nullptr, 0,
@@ -1542,8 +1621,8 @@ void startStatusCheck(HWND window) {
     if (thread)
         CloseHandle(thread);
     else {
-        setControlText(g_bootstrapStatus, L"Could not start the status check.");
-        setControlText(g_updaterStatus, L"No updater changes were made.");
+        setControlText(g_updaterVersionStatus, L"Could not start the status check.");
+        setControlText(g_packageStatus, L"No updater changes were made.");
         setControlText(g_details, systemErrorText(L"CreateThread failed"));
     }
 }
@@ -1551,38 +1630,55 @@ void startStatusCheck(HWND window) {
 LRESULT CALLBACK windowProcedure(HWND window, UINT message,
                                  WPARAM wParam, LPARAM lParam) {
     switch (message) {
+    case WM_CTLCOLORSTATIC: {
+        HDC dc = reinterpret_cast<HDC>(wParam);
+        SetTextColor(dc, RGB(232, 232, 230));
+        SetBkMode(dc, TRANSPARENT);
+        return reinterpret_cast<LRESULT>(GetStockObject(NULL_BRUSH));
+    }
+    case WM_CTLCOLOREDIT: {
+        HDC dc = reinterpret_cast<HDC>(wParam);
+        SetTextColor(dc, RGB(232, 232, 230));
+        SetBkColor(dc, RGB(38, 39, 42));
+        static HBRUSH editBrush = CreateSolidBrush(RGB(38, 39, 42));
+        return reinterpret_cast<LRESULT>(editBrush);
+    }
     case WM_CREATE: {
         g_headingFont = CreateFontW(-24, 0, 0, 0, FW_SEMIBOLD, FALSE, FALSE,
                                     FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS,
                                     CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY,
                                     DEFAULT_PITCH | FF_DONTCARE, L"Segoe UI");
-        HFONT regularFont = static_cast<HFONT>(GetStockObject(DEFAULT_GUI_FONT));
-        HWND heading = CreateWindowExW(0, L"STATIC", L"Argon Bootstrap",
+        HFONT regularFont = CreateFontW(-16, 0, 0, 0, FW_NORMAL, FALSE, FALSE,
+                                         FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS,
+                                         CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY,
+                                         DEFAULT_PITCH | FF_DONTCARE, L"Segoe UI");
+        HWND heading = CreateWindowExW(0, L"STATIC", L"ARGON",
             WS_CHILD | WS_VISIBLE, 28, 22, 540, 36, window, nullptr,
             GetModuleHandleW(nullptr), nullptr);
         setControlFont(heading, g_headingFont);
         HWND subtitle = CreateWindowExW(0, L"STATIC",
-            L"Release metadata and updater integrity status",
+            L"Updater companion  /  version and integrity status",
             WS_CHILD | WS_VISIBLE, 30, 57, 540, 22, window, nullptr,
             GetModuleHandleW(nullptr), nullptr);
         setControlFont(subtitle, regularFont);
 
-        g_bootstrapStatus = CreateWindowExW(0, L"STATIC", L"Starting...",
+        g_updaterVersionStatus = CreateWindowExW(0, L"STATIC", L"Starting...",
             WS_CHILD | WS_VISIBLE, 30, 96, 540, 25, window, nullptr,
             GetModuleHandleW(nullptr), nullptr);
-        g_updaterStatus = CreateWindowExW(0, L"STATIC", L"Starting...",
+        g_packageStatus = CreateWindowExW(0, L"STATIC", L"Starting...",
             WS_CHILD | WS_VISIBLE, 30, 128, 540, 25, window, nullptr,
             GetModuleHandleW(nullptr), nullptr);
         g_details = CreateWindowExW(WS_EX_CLIENTEDGE, L"EDIT", L"",
             WS_CHILD | WS_VISIBLE | ES_MULTILINE | ES_AUTOVSCROLL
                 | ES_READONLY | WS_VSCROLL,
             30, 165, 540, 105, window, nullptr, GetModuleHandleW(nullptr), nullptr);
-        setControlFont(g_bootstrapStatus, regularFont);
-        setControlFont(g_updaterStatus, regularFont);
+        setControlFont(g_updaterVersionStatus, regularFont);
+        setControlFont(g_packageStatus, regularFont);
         setControlFont(g_details, regularFont);
+        SendMessageW(g_details, EM_SETBKGNDCOLOR, 0, RGB(38, 39, 42));
 
         HWND safety = CreateWindowExW(0, L"STATIC",
-            L"An updater is changed only after HTTPS, size, SHA-256, and version checks pass. Existing versions are backed up first.",
+            L"Only ArgonUpdater.exe is changed. Packages are verified before installation; existing files are backed up first.",
             WS_CHILD | WS_VISIBLE, 30, 280, 540, 35, window, nullptr,
             GetModuleHandleW(nullptr), nullptr);
         setControlFont(safety, regularFont);
@@ -1602,8 +1698,8 @@ LRESULT CALLBACK windowProcedure(HWND window, UINT message,
         std::unique_ptr<CheckResult> result(reinterpret_cast<CheckResult *>(lParam));
         if (result) {
             // One manifest request determines both displayed version statuses.
-            setControlText(g_bootstrapStatus, result->bootstrapStatus);
-            setControlText(g_updaterStatus, result->updaterStatus);
+            setControlText(g_updaterVersionStatus, result->updaterVersionStatus);
+            setControlText(g_packageStatus, result->packageStatus);
             setControlText(g_details, result->details);
         }
         return 0;
@@ -1622,8 +1718,8 @@ LRESULT CALLBACK windowProcedure(HWND window, UINT message,
             DeleteObject(g_headingFont);
             g_headingFont = nullptr;
         }
-        g_bootstrapStatus = nullptr;
-        g_updaterStatus = nullptr;
+        g_updaterVersionStatus = nullptr;
+        g_packageStatus = nullptr;
         g_details = nullptr;
         PostQuitMessage(0);
         return 0;
@@ -1632,7 +1728,15 @@ LRESULT CALLBACK windowProcedure(HWND window, UINT message,
 }
 } // namespace
 
-int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
+int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR commandLine, int showCommand) {
+    if (commandLine && std::wcsstr(commandLine, L"--background")) {
+        const CheckResult result = runStatusCheck();
+        std::wstring statusError;
+        if (!writeBackgroundStatus(result, statusError))
+            return 3;
+        return result.checkSucceeded ? 0 : 2;
+    }
+
     INITCOMMONCONTROLSEX commonControls{sizeof(commonControls), ICC_STANDARD_CLASSES};
     InitCommonControlsEx(&commonControls);
 
@@ -1642,7 +1746,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
     windowClass.hInstance = instance;
     windowClass.hIcon = LoadIconW(nullptr, MAKEINTRESOURCEW(32512));
     windowClass.hCursor = LoadCursorW(nullptr, MAKEINTRESOURCEW(32512));
-    windowClass.hbrBackground = reinterpret_cast<HBRUSH>(COLOR_WINDOW + 1);
+    windowClass.hbrBackground = CreateSolidBrush(RGB(28, 29, 31));
     windowClass.lpszClassName = kWindowClass;
 
     if (!RegisterClassExW(&windowClass)) {
