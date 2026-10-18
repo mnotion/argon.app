@@ -1,14 +1,16 @@
 #include "SearchService.h"
+#include "../app/AppPaths.h"
 #include "DropImportWorker.h"
 
 #include <QCoreApplication>
 #include <QDir>
 #include <QDirIterator>
+#include <QFile>
 #include <QFileInfo>
-#include <QDir>
-#include <QUrl>
 #include <QMetaObject>
+#include <QSaveFile>
 #include <QSet>
+#include <QUrl>
 #include <QVariant>
 #include <QVariantMap>
 #include <algorithm>
@@ -30,36 +32,135 @@ bool pathIsInsideOrEqual(const QString &candidate, const QString &root)
     return normalizedCandidate == normalizedRoot
         || normalizedCandidate.startsWith(normalizedRoot + QLatin1Char('/'));
 }
+
+bool copyLegacyDirectoryContents(const QString &sourcePath,
+                                 const QString &destinationPath,
+                                 QString *errorMessage)
+{
+    const QDir sourceDirectory(sourcePath);
+    if (!sourceDirectory.exists())
+        return true;
+
+    if (!QDir().mkpath(destinationPath)) {
+        if (errorMessage)
+            *errorMessage = QStringLiteral("Could not create migration directory: ") + destinationPath;
+        return false;
+    }
+
+    const QFileInfoList entries = sourceDirectory.entryInfoList(
+        QDir::AllEntries | QDir::NoDotAndDotDot | QDir::Hidden | QDir::System,
+        QDir::Name);
+
+    for (const QFileInfo &entry : entries) {
+        // Never follow legacy symlinks during migration.
+        if (entry.isSymLink())
+            continue;
+
+        const QString destination = QDir(destinationPath).filePath(entry.fileName());
+        if (entry.isDir()) {
+            if (!QDir().mkpath(destination)) {
+                if (errorMessage)
+                    *errorMessage = QStringLiteral("Could not create migrated directory: ") + destination;
+                return false;
+            }
+            if (!copyLegacyDirectoryContents(entry.absoluteFilePath(), destination, errorMessage))
+                return false;
+        } else if (entry.isFile()) {
+            // Never overwrite files already present in the new data location.
+            if (QFileInfo::exists(destination))
+                continue;
+
+            if (!QDir().mkpath(QFileInfo(destination).absolutePath())) {
+                if (errorMessage)
+                    *errorMessage = QStringLiteral("Could not create destination directory for: ") + destination;
+                return false;
+            }
+
+            if (!QFile::copy(entry.absoluteFilePath(), destination)) {
+                // A concurrently-created destination is preserved, not replaced.
+                if (QFileInfo::exists(destination))
+                    continue;
+                if (errorMessage)
+                    *errorMessage = QStringLiteral("Could not migrate legacy file: ")
+                        + entry.absoluteFilePath();
+                return false;
+            }
+        }
+    }
+
+    return true;
+}
+
+bool migrateLegacySearchData()
+{
+    const QString markerPath = QDir(ArgonPaths::userDataDirectory())
+        .filePath(QStringLiteral(".legacy-search-migration-v1"));
+    if (QFileInfo::exists(markerPath))
+        return true;
+
+    const QDir executableDirectory(QCoreApplication::applicationDirPath());
+    const QStringList legacyCandidates = {
+        QDir(ArgonPaths::rootDirectory()).filePath(QStringLiteral("search QR")),
+        executableDirectory.filePath(QStringLiteral("Argon/search QR")),
+        executableDirectory.filePath(QStringLiteral("../Argon/search QR"))
+    };
+
+    const QString targetPath = ArgonPaths::searchRootDirectory();
+    const QString normalizedTarget = normalizedPath(targetPath);
+    QString legacySource;
+
+    // Preserve the previous precedence: prefer the folder beside the executable,
+    // then the parent-level Argon folder.
+    for (const QString &candidate : legacyCandidates) {
+        if (normalizedPath(candidate) != normalizedTarget && QDir(candidate).exists()) {
+            legacySource = QDir::cleanPath(candidate);
+            break;
+        }
+    }
+
+    if (legacySource.isEmpty())
+        return true;
+
+    QString migrationError;
+    if (!copyLegacyDirectoryContents(legacySource, targetPath, &migrationError)) {
+        qWarning().noquote() << "Argon could not finish migrating the legacy search folder:"
+                             << migrationError
+                             << "Original files remain in place.";
+        return false;
+    }
+
+    QSaveFile marker(markerPath);
+    const QByteArray markerContents("completed\n");
+    if (!marker.open(QIODevice::WriteOnly | QIODevice::Text)
+        || marker.write(markerContents) != markerContents.size()
+        || !marker.commit()) {
+        qWarning().noquote() << "Argon copied legacy search data but could not write migration marker:"
+                             << markerPath;
+        return false;
+    }
+
+    qInfo().noquote() << "Migrated legacy Argon search data from" << legacySource
+                      << "to" << targetPath << "(original files preserved).";
+    return true;
+}
 }
 
 SearchService::SearchService(QObject *parent)
     : QObject(parent)
 {
-    const QDir appDir(QCoreApplication::applicationDirPath());
-    const QString localDataRoot = QDir::cleanPath(
-        appDir.filePath(QStringLiteral("Argon")));
-    const QString adjacentDataRoot = QDir::cleanPath(
-        appDir.filePath(QStringLiteral("../Argon")));
+    QString directoryError;
+    if (!ArgonPaths::ensureDirectoryStructure(&directoryError))
+        qWarning().noquote() << directoryError;
 
-    // Prefer data beside the executable only when its Search QR directory exists.
-    // This prevents an unrelated neighbouring Argon folder from shadowing the
-    // project's actual data when launching an executable from the repository root.
-    const bool localSearchRootExists =
-        QDir(QDir(localDataRoot).filePath(QStringLiteral("search QR"))).exists();
-    const bool adjacentSearchRootExists =
-        QDir(QDir(adjacentDataRoot).filePath(QStringLiteral("search QR"))).exists();
+    // Copy existing search content into the new per-user location once.
+    // The old directory is retained, and existing destination files are never overwritten.
+    migrateLegacySearchData();
 
-    const QString dataRoot = localSearchRootExists
-        ? localDataRoot
-        : (adjacentSearchRootExists
-               ? adjacentDataRoot
-               : (QDir(localDataRoot).exists() ? localDataRoot : adjacentDataRoot));
-
-    // Search and the custom explorer share this single root.
-    m_searchRoot = QDir(dataRoot).filePath(QStringLiteral("search QR"));
-    QDir().mkpath(m_searchRoot);
+    // Search and the custom explorer share this single per-user root.
+    m_searchRoot = ArgonPaths::searchRootDirectory();
+    if (!QDir().mkpath(m_searchRoot))
+        qWarning().noquote() << "Could not create Argon search root:" << m_searchRoot;
     qInfo().noquote() << "Argon search root:" << QDir::cleanPath(m_searchRoot);
-    QDir().mkpath(QDir(dataRoot).filePath(QStringLiteral("cache")));
 
     m_importWorker = new DropImportWorker;
     m_importWorker->moveToThread(&m_importThread);

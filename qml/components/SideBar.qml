@@ -192,11 +192,29 @@ Item {
             Behavior on y { NumberAnimation { duration: 280; easing.type: Easing.OutCubic } }
             Behavior on scale { NumberAnimation { duration: 260; easing.type: Easing.OutBack } }
 
+            Image {
+                anchors.centerIn: parent
+                width: 25
+                height: 25
+                source: utilityButton.modelData.label === "Settings"
+                        ? "../assets/icons/Settings/setting-icon.png" : ""
+                visible: utilityButton.modelData.label === "Settings"
+                fillMode: Image.PreserveAspectFit
+                smooth: true
+                layer.enabled: true
+                layer.effect: MultiEffect {
+                    brightness: 1.0
+                    colorization: 1.0
+                    colorizationColor: "white"
+                }
+            }
+
             Text {
                 anchors.centerIn: parent
-                text: utilityButton.modelData.symbol
+                text: utilityButton.modelData.label === "Profile" ? utilityButton.modelData.symbol : ""
                 color: theme.text
-                font.pixelSize: utilityButton.modelData.label === "Settings" ? 22 : 20
+                font.pixelSize: 20
+                visible: utilityButton.modelData.label === "Profile"
             }
 
             MouseArea {

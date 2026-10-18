@@ -49,6 +49,30 @@ ApplicationWindow {
     property string argonExplorerCurrentPath: ""
     property var argonExplorerEntries: []
 
+    // One concise status covers the application and companion updater.
+    property color releaseStatusColor: {
+        if (releaseMetadataService.checking || updaterStatusService.checking)
+            return "#E5B83B"
+        if ((releaseMetadataService.checkSucceeded && releaseMetadataService.updateAvailable)
+                || (updaterStatusService.checkSucceeded && updaterStatusService.updateAvailable))
+            return "#E34B4B"
+        if (releaseMetadataService.checkSucceeded && updaterStatusService.checkSucceeded)
+            return "#36B56B"
+        return "#888888"
+    }
+    property string releaseStatusText: {
+        if (releaseMetadataService.checking || updaterStatusService.checking)
+            return "Checking"
+        if ((releaseMetadataService.checkSucceeded && releaseMetadataService.updateAvailable)
+                || (updaterStatusService.checkSucceeded && updaterStatusService.updateAvailable))
+            return "Update available"
+        if (releaseMetadataService.checkSucceeded && updaterStatusService.checkSucceeded)
+            return "Up to date"
+        if (releaseMetadataService.checkSucceeded || updaterStatusService.checkSucceeded)
+            return "Partially checked"
+        return "Unavailable"
+    }
+
     function toggleFullscreen() {
         if (window.visibility === Window.FullScreen) {
             window.showNormal()
@@ -280,9 +304,9 @@ ApplicationWindow {
 
     Rectangle {
         id: profilePanel
-        Component.onCompleted: profileBaseY = window.height * 0.25 - height / 2
+        Component.onCompleted: profileBaseY = Math.max(12, Math.min(window.height - height - 12, window.height * 0.25 - height / 2))
         width: 292
-        height: (settingsColumn.implicitHeight + 42) * (window.profileExpanded ? 2 : 1)
+        height: Math.min(window.height - 24, (profileColumn.implicitHeight + 30) * (window.profileExpanded ? 1.08 : 1))
         property bool tuckedByNavigation: sideBar.bannerOpen
         x: window.profileOpen ? 10 : (tuckedByNavigation ? -width + 24 : -width)
         y: profileBaseY
@@ -296,6 +320,7 @@ ApplicationWindow {
         opacity: window.profileOpen ? 1 : (sideBar.bannerOpen ? 0.55 : 0)
         Behavior on x { NumberAnimation { duration: 520; easing.type: Easing.OutExpo } }
         Behavior on height { NumberAnimation { duration: 440; easing.type: Easing.OutExpo } }
+        onHeightChanged: profileBaseY = Math.max(12, Math.min(window.height - height - 12, window.height * 0.25 - height / 2))
         Behavior on opacity { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
         Connections {
             target: sideBar
@@ -322,7 +347,11 @@ ApplicationWindow {
             Behavior on opacity { NumberAnimation { duration: 420; easing.type: Easing.OutCubic } }
             RowLayout {
                 Layout.fillWidth: true
-                Text { Layout.fillWidth: true; text: "Account"; color: theme.text; font.pixelSize: 16; font.weight: Font.DemiBold }
+                spacing: 7
+                Text { text: "Account"; color: theme.text; font.pixelSize: 16; font.weight: Font.DemiBold }
+
+                Item { Layout.fillWidth: true }
+
                 Button {
                     text: "×"
                     Layout.preferredWidth: 30
@@ -337,6 +366,111 @@ ApplicationWindow {
                 }
             }
             Rectangle { Layout.fillWidth: true; height: 1; color: theme.border }
+
+            RowLayout {
+                Layout.fillWidth: true
+                visible: !window.profileExpanded
+                spacing: 6
+
+                Text {
+                    text: "Updates"
+                    color: theme.text
+                    font.pixelSize: 13
+                    font.weight: Font.DemiBold
+                }
+                Text {
+                    Layout.fillWidth: true
+                    text: "— " + window.releaseStatusText
+                    color: window.releaseStatusColor
+                    font.pixelSize: 12
+                    elide: Text.ElideRight
+                }
+            }
+
+            Rectangle {
+                id: updatesCard
+                Layout.fillWidth: true
+                visible: window.profileExpanded
+                radius: 12
+                color: theme.surface
+                border.color: theme.border
+                implicitHeight: updatesColumn.implicitHeight + 20
+
+                ColumnLayout {
+                    id: updatesColumn
+                    anchors.fill: parent
+                    anchors.margins: 10
+                    spacing: 10
+
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        spacing: 5
+
+                        Text {
+                            text: "Argon"
+                            color: theme.accent
+                            font.pixelSize: 13
+                            font.weight: Font.DemiBold
+                        }
+                        Text {
+                            Layout.fillWidth: true
+                            text: "Installed: " + (releaseMetadataService.currentVersion.length > 0
+                                                   ? releaseMetadataService.currentVersion : "unknown")
+                            color: theme.text
+                            font.pixelSize: 12
+                        }
+                        Text {
+                            Layout.fillWidth: true
+                            text: "Stable: " + (releaseMetadataService.latestVersion.length > 0
+                                                 ? releaseMetadataService.latestVersion : "checking")
+                            color: theme.mutedText
+                            font.pixelSize: 12
+                        }
+                        Button {
+                            visible: releaseMetadataService.checkSucceeded
+                                     && releaseMetadataService.updateAvailable
+                                     && releaseMetadataService.releaseNotesUrl.length > 0
+                            text: "Update"
+                            onClicked: Qt.openUrlExternally(releaseMetadataService.releaseNotesUrl)
+                        }
+                    }
+
+                    Rectangle { Layout.fillWidth: true; height: 1; color: theme.border }
+
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        spacing: 5
+
+                        Text {
+                            text: "Updater"
+                            color: theme.accent
+                            font.pixelSize: 13
+                            font.weight: Font.DemiBold
+                        }
+                        Text {
+                            Layout.fillWidth: true
+                            text: "Installed: " + (updaterStatusService.installedVersion.length > 0
+                                                   ? updaterStatusService.installedVersion : "unknown")
+                            color: theme.text
+                            font.pixelSize: 12
+                        }
+                        Text {
+                            Layout.fillWidth: true
+                            text: "Stable: " + (updaterStatusService.latestVersion.length > 0
+                                                 ? updaterStatusService.latestVersion : "checking")
+                            color: theme.mutedText
+                            font.pixelSize: 12
+                        }
+                        Button {
+                            visible: updaterStatusService.checkSucceeded
+                                     && updaterStatusService.updateAvailable
+                                     && updaterStatusService.packageAvailable
+                            text: "Update"
+                            onClicked: updaterInstallDialog.open()
+                        }
+                    }
+                }
+            }
 
             RowLayout {
                 Layout.fillWidth: true
@@ -2126,4 +2260,23 @@ ApplicationWindow {
             }
         }
     }
+
+    Dialog {
+        id: updaterInstallDialog
+        title: "Update Argon Updater"
+        modal: true
+        anchors.centerIn: parent
+        standardButtons: Dialog.Cancel | Dialog.Ok
+        width: 360
+
+        contentItem: Text {
+            text: "Update Argon Updater to version " + updaterStatusService.latestVersion + "?"
+            color: theme.text
+            wrapMode: Text.WordWrap
+            font.pixelSize: 13
+        }
+
+        onAccepted: updaterStatusService.installUpdate()
+    }
+
 }
