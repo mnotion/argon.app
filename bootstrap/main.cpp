@@ -23,7 +23,7 @@
 #endif
 
 #ifndef ARGON_BOOTSTRAP_LATEST_URL
-#define ARGON_BOOTSTRAP_LATEST_URL "https://raw.githubusercontent.com/mnotion/argon.updater/rel-config/bootstrap-latest.json"
+#define ARGON_BOOTSTRAP_LATEST_URL "https://raw.githubusercontent.com/mnotion/argon.updater/rel-config/bootstrap-latest.json?rev=3"
 #endif
 
 namespace fs = std::filesystem;
