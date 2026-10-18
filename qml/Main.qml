@@ -49,36 +49,20 @@ ApplicationWindow {
     property string argonExplorerCurrentPath: ""
     property var argonExplorerEntries: []
 
-    // The status dot reflects the async latest.json check, not package installation.
+    // One indicator reflects both application releases and the companion updater.
     property color releaseStatusColor: {
-        if (releaseMetadataService.checking)
-            return "#E5B83B" // Yellow: connecting/checking.
-        if (!releaseMetadataService.checkSucceeded) {
-            if (releaseMetadataService.status === "Updates have not been checked.")
-                return "#E5B83B"
-            return "#888888" // Gray: metadata check failed.
-        }
-        if (releaseMetadataService.updateAvailable)
-            return "#E34B4B" // Red: a newer published version exists.
-        if (releaseMetadataService.currentVersion === releaseMetadataService.latestVersion)
-            return "#36B56B" // Green: source and published versions match.
-        return "#888888" // Neutral fallback if source is newer than published metadata.
+        if (releaseMetadataService.checking || updaterStatusService.checking)
+            return "#E5B83B"
+        if (releaseMetadataService.updateAvailable || updaterStatusService.updateAvailable)
+            return "#E34B4B"
+        if (releaseMetadataService.checkSucceeded && updaterStatusService.checkSucceeded)
+            return "#36B56B"
+        return "#888888"
     }
-    property string releaseStatusTooltip: {
-        if (releaseMetadataService.checking
-                || releaseMetadataService.status === "Updates have not been checked.")
-            return "Connecting to latest.json..."
-        if (!releaseMetadataService.checkSucceeded)
-            return "Could not check latest.json: " + releaseMetadataService.status
-        if (releaseMetadataService.updateAvailable)
-            return "Update available: " + releaseMetadataService.latestVersion
-                    + " (current version " + releaseMetadataService.currentVersion + ")"
-        if (releaseMetadataService.currentVersion === releaseMetadataService.latestVersion)
-            return "Argon source version matches published version "
-                    + releaseMetadataService.latestVersion
-        return "Source version " + releaseMetadataService.currentVersion
-                + " is newer than published version " + releaseMetadataService.latestVersion
-    }
+    property string releaseStatusTooltip:
+        "Argon: " + releaseMetadataService.status
+        + "\nUpdater: " + updaterStatusService.status
+        + "\n" + updaterStatusService.packageStatus
 
     function toggleFullscreen() {
         if (window.visibility === Window.FullScreen) {
@@ -311,9 +295,9 @@ ApplicationWindow {
 
     Rectangle {
         id: profilePanel
-        Component.onCompleted: profileBaseY = window.height * 0.25 - height / 2
+        Component.onCompleted: profileBaseY = Math.max(12, Math.min(window.height - height - 12, window.height * 0.25 - height / 2))
         width: 292
-        height: (settingsColumn.implicitHeight + 42) * (window.profileExpanded ? 2 : 1)
+        height: Math.min(window.height - 24, (profileColumn.implicitHeight + 30) * (window.profileExpanded ? 1.08 : 1))
         property bool tuckedByNavigation: sideBar.bannerOpen
         x: window.profileOpen ? 10 : (tuckedByNavigation ? -width + 24 : -width)
         y: profileBaseY
@@ -327,6 +311,7 @@ ApplicationWindow {
         opacity: window.profileOpen ? 1 : (sideBar.bannerOpen ? 0.55 : 0)
         Behavior on x { NumberAnimation { duration: 520; easing.type: Easing.OutExpo } }
         Behavior on height { NumberAnimation { duration: 440; easing.type: Easing.OutExpo } }
+        onHeightChanged: profileBaseY = Math.max(12, Math.min(window.height - height - 12, window.height * 0.25 - height / 2))
         Behavior on opacity { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
         Connections {
             target: sideBar
@@ -395,6 +380,130 @@ ApplicationWindow {
                 }
             }
             Rectangle { Layout.fillWidth: true; height: 1; color: theme.border }
+
+            Rectangle {
+                id: updatesCard
+                Layout.fillWidth: true
+                radius: 12
+                color: theme.surface
+                border.color: theme.border
+                implicitHeight: updatesColumn.implicitHeight + 20
+
+                ColumnLayout {
+                    id: updatesColumn
+                    anchors.fill: parent
+                    anchors.margins: 10
+                    spacing: 8
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        Text {
+                            Layout.fillWidth: true
+                            text: "Updates"
+                            color: theme.text
+                            font.pixelSize: 14
+                            font.weight: Font.DemiBold
+                        }
+                        Text {
+                            text: releaseMetadataService.checking || updaterStatusService.checking
+                                  ? "Checking" : (releaseMetadataService.updateAvailable || updaterStatusService.updateAvailable
+                                                 ? "Available" : "Status")
+                            color: window.releaseStatusColor
+                            font.pixelSize: 10
+                            font.weight: Font.DemiBold
+                        }
+                    }
+
+                    Rectangle { Layout.fillWidth: true; height: 1; color: theme.border }
+
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        spacing: 3
+                        Text {
+                            text: "Argon application"
+                            color: theme.accent
+                            font.pixelSize: 11
+                            font.weight: Font.DemiBold
+                        }
+                        Text {
+                            Layout.fillWidth: true
+                            text: "Installed v" + releaseMetadataService.currentVersion
+                                  + (releaseMetadataService.latestVersion.length > 0
+                                     ? "  ·  Stable v" + releaseMetadataService.latestVersion : "")
+                            color: theme.text
+                            font.pixelSize: 11
+                            wrapMode: Text.WordWrap
+                        }
+                        Text {
+                            Layout.fillWidth: true
+                            text: releaseMetadataService.status
+                            color: theme.mutedText
+                            font.pixelSize: 10
+                            wrapMode: Text.WordWrap
+                        }
+                        Button {
+                            visible: releaseMetadataService.checkSucceeded
+                                     && releaseMetadataService.releaseNotesUrl.length > 0
+                            text: "Argon release notes"
+                            onClicked: Qt.openUrlExternally(releaseMetadataService.releaseNotesUrl)
+                        }
+                    }
+
+                    Rectangle { Layout.fillWidth: true; height: 1; color: theme.border }
+
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        spacing: 3
+                        Text {
+                            text: "Argon Updater"
+                            color: theme.accent
+                            font.pixelSize: 11
+                            font.weight: Font.DemiBold
+                        }
+                        Text {
+                            Layout.fillWidth: true
+                            text: "Installed v" + (updaterStatusService.installedVersion.length > 0
+                                                   ? updaterStatusService.installedVersion : "unknown")
+                                  + (updaterStatusService.latestVersion.length > 0
+                                     ? "  ·  Stable v" + updaterStatusService.latestVersion : "")
+                            color: theme.text
+                            font.pixelSize: 11
+                            wrapMode: Text.WordWrap
+                        }
+                        Text {
+                            Layout.fillWidth: true
+                            text: updaterStatusService.status
+                            color: updaterStatusService.updateAvailable ? theme.accent : theme.mutedText
+                            font.pixelSize: 10
+                            wrapMode: Text.WordWrap
+                        }
+                        Text {
+                            Layout.fillWidth: true
+                            text: updaterStatusService.packageStatus
+                            color: theme.mutedText
+                            font.pixelSize: 10
+                            wrapMode: Text.WordWrap
+                        }
+                        Button {
+                            visible: updaterStatusService.releaseNotesUrl.length > 0
+                            text: "Updater release notes"
+                            onClicked: Qt.openUrlExternally(updaterStatusService.releaseNotesUrl)
+                        }
+                    }
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        Item { Layout.fillWidth: true }
+                        Button {
+                            text: "Check now"
+                            onClicked: {
+                                releaseMetadataService.checkForUpdates()
+                                updaterStatusService.checkForUpdates()
+                            }
+                        }
+                    }
+                }
+            }
 
             RowLayout {
                 Layout.fillWidth: true
