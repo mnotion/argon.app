@@ -87,7 +87,7 @@ if(WIN32)
     endif()
     target_compile_definitions(ArgonBootstrap PRIVATE
         "ARGON_BOOTSTRAP_VERSION=\"1.0.0.0\""
-        "ARGON_BOOTSTRAP_LATEST_URL=\"https://raw.githubusercontent.com/mnotion/argon.updater/rel-config/bootstrap-latest.json?rev=2\""
+        "ARGON_BOOTSTRAP_LATEST_URL=\"https://raw.githubusercontent.com/mnotion/argon.updater/rel-config/bootstrap-latest.json?rev=3\""
     )
     target_link_libraries(ArgonBootstrap PRIVATE
         winhttp
