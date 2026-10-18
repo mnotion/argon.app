@@ -1069,9 +1069,13 @@ bool recoverPendingTransaction(const Paths &paths, std::wstring &recoveryNote,
     const auto backupFileField = field(journal, "backupFile");
     const auto originalHashField = field(journal, "originalSha256");
     const auto expectedHashField = field(journal, "expectedSha256");
+    const auto expectedVersionField = field(journal, "expectedVersion");
+    std::array<unsigned long long, 4> expectedVersionParts{};
     if (!hadExistingField || !backupFileField || !originalHashField
-        || !expectedHashField || (*hadExistingField != "0" && *hadExistingField != "1")
+        || !expectedHashField || !expectedVersionField
+        || (*hadExistingField != "0" && *hadExistingField != "1")
         || !isSha256(*expectedHashField)
+        || !parseVersion(*expectedVersionField, expectedVersionParts)
         || (*hadExistingField == "1"
             && (!isSimpleFileName(*backupFileField) || !isSha256(*originalHashField)))) {
         error = L"The pending updater transaction record is invalid. No files were changed.";
@@ -1081,9 +1085,15 @@ bool recoverPendingTransaction(const Paths &paths, std::wstring &recoveryNote,
     std::string actualTargetHash;
     std::wstring hashError;
     const bool targetExists = fileExists(paths.updaterExecutable);
+    std::optional<std::wstring> actualTargetVersion;
+    if (targetExists)
+        actualTargetVersion = readPeVersion(paths.updaterExecutable);
+
     const bool targetMatchesExpected = targetExists
         && sha256File(paths.updaterExecutable, actualTargetHash, hashError)
-        && toLowerAscii(actualTargetHash) == toLowerAscii(*expectedHashField);
+        && toLowerAscii(actualTargetHash) == toLowerAscii(*expectedHashField)
+        && actualTargetVersion
+        && narrowUtf8(*actualTargetVersion) == *expectedVersionField;
 
     if (targetMatchesExpected) {
         if (*hadExistingField == "1") {
