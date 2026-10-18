@@ -12,7 +12,7 @@
 
 namespace {
 const QString kDefaultMetadataUrl = QStringLiteral(
-    "https://raw.githubusercontent.com/ananas123123/argon.updater/rel-config/latest.json");
+    "https://raw.githubusercontent.com/mnotion/argon.updater/rel-config/latest.json");
 
 bool isSecureMetadataUrl(const QUrl &url)
 {
