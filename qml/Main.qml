@@ -446,7 +446,7 @@ ApplicationWindow {
                         Button {
                             visible: releaseMetadataService.checkSucceeded
                                      && releaseMetadataService.releaseNotesUrl.length > 0
-                            text: "Argon release notes"
+                            text: releaseMetadataService.updateAvailable ? "View Argon update" : "Argon release notes"
                             onClicked: Qt.openUrlExternally(releaseMetadataService.releaseNotesUrl)
                         }
                     }
