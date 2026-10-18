@@ -966,7 +966,7 @@ std::wstring describeUpdaterVersion(const std::optional<std::wstring> &installed
     }
 
     if (comparison < 0) {
-        return L"Argon Updater update available: v" + widenUtf8(latest)
+        return L"Argon ArgonUpdater.exe update available: v" + widenUtf8(latest)
             + L" (installed v" + *installed + L").";
     }
     if (comparison > 0) {
@@ -1362,7 +1362,7 @@ CheckResult runStatusCheck() {
     std::wstring jsonError;
     std::string latestBootstrapVersion;
     if (!parseBootstrapMetadata(manifestText, manifest, latestBootstrapVersion, jsonError)) {
-        result.updaterVersionStatus = L"Release metadata is invalid; the latest Bootstrap version cannot be trusted.";
+        result.updaterVersionStatus = L"Release metadata is invalid; the published updater version cannot be trusted.";
         result.packageStatus = L"No updater changes were made.";
         result.details = L"bootstrap-latest.json could not be validated: " + jsonError
             + L"\r\nNo files were changed.";
@@ -1418,20 +1418,20 @@ CheckResult runStatusCheck() {
             return result;
         }
         if (updaterComparison > 0) {
-            result.packageStatus = L"Installed updater v" + *currentUpdater
+            result.packageStatus = L"Installed ArgonUpdater.exe v" + *currentUpdater
                 + L" is newer than stable v" + widenUtf8(*latestUpdater) + L".";
             result.details += L"No downgrade was attempted. Release metadata was verified over HTTPS.";
             if (!recoveryNote.empty())
                 result.details += L"\r\n" + recoveryNote;
             return result;
         }
-        result.packageStatus = L"Updater update available: v"
+        result.packageStatus = L"ArgonUpdater.exe update available: v"
             + widenUtf8(*latestUpdater) + L" (installed v" + *currentUpdater + L").";
     } else if (fileExists(paths.updaterExecutable)) {
-        result.packageStatus = L"Updater update available: local version could not be read; latest is v"
+        result.packageStatus = L"ArgonUpdater.exe update available: local version could not be read; latest is v"
             + widenUtf8(*latestUpdater) + L".";
     } else {
-        result.packageStatus = L"Updater is not installed; latest version is v"
+        result.packageStatus = L"ArgonUpdater.exe is not installed; latest published version is v"
             + widenUtf8(*latestUpdater) + L".";
     }
 
@@ -1508,7 +1508,7 @@ CheckResult runStatusCheck() {
         return result;
     }
     if (!downloadFile(widenUtf8(*packageUrl), download, expectedSize, networkError)) {
-        result.details = L"Updater download failed. The installed updater was left untouched.\r\n"
+        result.details = L"Updater download failed. The installed ArgonUpdater.exe was left untouched.\r\n"
             + networkError;
         if (!recoveryNote.empty())
             result.details += L"\r\n" + recoveryNote;
@@ -1519,7 +1519,7 @@ CheckResult runStatusCheck() {
     if (!sha256File(download, actualHash, temporaryError)
         || toLowerAscii(actualHash) != toLowerAscii(*expectedHash)) {
         DeleteFileW(download.c_str());
-        result.details = L"Downloaded updater failed SHA-256 validation. The installed updater was left untouched.";
+        result.details = L"Downloaded updater failed SHA-256 validation. The installed ArgonUpdater.exe was left untouched.";
         if (!temporaryError.empty())
             result.details += L"\r\n" + temporaryError;
         return result;
@@ -1528,7 +1528,7 @@ CheckResult runStatusCheck() {
     const auto packageVersion = readPeVersion(download);
     if (!packageVersion || narrowUtf8(*packageVersion) != *latestUpdater) {
         DeleteFileW(download.c_str());
-        result.details = L"Downloaded file's embedded Windows version does not match directory.json. The installed updater was left untouched.";
+        result.details = L"Downloaded file's embedded Windows version does not match directory.json. The installed ArgonUpdater.exe was left untouched.";
         return result;
     }
 
@@ -1577,17 +1577,17 @@ bool writeBackgroundStatus(const CheckResult &result, std::wstring &error) {
         return false;
     const fs::path statusPath = paths->root / L"Updates" / L"Status" / L"updater-status.json";
     const std::string json =
-        "{\\n"
-        "  \\"schemaVersion\\": 1,\\n"
-        "  \\"checkSucceeded\\": " + std::string(result.checkSucceeded ? "true" : "false") + ",\\n"
-        "  \\"updateAvailable\\": " + std::string(result.updateAvailable ? "true" : "false") + ",\\n"
-        "  \\"installedVersion\\": \\"" + jsonEscape(result.installedUpdaterVersion) + "\\",\\n"
-        "  \\"latestVersion\\": \\"" + jsonEscape(result.latestUpdaterVersion) + "\\",\\n"
-        "  \\"status\\": \\"" + jsonEscape(narrowUtf8(result.updaterVersionStatus)) + "\\",\\n"
-        "  \\"packageStatus\\": \\"" + jsonEscape(narrowUtf8(result.packageStatus)) + "\\",\\n"
-        "  \\"details\\": \\"" + jsonEscape(narrowUtf8(result.details)) + "\\",\\n"
-        "  \\"releaseNotesUrl\\": \\"" + jsonEscape(result.releaseNotesUrl) + "\\"\\n"
-        "}\\n";
+        "{\n"
+        "  \"schemaVersion\": 1,\n"
+        "  \"checkSucceeded\": " + std::string(result.checkSucceeded ? "true" : "false") + ",\n"
+        "  \"updateAvailable\": " + std::string(result.updateAvailable ? "true" : "false") + ",\n"
+        "  \"installedVersion\": \"" + jsonEscape(result.installedUpdaterVersion) + "\",\n"
+        "  \"latestVersion\": \"" + jsonEscape(result.latestUpdaterVersion) + "\",\n"
+        "  \"status\": \"" + jsonEscape(narrowUtf8(result.updaterVersionStatus)) + "\",\n"
+        "  \"packageStatus\": \"" + jsonEscape(narrowUtf8(result.packageStatus)) + "\",\n"
+        "  \"details\": \"" + jsonEscape(narrowUtf8(result.details)) + "\",\n"
+        "  \"releaseNotesUrl\": \"" + jsonEscape(result.releaseNotesUrl) + "\"\n"
+        "}\n";
     return writeTextAtomically(statusPath, json, error);
 }
 
