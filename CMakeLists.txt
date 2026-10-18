@@ -30,6 +30,8 @@ qt_add_executable(Argon
     src/versioning/LatestReleaseMetadata.h
     src/versioning/ReleaseMetadataService.cpp
     src/versioning/ReleaseMetadataService.h
+    src/versioning/UpdaterStatusService.cpp
+    src/versioning/UpdaterStatusService.h
 )
 
 qt_add_qml_module(Argon
@@ -67,6 +69,44 @@ target_compile_definitions(Argon PRIVATE "ARGON_VERSION_STRING=\"${PROJECT_VERSI
 # It checks release metadata over HTTPS and only replaces an updater after
 # validating package size, SHA-256, and embedded PE version.
 if(WIN32)
+    enable_language(RC)
+
+    # The updater executable is deliberately inert for v1.0.0.0; its Windows
+    # VERSIONINFO resource is the authoritative installed version read by Bootstrap.
+    set(ARGON_UPDATER_VERSION "1.0.0.0" CACHE STRING "Argon Updater file version")
+    if(NOT ARGON_UPDATER_VERSION MATCHES "^[0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+$")
+        message(FATAL_ERROR "ARGON_UPDATER_VERSION must use four numeric components (major.minor.patch.cosmetic).")
+    endif()
+    string(REPLACE "." "," ARGON_UPDATER_VERSION_RC "${ARGON_UPDATER_VERSION}")
+    configure_file(
+        "${CMAKE_CURRENT_SOURCE_DIR}/bootstrap/updater_version.rc.in"
+        "${CMAKE_CURRENT_BINARY_DIR}/argon_updater_version.rc"
+        @ONLY
+    )
+
+    add_executable(ArgonUpdater WIN32
+        bootstrap/updater_stub.cpp
+        "${CMAKE_CURRENT_BINARY_DIR}/argon_updater_version.rc"
+    )
+    set_target_properties(ArgonUpdater PROPERTIES
+        OUTPUT_NAME "ArgonUpdater"
+        WIN32_EXECUTABLE TRUE
+    )
+    if(MINGW)
+        target_link_options(ArgonUpdater PRIVATE
+            -municode
+            -static
+            -static-libgcc
+            -static-libstdc++
+        )
+    endif()
+    if(DEFINED ARGON_UPDATER_OUTPUT_DIR AND NOT ARGON_UPDATER_OUTPUT_DIR STREQUAL "")
+        file(MAKE_DIRECTORY "${ARGON_UPDATER_OUTPUT_DIR}")
+        set_target_properties(ArgonUpdater PROPERTIES
+            RUNTIME_OUTPUT_DIRECTORY "${ARGON_UPDATER_OUTPUT_DIR}"
+        )
+    endif()
+
     add_executable(ArgonBootstrap WIN32
         bootstrap/main.cpp
     )
