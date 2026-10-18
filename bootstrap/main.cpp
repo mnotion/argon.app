@@ -1658,8 +1658,10 @@ LRESULT CALLBACK windowProcedure(HWND window, UINT message,
     case WM_CTLCOLORSTATIC: {
         HDC dc = reinterpret_cast<HDC>(wParam);
         SetTextColor(dc, RGB(232, 232, 230));
-        SetBkMode(dc, TRANSPARENT);
-        return reinterpret_cast<LRESULT>(GetStockObject(NULL_BRUSH));
+        SetBkColor(dc, RGB(28, 29, 31));
+        SetBkMode(dc, OPAQUE);
+        static HBRUSH staticBrush = CreateSolidBrush(RGB(28, 29, 31));
+        return reinterpret_cast<LRESULT>(staticBrush);
     }
     case WM_CTLCOLOREDIT: {
         HDC dc = reinterpret_cast<HDC>(wParam);
