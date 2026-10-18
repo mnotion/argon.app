@@ -82,7 +82,7 @@ if errorlevel 1 goto :build_failed
 
 echo.
 echo === Configuring Argon and Bootstrap ===
-cmake -S "%~dp0." -B "%BUILD_DIR%" -G "MinGW Makefiles" -DCMAKE_PREFIX_PATH="%QT_ROOT%" -DCMAKE_CXX_COMPILER="%MINGW_ROOT%\bin\g++.exe" -DCMAKE_MAKE_PROGRAM="%MINGW_ROOT%\bin\mingw32-make.exe" -DARGON_RUNTIME_OUTPUT_DIR="%SIM_STAGE_APP_DIR%" -DARGON_BOOTSTRAP_OUTPUT_DIR="%SIM_STAGE_BOOTSTRAP_DIR%"
+cmake -S "%~dp0." -B "%BUILD_DIR%" -G "MinGW Makefiles" -DCMAKE_PREFIX_PATH="%QT_ROOT%" -DCMAKE_CXX_COMPILER="%MINGW_ROOT%\bin\g++.exe" -DCMAKE_MAKE_PROGRAM="%MINGW_ROOT%\bin\mingw32-make.exe" -DARGON_RUNTIME_OUTPUT_DIR="%SIM_STAGE_APP_DIR%" -DARGON_BOOTSTRAP_OUTPUT_DIR="%SIM_STAGE_BOOTSTRAP_DIR%" -DARGON_UPDATER_OUTPUT_DIR="%SIM_ROOT%\Updater" -DARGON_UPDATER_VERSION="1.0.0.0"
 if errorlevel 1 (
     echo.
     echo [ERROR] CMake configuration failed. See output above.
@@ -104,6 +104,10 @@ if not exist "%SIM_STAGE_APP_DIR%\Argon.exe" (
 if not exist "%SIM_STAGE_BOOTSTRAP_DIR%\Bootstrap.exe" (
     echo [ERROR] Build finished but staged Bootstrap.exe was not created.
     echo Check the CMake bootstrap output configuration.
+    goto :build_failed
+)
+if not exist "%SIM_ROOT%\Updater\ArgonUpdater.exe" (
+    echo [ERROR] Build finished but ArgonUpdater.exe was not created in "%SIM_ROOT%\Updater".
     goto :build_failed
 )
 
