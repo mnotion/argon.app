@@ -1,6 +1,8 @@
 # Argon Bootstrap
 
-`Bootstrap.exe` is a small native Windows program built independently from Qt. It lives at:
+Argon Bootstrap is a small native Windows companion. It is not the updater, and it does not update itself. Its version-checking responsibility is the installed ArgonUpdater.exe.
+
+## Runtime layout
 
 ```text
 Argon-sim/
@@ -11,33 +13,36 @@ Argon-sim/
     Downloads/
     Staging/
     Backups/
+    Status/updater-status.json
 ```
 
-## What the first version does
+## Version ownership
 
-- Opens a real desktop window when double-clicked.
-- Fetches `bootstrap-latest.json` over HTTPS and compares four-part versions.
-- Shows separate status for Bootstrap and the installed updater.
-- Reads `directory.json` only when the installed updater is missing or older than the configured version.
-- Does not make changes if metadata is invalid, offline, or lacks a real updater URL, SHA-256, and byte size.
-- If a real updater package is later configured, downloads it to a temporary file, checks the declared size and SHA-256, and requires its embedded Windows file version to match the metadata.
-- Copies any existing updater to `Updates/Backups` before replacing it. A flushed transaction record allows the next Bootstrap launch to finish verification or restore that backup after an interrupted replacement. Backups are retained after success.
+- ArgonUpdater.exe embeds its four-part Windows FileVersion and ProductVersion in its VERSIONINFO resource.
+- Bootstrap reads that installed file version with the Windows version API.
+- Bootstrap fetches bootstrap-latest.json from the stable metadata branch and compares its updaterVersion field with the installed ArgonUpdater.exe version.
+- bootstrapVersion remains compatibility metadata for the Bootstrap binary and is not used as the installed updater version.
+- Argon launches Bootstrap with --background. Bootstrap performs the check, updates only Updater/ArgonUpdater.exe when a valid package is published, writes a status JSON under Updates/Status, and exits without opening a second window.
+- Launching Bootstrap manually opens the readable Argon-styled status window.
 
-The first metadata record advertises Bootstrap and updater version `1.0.0.0`. The updater package is not published yet: `directory.json` intentionally has an empty `packageUrl`, empty `sha256`, and `sizeBytes: 0`. For now, Bootstrap should report that it is current and that an updater installation/update is pending, without changing updater files.
+## Current updater target
+
+The repository builds a deliberately inert ArgonUpdater.exe target whose embedded file and product versions are 1.0.0.0. It exits immediately and contains no update behaviour. Its purpose is to provide a real PE version resource that Bootstrap can read; later updater functionality belongs in a separately tested release.
+
+The current release metadata advertises updater 1.0.0.0. No downloadable updater asset has been published yet. directory.json therefore intentionally leaves packageUrl and sha256 empty and sizeBytes set to 0. Bootstrap must not replace a file until a real HTTPS asset, exact SHA-256, exact byte length, and matching embedded version are published.
 
 ## Build and test
 
-On the Windows build machine, run `build.bat`. CMake emits `Bootstrap.exe` into a staging directory. The deployment script activates the staged app and bootstrap together and restores the previous folders if activation fails.
+On the Windows build machine, run build.bat. It builds Argon, the Bootstrap companion, and the inert updater version 1.0.0.0. The updater is emitted into Argon-sim/Updater/ArgonUpdater.exe.
 
-To test the current first version:
+1. Confirm the built executable's Details tab shows File version 1.0.0.0.
+2. Launch Argon.exe. It starts Bootstrap in the background; the Account menu's Updates card should show both Argon release status and updater version status.
+3. Launch Bootstrap.exe manually to see the standalone status window.
+4. To test a version mismatch, change updaterVersion in bootstrap-latest.json after preparing a real package. Until a package URL, checksum, byte size, and versioned binary are published together, Bootstrap must report the mismatch but leave the installed updater unchanged.
+5. Test offline handling in a disposable Argon-sim folder. Offline status must be marked unverified and must not be presented as a live successful check.
 
-1. Run `build.bat` and double-click `Desktop/Argon-sim/Bootstrap/Bootstrap.exe`.
-2. With internet available, confirm the window reports Bootstrap v`1.0.0.0` as up to date and reports that updater v`1.0.0.0` has no published package.
-3. Disconnect networking and launch it again. The window should report that latest status could not be verified; installed files must remain untouched.
-4. To test an actual replacement later, publish a real HTTPS updater asset, set its exact SHA-256 and byte length in `directory.json`, and embed the same four-part file version in the updater executable's Windows version resource. Test in a disposable `Argon-sim` folder first.
+## Safety
 
-## Safety boundary
+Bootstrap only modifies Updater/ArgonUpdater.exe; it keeps temporary downloads, backups, and recovery records beneath Updates. Before replacement, it validates HTTPS transport, exact byte size, SHA-256, and the executable's embedded version. Existing updaters are backed up before atomic replacement and verified after installation.
 
-The bootstrap is not the updater. It handles metadata, downloads an updater package if it is fully configured, validates it, and safely stages its executable. Update application logic beyond replacing `ArgonUpdater.exe` belongs in the separate updater project. The current first version does not replace Bootstrap itself.
-
-HTTPS and SHA-256 checks help prevent incomplete or mismatched downloads, but a checksum stored beside its URL is not a digital signature. Production releases should use signed packages and/or signed metadata before distributing automatic updater replacement to users.
+A checksum stored alongside its package URL is not a digital signature. Production releases should also authenticate signed packages and/or signed metadata.
