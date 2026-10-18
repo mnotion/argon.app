@@ -1,0 +1,34 @@
+# These folders are mirrored in the repository for development tests.
+# Do not commit generated application/updater executables or runtime-generated data.
+App/*
+!App/.gitkeep
+!App/README.md
+Updater/*
+!Updater/.gitkeep
+!Updater/README.md
+Bootstrap/*
+!Bootstrap/.gitkeep
+!Bootstrap/README.md
+
+UserData/Settings/*
+!UserData/Settings/.gitkeep
+UserData/Cache/*
+!UserData/Cache/.gitkeep
+UserData/Search QR/*
+!UserData/Search QR/.gitkeep
+!UserData/Search QR/README.md
+UserData/Documents/*
+!UserData/Documents/.gitkeep
+UserData/Accounts/*
+!UserData/Accounts/.gitkeep
+UserData/Analytics/Daily/*
+!UserData/Analytics/Daily/.gitkeep
+
+Updates/Downloads/*
+!Updates/Downloads/.gitkeep
+Updates/Staging/*
+!Updates/Staging/.gitkeep
+Updates/Backups/*
+!Updates/Backups/.gitkeep
+Logs/*
+!Logs/.gitkeep
