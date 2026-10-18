@@ -497,6 +497,13 @@ ApplicationWindow {
                             elide: Text.ElideRight
                         }
                         Button {
+                            visible: updaterStatusService.checkSucceeded
+                                     && updaterStatusService.updateAvailable
+                                     && updaterStatusService.packageAvailable
+                            text: "Install updater update"
+                            onClicked: updaterInstallDialog.open()
+                        }
+                        Button {
                             visible: updaterStatusService.releaseNotesUrl.length > 0
                             text: "Updater release notes"
                             onClicked: Qt.openUrlExternally(updaterStatusService.releaseNotesUrl)
@@ -2305,4 +2312,35 @@ ApplicationWindow {
             }
         }
     }
+
+    Dialog {
+        id: updaterInstallDialog
+        title: "Install Argon Updater?"
+        modal: true
+        anchors.centerIn: parent
+        standardButtons: Dialog.Cancel | Dialog.Ok
+        width: 420
+
+        contentItem: ColumnLayout {
+            spacing: 10
+            Text {
+                Layout.fillWidth: true
+                text: "Argon Updater v" + updaterStatusService.latestVersion
+                      + " is available. Continue to download and verify the package before replacing ArgonUpdater.exe?"
+                color: theme.text
+                wrapMode: Text.WordWrap
+                font.pixelSize: 13
+            }
+            Text {
+                Layout.fillWidth: true
+                text: "The current updater is backed up before replacement. If no valid package is published, no file will be changed."
+                color: theme.mutedText
+                wrapMode: Text.WordWrap
+                font.pixelSize: 11
+            }
+        }
+
+        onAccepted: updaterStatusService.installUpdate()
+    }
+
 }
