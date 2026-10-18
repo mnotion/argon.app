@@ -501,9 +501,10 @@ bool parseVersion(const std::string &value, std::array<unsigned long long, 4> &p
             const char digit = value[j];
             if (digit < '0' || digit > '9')
                 return false;
-            component = component * 10 + static_cast<unsigned long long>(digit - '0');
-            if (component > 0xFFFFFFFFULL)
+            const unsigned long long value = static_cast<unsigned long long>(digit - '0');
+            if (component > (0xFFFFFFFFULL - value) / 10ULL)
                 return false;
+            component = component * 10ULL + value;
         }
         parts[i] = component;
         start = stop + 1;
@@ -875,6 +876,87 @@ bool getSchema(const std::map<std::string, std::string> &fields,
     return true;
 }
 
+std::optional<fs::path> bootstrapMetadataCachePath() {
+    const DWORD required = GetEnvironmentVariableW(L"LOCALAPPDATA", nullptr, 0);
+    if (required < 2 || required > 32767)
+        return std::nullopt;
+
+    std::wstring localAppData(required, L'\0');
+    const DWORD length = GetEnvironmentVariableW(
+        L"LOCALAPPDATA", localAppData.data(), required);
+    if (length == 0 || length >= required)
+        return std::nullopt;
+    localAppData.resize(length);
+    return fs::path(localAppData) / L"Argon" / L"Bootstrap"
+        / L"bootstrap-latest.json";
+}
+
+bool loadCachedBootstrapMetadata(std::string &text, std::wstring &error) {
+    const auto path = bootstrapMetadataCachePath();
+    if (!path) {
+        error = L"LOCALAPPDATA is unavailable; no metadata cache path can be resolved.";
+        return false;
+    }
+    return readFileText(*path, text, static_cast<size_t>(kMaximumMetadataBytes), error);
+}
+
+bool cacheBootstrapMetadata(const std::string &text, std::wstring &error) {
+    const auto path = bootstrapMetadataCachePath();
+    if (!path) {
+        error = L"LOCALAPPDATA is unavailable; release metadata could not be cached.";
+        return false;
+    }
+    return writeTextAtomically(*path, text, error);
+}
+
+bool parseBootstrapMetadata(const std::string &text,
+                            std::map<std::string, std::string> &manifest,
+                            std::string &latestBootstrap,
+                            std::wstring &error) {
+    if (!parseJson(text, manifest, error) || !getSchema(manifest, error))
+        return false;
+
+    const auto version = field(manifest, "bootstrapVersion");
+    std::array<unsigned long long, 4> parsed{};
+    if (!version || !parseVersion(*version, parsed)) {
+        error = L"Metadata does not contain a valid four-part bootstrapVersion.";
+        return false;
+    }
+    latestBootstrap = *version;
+    return true;
+}
+
+std::wstring describeBootstrapVersion(const std::string &installed,
+                                      const std::string &latest,
+                                      bool offline) {
+    const int comparison = compareVersions(installed, latest);
+    if (offline) {
+        if (comparison < 0) {
+            return L"Offline — cached metadata says Bootstrap v"
+                + widenUtf8(latest) + L" is newer than installed v"
+                + widenUtf8(installed) + L"; reconnect to verify.";
+        }
+        if (comparison > 0) {
+            return L"Offline — installed Bootstrap v" + widenUtf8(installed)
+                + L" is newer than last-known stable v" + widenUtf8(latest)
+                + L"; reconnect to verify.";
+        }
+        return L"Offline — installed v" + widenUtf8(installed)
+            + L" matches last-known stable v" + widenUtf8(latest)
+            + L"; live status is unverified.";
+    }
+
+    if (comparison < 0) {
+        return L"A newer Bootstrap is available (v" + widenUtf8(latest)
+            + L"; installed v" + widenUtf8(installed) + L").";
+    }
+    if (comparison > 0) {
+        return L"Installed Bootstrap v" + widenUtf8(installed)
+            + L" is newer than configured stable v" + widenUtf8(latest) + L".";
+    }
+    return L"Bootstrap is up to date (v" + widenUtf8(installed) + L").";
+}
+
 bool validHashMatches(const fs::path &path, const std::string &expected,
                       std::wstring &error) {
     std::string actual;
@@ -1176,13 +1258,63 @@ CheckResult runStatusCheck() {
     std::string manifestText;
     std::wstring networkError;
     if (!httpGetText(widenUtf8(ARGON_BOOTSTRAP_LATEST_URL), manifestText, networkError)) {
-        result.bootstrapStatus = L"Could not verify Bootstrap's latest status.";
+        std::string cachedText;
+        std::map<std::string, std::string> cachedManifest;
+        std::string cachedBootstrap;
+        std::wstring cacheError;
+        if (loadCachedBootstrapMetadata(cachedText, cacheError)
+            && parseBootstrapMetadata(cachedText, cachedManifest,
+                                      cachedBootstrap, cacheError)) {
+            result.bootstrapStatus = describeBootstrapVersion(
+                localBootstrapVersion, cachedBootstrap, true);
+
+            const auto cachedUpdater = field(cachedManifest, "updaterVersion");
+            std::array<unsigned long long, 4> parsedCachedUpdater{};
+            const auto localUpdaterVersion = readPeVersion(paths.updaterExecutable);
+            if (cachedUpdater && parseVersion(*cachedUpdater, parsedCachedUpdater)) {
+                if (!localUpdaterVersion) {
+                    result.updaterStatus = L"Offline — updater is not installed or has no version resource; last-known stable is v"
+                        + widenUtf8(*cachedUpdater) + L".";
+                } else {
+                    const std::string installedUpdater = narrowUtf8(*localUpdaterVersion);
+                    const int comparison = compareVersions(installedUpdater, *cachedUpdater);
+                    if (comparison < 0) {
+                        result.updaterStatus = L"Offline — a newer updater may be available (last-known v"
+                            + widenUtf8(*cachedUpdater) + L"; installed v"
+                            + *localUpdaterVersion + L").";
+                    } else if (comparison > 0) {
+                        result.updaterStatus = L"Offline — installed updater v"
+                            + *localUpdaterVersion + L" is newer than last-known stable v"
+                            + widenUtf8(*cachedUpdater) + L".";
+                    } else {
+                        result.updaterStatus = L"Offline — installed updater v"
+                            + *localUpdaterVersion + L" matches last-known stable; live status is unverified.";
+                    }
+                }
+            } else {
+                result.updaterStatus = localUpdaterVersion
+                    ? L"Offline — installed updater: v" + *localUpdaterVersion
+                    : L"Offline — updater is not installed or has no version resource.";
+            }
+            result.details = networkError
+                + L"\r\nUsing previously cached release metadata as a hint only. "
+                  L"It may be stale; reconnect for a live check. No files were changed.";
+            if (!recoveryNote.empty())
+                result.details += L"\r\n" + recoveryNote;
+            return result;
+        }
+
+        result.bootstrapStatus = L"Offline — latest Bootstrap version is unknown (installed v"
+            + widenUtf8(localBootstrapVersion) + L").";
         const auto localUpdaterVersion = readPeVersion(paths.updaterExecutable);
         result.updaterStatus = localUpdaterVersion
-            ? L"Installed updater: v" + *localUpdaterVersion
-            : L"Updater is not installed or has no version resource.";
+            ? L"Offline — installed updater: v" + *localUpdaterVersion
+            : L"Offline — updater is not installed or has no version resource.";
         result.details = networkError
-            + L"\r\nExisting files were not changed.";
+            + L"\r\nNo usable cached metadata exists, so latest versions cannot be confirmed. "
+              L"No files were changed.";
+        if (!cacheError.empty())
+            result.details += L"\r\nCache: " + cacheError;
         if (!recoveryNote.empty())
             result.details += L"\r\n" + recoveryNote;
         return result;
@@ -1190,36 +1322,35 @@ CheckResult runStatusCheck() {
 
     std::map<std::string, std::string> manifest;
     std::wstring jsonError;
-    if (!parseJson(manifestText, manifest, jsonError) || !getSchema(manifest, jsonError)) {
-        result.bootstrapStatus = L"Release metadata is invalid.";
+    std::string latestBootstrapVersion;
+    if (!parseBootstrapMetadata(manifestText, manifest, latestBootstrapVersion, jsonError)) {
+        result.bootstrapStatus = L"Release metadata is invalid; the latest Bootstrap version cannot be trusted.";
         result.updaterStatus = L"No updater changes were made.";
-        result.details = L"bootstrap-latest.json could not be validated: " + jsonError;
+        result.details = L"bootstrap-latest.json could not be validated: " + jsonError
+            + L"\r\nNo files were changed.";
         return result;
     }
 
-    const auto latestBootstrap = field(manifest, "bootstrapVersion");
+    result.bootstrapStatus = describeBootstrapVersion(
+        localBootstrapVersion, latestBootstrapVersion, false);
+
+    std::wstring cacheWriteError;
+    const bool metadataCached = cacheBootstrapMetadata(manifestText, cacheWriteError);
+
     const auto latestUpdater = field(manifest, "updaterVersion");
     const auto directoryUrl = field(manifest, "directoryUrl");
     std::array<unsigned long long, 4> parsedVersion{};
-    if (!latestBootstrap || !parseVersion(*latestBootstrap, parsedVersion)
-        || !latestUpdater || !parseVersion(*latestUpdater, parsedVersion)
+    if (!latestUpdater || !parseVersion(*latestUpdater, parsedVersion)
         || !directoryUrl || !validHttpsUrl(*directoryUrl)) {
-        result.bootstrapStatus = L"Release metadata is incomplete or invalid.";
         result.updaterStatus = L"No updater changes were made.";
-        result.details = L"bootstrap-latest.json must contain valid bootstrapVersion, updaterVersion, and an HTTPS directoryUrl.";
+        result.details = L"Bootstrap version status was checked live, but updater metadata is incomplete or invalid. "
+            L"bootstrap-latest.json must contain a valid updaterVersion and HTTPS directoryUrl.";
+        if (!cacheWriteError.empty())
+            result.details += L"\r\nMetadata cache: " + cacheWriteError;
         return result;
     }
-
-    const int bootstrapComparison = compareVersions(localBootstrapVersion, *latestBootstrap);
-    if (bootstrapComparison < 0) {
-        result.bootstrapStatus = L"A newer Bootstrap is available (v"
-            + widenUtf8(*latestBootstrap) + L").";
-    } else if (bootstrapComparison > 0) {
-        result.bootstrapStatus = L"Installed Bootstrap is newer than the configured stable version.";
-    } else {
-        result.bootstrapStatus = L"Bootstrap is up to date (v"
-            + widenUtf8(localBootstrapVersion) + L").";
-    }
+    if (!metadataCached && !cacheWriteError.empty())
+        result.details = L"Live metadata was verified, but could not be cached: " + cacheWriteError + L"\r\n";
 
     const auto currentUpdater = readPeVersion(paths.updaterExecutable);
     if (currentUpdater) {
@@ -1227,7 +1358,7 @@ CheckResult runStatusCheck() {
         const int updaterComparison = compareVersions(localUpdaterVersion, *latestUpdater);
         if (updaterComparison == 0) {
             result.updaterStatus = L"Updater is up to date (v" + *currentUpdater + L").";
-            result.details = recoveryNote.empty()
+            result.details += recoveryNote.empty()
                 ? L"Release metadata was verified over HTTPS. No files needed changing."
                 : recoveryNote + L"\r\nRelease metadata was verified over HTTPS.";
             return result;
@@ -1235,7 +1366,7 @@ CheckResult runStatusCheck() {
         if (updaterComparison > 0) {
             result.updaterStatus = L"Installed updater v" + *currentUpdater
                 + L" is newer than stable v" + widenUtf8(*latestUpdater) + L".";
-            result.details = L"No downgrade was attempted. Release metadata was verified over HTTPS.";
+            result.details += L"No downgrade was attempted. Release metadata was verified over HTTPS.";
             if (!recoveryNote.empty())
                 result.details += L"\r\n" + recoveryNote;
             return result;
@@ -1349,6 +1480,7 @@ CheckResult runStatusCheck() {
     }
 
     result.updaterStatus = L"Updater is up to date (v" + widenUtf8(*latestUpdater) + L").";
+    result.details += L"Release metadata was verified over HTTPS and updater integrity checks passed. ";
     if (!recoveryNote.empty())
         result.details += L"\r\n" + recoveryNote;
     return result;
