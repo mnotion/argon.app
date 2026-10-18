@@ -17,6 +17,7 @@
 #include "documents/DocumentService.h"
 #include "search/SearchService.h"
 #include "versioning/ReleaseMetadataService.h"
+#include "versioning/UpdaterStatusService.h"
 
 namespace {
 QMutex logMutex;
@@ -73,6 +74,7 @@ int main(int argc, char *argv[])
     DocumentService documentService;
     SearchService searchService;
     ReleaseMetadataService releaseMetadataService;
+    UpdaterStatusService updaterStatusService;
 
     QObject::connect(
         &releaseMetadataService,
@@ -89,6 +91,7 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty("documentService", &documentService);
     engine.rootContext()->setContextProperty("searchService", &searchService);
     engine.rootContext()->setContextProperty("releaseMetadataService", &releaseMetadataService);
+    engine.rootContext()->setContextProperty("updaterStatusService", &updaterStatusService);
 
     QObject::connect(
         &engine,
@@ -99,7 +102,19 @@ int main(int argc, char *argv[])
 
     engine.loadFromModule("Argon", "Main");
 
-    // Check immediately, then retry/recheck every 10 seconds for the lifetime of the app.
+    // Bootstrap is launched as a background companion. It owns the updater version
+    // comparison and writes a status JSON that the Argon menu reads.
+    QTimer *updaterStatusRetryTimer = new QTimer(&app);
+    updaterStatusRetryTimer->setInterval(300000);
+    QObject::connect(
+        updaterStatusRetryTimer,
+        &QTimer::timeout,
+        &updaterStatusService,
+        &UpdaterStatusService::checkForUpdates);
+    updaterStatusRetryTimer->start();
+    QTimer::singleShot(0, &updaterStatusService, &UpdaterStatusService::checkForUpdates);
+
+    // Check the Argon application release metadata immediately and retry periodically.
     QTimer *releaseMetadataRetryTimer = new QTimer(&app);
     releaseMetadataRetryTimer->setTimerType(Qt::PreciseTimer);
     releaseMetadataRetryTimer->setInterval(10000);
