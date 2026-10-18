@@ -43,17 +43,36 @@ QString UpdaterStatusService::releaseNotesUrl() const { return m_releaseNotesUrl
 bool UpdaterStatusService::checking() const { return m_checking; }
 bool UpdaterStatusService::checkSucceeded() const { return m_checkSucceeded; }
 bool UpdaterStatusService::updateAvailable() const { return m_updateAvailable; }
+bool UpdaterStatusService::packageAvailable() const { return m_packageAvailable; }
 
 void UpdaterStatusService::checkForUpdates()
+{
+    startCheck(false);
+}
+
+void UpdaterStatusService::installUpdate()
+{
+    if (!m_checkSucceeded || !m_updateAvailable || !m_packageAvailable) {
+        failCheck(QStringLiteral(
+            "No verified updater package is available to install. Check for updates again first."));
+        return;
+    }
+    startCheck(true);
+}
+
+void UpdaterStatusService::startCheck(bool installUpdater)
 {
     if (m_checking || m_process.state() != QProcess::NotRunning)
         return;
 
     m_checking = true;
     m_checkSucceeded = false;
-    m_updateAvailable = false;
-    m_status = QStringLiteral("Checking installed ArgonUpdater.exe against stable metadata...");
-    m_packageStatus = QStringLiteral("Bootstrap is checking the updater package.");
+    m_status = installUpdater
+        ? QStringLiteral("Installing the approved Argon Updater release...")
+        : QStringLiteral("Checking installed ArgonUpdater.exe against stable metadata...");
+    m_packageStatus = installUpdater
+        ? QStringLiteral("Downloading and validating the approved updater package.")
+        : QStringLiteral("Bootstrap is checking the updater package.");
     m_details.clear();
     emit stateChanged();
 
@@ -70,7 +89,10 @@ void UpdaterStatusService::checkForUpdates()
     QFile::remove(m_statusFilePath);
 
     m_process.setProgram(m_bootstrapPath);
-    m_process.setArguments({QStringLiteral("--background")});
+    QStringList arguments{QStringLiteral("--background")};
+    if (installUpdater)
+        arguments.append(QStringLiteral("--install-update"));
+    m_process.setArguments(arguments);
     m_process.setWorkingDirectory(m_rootDirectory);
     m_process.start();
 }
@@ -99,6 +121,7 @@ void UpdaterStatusService::readStatusFile()
 
     m_checkSucceeded = object.value(QStringLiteral("checkSucceeded")).toBool(false);
     m_updateAvailable = object.value(QStringLiteral("updateAvailable")).toBool(false);
+    m_packageAvailable = object.value(QStringLiteral("packageAvailable")).toBool(false);
     m_installedVersion = object.value(QStringLiteral("installedVersion")).toString();
     m_latestVersion = object.value(QStringLiteral("latestVersion")).toString();
     m_status = object.value(QStringLiteral("status")).toString(
@@ -116,6 +139,7 @@ void UpdaterStatusService::failCheck(const QString &message)
     m_checking = false;
     m_checkSucceeded = false;
     m_updateAvailable = false;
+    m_packageAvailable = false;
     m_status = message;
     m_packageStatus = QStringLiteral("No updater change was requested by Argon.");
     emit stateChanged();
