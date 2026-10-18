@@ -31,12 +31,14 @@ namespace fs = std::filesystem;
 namespace {
 constexpr wchar_t kWindowClass[] = L"ArgonBootstrapWindow";
 constexpr UINT kCheckCompleteMessage = WM_APP + 14;
+constexpr int kInstallUpdaterCommand = 1001;
 constexpr unsigned long long kMaximumMetadataBytes = 1024ULL * 1024ULL;
 constexpr unsigned long long kMaximumUpdaterBytes = 512ULL * 1024ULL * 1024ULL;
 
 HWND g_updaterVersionStatus = nullptr;
 HWND g_packageStatus = nullptr;
 HWND g_details = nullptr;
+HWND g_installButton = nullptr;
 HFONT g_headingFont = nullptr;
 
 struct CheckResult {
@@ -45,6 +47,7 @@ struct CheckResult {
     std::wstring details;
     bool checkSucceeded = false;
     bool updateAvailable = false;
+    bool packageAvailable = false;
     std::string installedUpdaterVersion;
     std::string latestUpdaterVersion;
     std::string releaseNotesUrl;
@@ -966,7 +969,7 @@ std::wstring describeUpdaterVersion(const std::optional<std::wstring> &installed
     }
 
     if (comparison < 0) {
-        return L"Argon ArgonUpdater.exe update available: v" + widenUtf8(latest)
+        return L"ArgonUpdater.exe update available: v" + widenUtf8(latest)
             + L" (installed v" + *installed + L").";
     }
     if (comparison > 0) {
@@ -1238,7 +1241,7 @@ bool performSafeReplacement(const Paths &paths, const fs::path &downloadFilePath
     return true;
 }
 
-CheckResult runStatusCheck() {
+CheckResult runStatusCheck(bool installUpdater = false) {
     CheckResult result;
     const std::string localBootstrapVersion = ARGON_BOOTSTRAP_VERSION;
     result.updaterVersionStatus = L"Checking installed ArgonUpdater.exe version...";
@@ -1474,6 +1477,7 @@ CheckResult runStatusCheck() {
 
     if (!packageUrl || packageUrl->empty() || !expectedHash
         || !isSha256(*expectedHash) || !expectedSizeText) {
+        result.packageStatus = L"The newer updater version is advertised, but its install package is not published.";
         result.details = L"directory.json lists updater v" + widenUtf8(*latestUpdater)
             + L", but a valid packageUrl, SHA-256 checksum, and sizeBytes have not been published yet. "
               L"No files were changed.";
@@ -1497,6 +1501,13 @@ CheckResult runStatusCheck() {
     }
     if (expectedSize == 0 || expectedSize > kMaximumUpdaterBytes) {
         result.details = L"directory.json sizeBytes must be between 1 byte and 512 MiB. No files were changed.";
+        return result;
+    }
+
+    result.packageAvailable = true;
+    if (!installUpdater) {
+        result.packageStatus = L"Updater package is published and ready for approval.";
+        result.details = L"No files were changed. Choose Install update to download, verify, and install the published updater package.";
         return result;
     }
 
@@ -1538,6 +1549,10 @@ CheckResult runStatusCheck() {
         return result;
     }
 
+    result.packageAvailable = false;
+    result.updateAvailable = false;
+    result.installedUpdaterVersion = *latestUpdater;
+    result.updaterVersionStatus = L"Argon Updater is up to date (v" + widenUtf8(*latestUpdater) + L").";
     result.packageStatus = L"ArgonUpdater.exe update installed and verified (v" + widenUtf8(*latestUpdater) + L").";
     result.details += L"Release metadata was verified over HTTPS and updater integrity checks passed. ";
     if (!recoveryNote.empty())
@@ -1581,6 +1596,7 @@ bool writeBackgroundStatus(const CheckResult &result, std::wstring &error) {
         "  \"schemaVersion\": 1,\n"
         "  \"checkSucceeded\": " + std::string(result.checkSucceeded ? "true" : "false") + ",\n"
         "  \"updateAvailable\": " + std::string(result.updateAvailable ? "true" : "false") + ",\n"
+        "  \"packageAvailable\": " + std::string(result.packageAvailable ? "true" : "false") + ",\n"
         "  \"installedVersion\": \"" + jsonEscape(result.installedUpdaterVersion) + "\",\n"
         "  \"latestVersion\": \"" + jsonEscape(result.latestUpdaterVersion) + "\",\n"
         "  \"status\": \"" + jsonEscape(narrowUtf8(result.updaterVersionStatus)) + "\",\n"
@@ -1603,24 +1619,33 @@ void setControlFont(HWND control, HFONT font) {
         SendMessageW(control, WM_SETFONT, reinterpret_cast<WPARAM>(font), TRUE);
 }
 
-void startStatusCheck(HWND window) {
-    setControlText(g_updaterVersionStatus, L"Checking ArgonUpdater.exe version...");
-    setControlText(g_packageStatus, L"Checking installed updater...");
-    setControlText(g_details, L"Contacting the stable metadata endpoint over HTTPS. Existing updater files remain untouched until a complete package passes validation.");
+void startStatusCheck(HWND window, bool installUpdater = false) {
+    if (g_installButton)
+        EnableWindow(g_installButton, FALSE);
+    setControlText(g_updaterVersionStatus, L"Checking installed ArgonUpdater.exe version...");
+    setControlText(g_packageStatus, installUpdater
+        ? L"Downloading and validating the approved updater package..."
+        : L"Checking updater package metadata...");
+    setControlText(g_details, L"Contacting the stable metadata endpoint over HTTPS. Existing updater files remain untouched during a status check.");
 
+    struct Request { HWND window; bool installUpdater; };
+    auto *request = new Request{window, installUpdater};
     HANDLE thread = CreateThread(nullptr, 0,
         [](LPVOID parameter) -> DWORD {
-            HWND target = static_cast<HWND>(parameter);
-            auto result = new CheckResult(runStatusCheck());
+            std::unique_ptr<Request> request(static_cast<Request *>(parameter));
+            HWND target = request->window;
+            const bool install = request->installUpdater;
+            auto result = new CheckResult(runStatusCheck(install));
             if (!PostMessageW(target, kCheckCompleteMessage, 0,
                               reinterpret_cast<LPARAM>(result))) {
                 delete result;
             }
             return 0;
-        }, window, 0, nullptr);
+        }, request, 0, nullptr);
     if (thread)
         CloseHandle(thread);
     else {
+        delete request;
         setControlText(g_updaterVersionStatus, L"Could not start the status check.");
         setControlText(g_packageStatus, L"No updater changes were made.");
         setControlText(g_details, systemErrorText(L"CreateThread failed"));
@@ -1683,6 +1708,14 @@ LRESULT CALLBACK windowProcedure(HWND window, UINT message,
             GetModuleHandleW(nullptr), nullptr);
         setControlFont(safety, regularFont);
 
+        g_installButton = CreateWindowExW(0, L"BUTTON", L"Install update",
+            WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_PUSHBUTTON,
+            328, 326, 132, 30, window,
+            reinterpret_cast<HMENU>(kInstallUpdaterCommand),
+            GetModuleHandleW(nullptr), nullptr);
+        setControlFont(g_installButton, regularFont);
+        EnableWindow(g_installButton, FALSE);
+
         HWND closeButton = CreateWindowExW(0, L"BUTTON", L"Close",
             WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_DEFPUSHBUTTON,
             475, 326, 95, 30, window, reinterpret_cast<HMENU>(IDCANCEL),
@@ -1701,10 +1734,18 @@ LRESULT CALLBACK windowProcedure(HWND window, UINT message,
             setControlText(g_updaterVersionStatus, result->updaterVersionStatus);
             setControlText(g_packageStatus, result->packageStatus);
             setControlText(g_details, result->details);
+            if (g_installButton)
+                EnableWindow(g_installButton,
+                    result->checkSucceeded && result->updateAvailable && result->packageAvailable);
         }
         return 0;
     }
     case WM_COMMAND:
+        if (LOWORD(wParam) == kInstallUpdaterCommand) {
+            if (g_installButton && IsWindowEnabled(g_installButton))
+                startStatusCheck(window, true);
+            return 0;
+        }
         if (LOWORD(wParam) == IDCANCEL) {
             DestroyWindow(window);
             return 0;
@@ -1721,6 +1762,7 @@ LRESULT CALLBACK windowProcedure(HWND window, UINT message,
         g_updaterVersionStatus = nullptr;
         g_packageStatus = nullptr;
         g_details = nullptr;
+        g_installButton = nullptr;
         PostQuitMessage(0);
         return 0;
     }
@@ -1730,7 +1772,8 @@ LRESULT CALLBACK windowProcedure(HWND window, UINT message,
 
 int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR commandLine, int showCommand) {
     if (commandLine && std::wcsstr(commandLine, L"--background")) {
-        const CheckResult result = runStatusCheck();
+        const bool installUpdater = std::wcsstr(commandLine, L"--install-update") != nullptr;
+        const CheckResult result = runStatusCheck(installUpdater);
         std::wstring statusError;
         if (!writeBackgroundStatus(result, statusError))
             return 3;
