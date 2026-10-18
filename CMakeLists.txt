@@ -85,8 +85,10 @@ if(WIN32)
             -static-libstdc++
         )
     endif()
+    # Keep the local version configurable and sourced from one CMake setting.
+    set(ARGON_BOOTSTRAP_VERSION "1.0.0.0" CACHE STRING "Argon Bootstrap version")
     target_compile_definitions(ArgonBootstrap PRIVATE
-        "ARGON_BOOTSTRAP_VERSION=\"1.0.0.0\""
+        "ARGON_BOOTSTRAP_VERSION=\"${ARGON_BOOTSTRAP_VERSION}\""
         "ARGON_BOOTSTRAP_LATEST_URL=\"https://raw.githubusercontent.com/mnotion/argon.updater/rel-config/bootstrap-latest.json?rev=3\""
     )
     target_link_libraries(ArgonBootstrap PRIVATE
