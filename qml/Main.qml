@@ -53,7 +53,8 @@ ApplicationWindow {
     property color releaseStatusColor: {
         if (releaseMetadataService.checking || updaterStatusService.checking)
             return "#E5B83B"
-        if (releaseMetadataService.updateAvailable || updaterStatusService.updateAvailable)
+        if ((releaseMetadataService.checkSucceeded && releaseMetadataService.updateAvailable)
+                || (updaterStatusService.checkSucceeded && updaterStatusService.updateAvailable))
             return "#E34B4B"
         if (releaseMetadataService.checkSucceeded && updaterStatusService.checkSucceeded)
             return "#36B56B"
@@ -406,7 +407,8 @@ ApplicationWindow {
                         }
                         Text {
                             text: releaseMetadataService.checking || updaterStatusService.checking
-                                  ? "Checking" : (releaseMetadataService.updateAvailable || updaterStatusService.updateAvailable
+                                  ? "Checking" : ((releaseMetadataService.checkSucceeded && releaseMetadataService.updateAvailable)
+                                                    || (updaterStatusService.checkSucceeded && updaterStatusService.updateAvailable)
                                                  ? "Available" : "Status")
                             color: window.releaseStatusColor
                             font.pixelSize: 10
@@ -473,7 +475,7 @@ ApplicationWindow {
                         Text {
                             Layout.fillWidth: true
                             text: updaterStatusService.status
-                            color: updaterStatusService.updateAvailable ? theme.accent : theme.mutedText
+                            color: updaterStatusService.checkSucceeded && updaterStatusService.updateAvailable ? theme.accent : theme.mutedText
                             font.pixelSize: 10
                             wrapMode: Text.WordWrap
                         }
@@ -483,6 +485,16 @@ ApplicationWindow {
                             color: theme.mutedText
                             font.pixelSize: 10
                             wrapMode: Text.WordWrap
+                        }
+                        Text {
+                            Layout.fillWidth: true
+                            visible: updaterStatusService.details.length > 0
+                            text: updaterStatusService.details
+                            color: theme.mutedText
+                            font.pixelSize: 10
+                            wrapMode: Text.WordWrap
+                            maximumLineCount: 4
+                            elide: Text.ElideRight
                         }
                         Button {
                             visible: updaterStatusService.releaseNotesUrl.length > 0
