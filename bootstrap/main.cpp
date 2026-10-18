@@ -1722,8 +1722,7 @@ LRESULT CALLBACK windowProcedure(HWND window, UINT message,
             GetModuleHandleW(nullptr), nullptr);
         setControlFont(closeButton, regularFont);
 
-        // Fetch the release manifest once per launch. The same validated
-        // response drives both Bootstrap and updater version statuses.
+        // Check the installed ArgonUpdater.exe version once at launch.
         startStatusCheck(window);
         return 0;
     }
