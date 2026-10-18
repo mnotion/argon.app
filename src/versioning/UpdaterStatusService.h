@@ -17,6 +17,7 @@ class UpdaterStatusService final : public QObject
     Q_PROPERTY(bool checking READ checking NOTIFY stateChanged)
     Q_PROPERTY(bool checkSucceeded READ checkSucceeded NOTIFY stateChanged)
     Q_PROPERTY(bool updateAvailable READ updateAvailable NOTIFY stateChanged)
+    Q_PROPERTY(bool packageAvailable READ packageAvailable NOTIFY stateChanged)
 
 public:
     explicit UpdaterStatusService(QObject *parent = nullptr);
@@ -30,13 +31,16 @@ public:
     bool checking() const;
     bool checkSucceeded() const;
     bool updateAvailable() const;
+    bool packageAvailable() const;
 
     Q_INVOKABLE void checkForUpdates();
+    Q_INVOKABLE void installUpdate();
 
 signals:
     void stateChanged();
 
 private:
+    void startCheck(bool installUpdater);
     void readStatusFile();
     void failCheck(const QString &message);
 
@@ -53,4 +57,5 @@ private:
     bool m_checking = false;
     bool m_checkSucceeded = false;
     bool m_updateAvailable = false;
+    bool m_packageAvailable = false;
 };
