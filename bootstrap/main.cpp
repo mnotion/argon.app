@@ -1700,7 +1700,6 @@ LRESULT CALLBACK windowProcedure(HWND window, UINT message,
         setControlFont(g_updaterVersionStatus, regularFont);
         setControlFont(g_packageStatus, regularFont);
         setControlFont(g_details, regularFont);
-        SendMessageW(g_details, EM_SETBKGNDCOLOR, 0, RGB(38, 39, 42));
 
         HWND safety = CreateWindowExW(0, L"STATIC",
             L"Only ArgonUpdater.exe is changed. Packages are verified before installation; existing files are backed up first.",
