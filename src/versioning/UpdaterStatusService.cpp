@@ -5,6 +5,7 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QJsonDocument>
+#include <QJsonParseError>
 #include <QJsonObject>
 
 UpdaterStatusService::UpdaterStatusService(QObject *parent)
