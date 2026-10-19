@@ -1,0 +1,1 @@
+Reserved for PDF document integration. Keep PDF loading/rendering and annotation models independent from QML presentation.

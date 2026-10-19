@@ -1,0 +1,1 @@
+Each major workspace screen belongs in its own QML file. Pages compose reusable components and call C++ services through narrow interfaces.

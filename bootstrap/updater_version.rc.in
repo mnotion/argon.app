@@ -1,0 +1,32 @@
+#include <windows.h>
+
+1 24 "@ARGON_UPDATER_MANIFEST_RC_PATH@"
+
+VS_VERSION_INFO VERSIONINFO
+ FILEVERSION @ARGON_UPDATER_VERSION_RC@
+ PRODUCTVERSION @ARGON_UPDATER_VERSION_RC@
+ FILEFLAGSMASK 0x3fL
+ FILEFLAGS 0x0L
+ FILEOS 0x40004L
+ FILETYPE 0x1L
+ FILESUBTYPE 0x0L
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040904B0"
+        BEGIN
+            VALUE "CompanyName", "Argon\0"
+            VALUE "FileDescription", "Argon Updater\0"
+            VALUE "FileVersion", "@ARGON_UPDATER_VERSION@\0"
+            VALUE "InternalName", "ArgonUpdater\0"
+            VALUE "OriginalFilename", "ArgonUpdater.exe\0"
+            VALUE "ProductName", "Argon\0"
+            VALUE "ProductVersion", "@ARGON_UPDATER_VERSION@\0"
+            VALUE "Comments", "Native Argon app updater; verifies packages and rolls back failed installations.\0"
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x0409, 1200
+    END
+END

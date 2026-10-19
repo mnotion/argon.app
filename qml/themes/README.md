@@ -1,0 +1,1 @@
+Centralised design tokens belong here. Keep shared colours, spacing, radii and typography definitions consistent rather than duplicating constants throughout the UI.
