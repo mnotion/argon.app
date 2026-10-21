@@ -23,10 +23,20 @@ Item {
     property string calendarTodayIsoDate: ""
     property double todayFocusedSeconds: 0
     property bool calendarDetailsVisible: false
+    property real calendarDetailsProgress: calendarDetailsVisible ? 1 : 0
     property string selectedCalendarDate: ""
     property var selectedCalendarSubjectFocus: []
     property real calendarDetailsWidth: Math.max(240, Math.min(380, root.width * 0.26, root.width - 700))
     property real calendarDragOffset: 0
+
+    // A single easing progress drives both calendar geometry and the panel reveal,
+    // so the two elements always animate together instead of competing Behaviors.
+    Behavior on calendarDetailsProgress {
+        NumberAnimation {
+            duration: 380
+            easing.type: Easing.OutCubic
+        }
+    }
     property int calendarCommitOffset: 0
     // Three vertically paged sections: timer + subjects, monthly analytics, daily focus.
     property int scrollSectionIndex: 0
@@ -856,16 +866,16 @@ Item {
     // Calendar swipe follows the pointer and previews adjacent months before release.
     Rectangle {
         id: monthlyCalendarCard
-        x: root.calendarDetailsVisible
-           ? (root.width - (width + 24 + root.calendarDetailsWidth)) / 2
-           : (root.width - width) / 2
+        width: Math.min(760, Math.max(380, parent.width * 0.58))
+               + (Math.min(660, Math.max(340, parent.width - root.calendarDetailsWidth - 124))
+                  - Math.min(760, Math.max(380, parent.width * 0.58)))
+                 * root.calendarDetailsProgress
+        x: (root.width - (width
+                          + root.calendarDetailsProgress * (24 + root.calendarDetailsWidth))) / 2
         anchors.verticalCenter: parent.verticalCenter
         anchors.verticalCenterOffset: -8
             + (root.calendarSettled
                ? Math.sin(root.calendarCloudPhase * 2 * Math.PI) * 3 : 0)
-        width: root.calendarDetailsVisible
-               ? Math.min(660, Math.max(340, parent.width - root.calendarDetailsWidth - 124))
-               : Math.min(760, Math.max(380, parent.width * 0.58))
         height: Math.min(parent.height - 64, 660,
                          Math.max(420, 190 + root.calendarWeekCount(0) * 78))
         radius: 20
@@ -1271,9 +1281,9 @@ Item {
         border.color: theme.border
         border.width: 1
         z: 5
-        visible: root.calendarDetailsVisible || opacity > 0.01
-        opacity: root.calendarDetailsVisible ? root.introProgress(0.02) : 0
-        scale: root.calendarDetailsVisible ? 1 : 0.94
+        visible: root.calendarDetailsProgress > 0.001
+        opacity: root.calendarDetailsProgress
+        scale: 0.94 + 0.06 * root.calendarDetailsProgress
 
         transform: Translate {
             y: (1 - root.scrollSectionIndex) * root.height
@@ -1282,14 +1292,7 @@ Item {
             }
         }
 
-        // x follows the calendar card directly; do not animate this geometry separately.
-        Behavior on opacity {
-            NumberAnimation { duration: 300; easing.type: Easing.OutCubic }
-        }
-        Behavior on scale {
-            NumberAnimation { duration: 360; easing.type: Easing.OutCubic }
-        }
-
+        // Position and reveal follow calendarDetailsProgress in the same frame.
         ColumnLayout {
             anchors.fill: parent
             anchors.margins: 22
