@@ -26,12 +26,8 @@ Item {
     property string selectedCalendarDate: ""
     property var selectedCalendarSubjectFocus: []
     property real calendarDetailsWidth: Math.max(240, Math.min(380, root.width * 0.26, root.width - 700))
-    property real calendarSwipeStartX: 0
-    property real calendarSwipeStartY: 0
     property real calendarDragOffset: 0
     property int calendarCommitOffset: 0
-    property bool calendarGestureDecided: false
-    property bool calendarHorizontalGesture: false
     // Three vertically paged sections: timer + subjects, monthly analytics, daily focus.
     property int scrollSectionIndex: 0
     property int scrollSectionCount: 3
@@ -636,7 +632,7 @@ Item {
             color: theme.window
         }
 
-    // Compact subject list, placed higher with the Add control centered beneath it.
+    // Center the timer, subject list, and Add action as one size-aware group.
     Rectangle {
         id: subjectsPanel
         anchors.horizontalCenter: parent.horizontalCenter
