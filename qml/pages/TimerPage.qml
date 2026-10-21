@@ -530,6 +530,54 @@ Item {
         }
     }
 
+    // A real vertical pointer gesture for fingers and stylus pens.
+    // WheelHandler alone cannot handle an ordinary touchscreen swipe.
+    DragHandler {
+        id: sectionTouchDragHandler
+        target: null
+        acceptedDevices: PointerDevice.TouchScreen | PointerDevice.Stylus
+        acceptedPointerTypes: PointerDevice.Finger | PointerDevice.Pen
+        acceptedButtons: Qt.NoButton
+        dragThreshold: 24
+        xAxis.enabled: false
+        yAxis.enabled: true
+
+        property real capturedX: 0
+        property real capturedY: 0
+
+        onActiveChanged: {
+            if (active) {
+                capturedX = 0
+                capturedY = 0
+                return
+            }
+
+            var swipeX = capturedX
+            var swipeY = capturedY
+            capturedX = 0
+            capturedY = 0
+
+            if (root.subjectDialogOpen || Math.abs(swipeY) < 58
+                    || Math.abs(swipeY) <= Math.abs(swipeX) * 1.2)
+                return
+
+            // Moving the finger/stylus up advances the content down the stack.
+            root.moveScrollSection(swipeY < 0 ? 1 : -1)
+        }
+
+        onActiveTranslationChanged: {
+            if (active) {
+                capturedX = activeTranslation.x
+                capturedY = activeTranslation.y
+            }
+        }
+
+        onCanceled: {
+            capturedX = 0
+            capturedY = 0
+        }
+    }
+
     Item {
         id: pageContent
         anchors.fill: parent
@@ -1099,7 +1147,7 @@ Item {
             id: calendarSwipeArea
             anchors.fill: parent
             z: 10
-            preventStealing: true
+            preventStealing: false
 
             onPressed: function(mouse) {
                 if (calendarSnapAnimation.running) {
@@ -1450,6 +1498,52 @@ Item {
     }
 
 } // pageContent
+
+    // Fixed page indicator. It stays anchored to the window while sections move.
+    Item {
+        id: verticalSectionIndicator
+        x: 16
+        anchors.verticalCenter: parent.verticalCenter
+        width: 22
+        height: sectionDotsColumn.implicitHeight
+        z: 90
+        visible: !root.subjectDialogOpen
+        opacity: 0.92
+
+        Column {
+            id: sectionDotsColumn
+            anchors.centerIn: parent
+            spacing: 13
+
+            Repeater {
+                model: root.scrollSectionCount
+                delegate: Item {
+                    required property int index
+                    width: 22
+                    height: 12
+
+                    Rectangle {
+                        anchors.centerIn: parent
+                        width: root.scrollSectionIndex === index ? 10 : 6
+                        height: width
+                        radius: width / 2
+                        color: root.scrollSectionIndex === index ? theme.accent : theme.mutedText
+                        opacity: root.scrollSectionIndex === index ? 1 : 0.48
+
+                        Behavior on width {
+                            NumberAnimation { duration: 180; easing.type: Easing.OutCubic }
+                        }
+                        Behavior on color {
+                            ColorAnimation { duration: 180; easing.type: Easing.OutCubic }
+                        }
+                        Behavior on opacity {
+                            NumberAnimation { duration: 180; easing.type: Easing.OutCubic }
+                        }
+                    }
+                }
+            }
+        }
+    }
 
     // Modal overlay intentionally has no title-bar close button; Cancel is the dismissal action.
     Rectangle {
