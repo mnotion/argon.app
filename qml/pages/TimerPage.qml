@@ -228,6 +228,10 @@ Item {
         return new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate()
     }
 
+    function calendarWeekCount(offset) {
+        return Math.ceil((calendarFirstWeekday(offset) + calendarDaysInMonth(offset)) / 7)
+    }
+
     function calendarCellDay(index, offset) {
         var day = index - calendarFirstWeekday(offset) + 1
         return day >= 1 && day <= calendarDaysInMonth(offset) ? day : ""
@@ -824,7 +828,8 @@ Item {
             + (root.calendarSettled
                ? Math.sin(root.calendarCloudPhase * 2 * Math.PI) * 3 : 0)
         width: Math.min(920, Math.max(320, parent.width - 120))
-        height: Math.min(780, Math.max(420, parent.height - 110))
+        height: Math.min(700, parent.height - 90,
+                         190 + root.calendarWeekCount(0) * 78)
         radius: 20
         color: Qt.lighter(theme.surface, 1.0 + 0.11 * root.calendarCloudPhase)
         border.color: Qt.lighter(theme.border, 1.0 + 0.06 * root.calendarCloudPhase)
@@ -978,7 +983,7 @@ Item {
                                 NumberAnimation { duration: 300; easing.type: Easing.OutCubic }
                             } }
                         }
-                        text: "MONTHLY FOCUS  " + root.formatCalendarDuration(
+                        text: "Monthly Focus: " + root.formatCalendarDuration(
                                   root.calendarMonthTotalSeconds(monthPage.monthOffset))
                         color: theme.mutedText
                         font.pixelSize: 12
@@ -1031,12 +1036,15 @@ Item {
                         columnSpacing: 0
 
                         Repeater {
-                            model: 42
+                            model: root.calendarWeekCount(monthPage.monthOffset) * 7
                             delegate: Item {
                                 id: calendarDayCell
                                 required property int index
                                 width: calendarViewport.width / 7
-                                height: Math.max(42, Math.min(76, (calendarViewport.height - 150) / 6))
+                                height: Math.max(42, Math.min(88,
+                                    (calendarViewport.height - 156
+                                     - 3 * (root.calendarWeekCount(monthPage.monthOffset) - 1))
+                                    / root.calendarWeekCount(monthPage.monthOffset)))
 
                                 property string dayNumber: root.calendarCellDay(index, monthPage.monthOffset)
                                 property string isoDate: root.calendarIsoDate(dayNumber, monthPage.monthOffset)
@@ -1088,31 +1096,31 @@ Item {
                                 Text {
                                     id: dayNumberText
                                     anchors.top: parent.top
-                                    anchors.topMargin: 7
+                                    anchors.topMargin: 5
                                     width: parent.width
                                     height: 22
                                     text: calendarDayCell.dayNumber
                                     visible: calendarDayCell.dayNumber !== ""
                                     color: calendarDayCell.today ? theme.accent : theme.text
-                                    font.pixelSize: 16
-                                    font.weight: calendarDayCell.today ? Font.DemiBold : Font.Normal
+                                    font.pixelSize: 17
+                                    font.weight: Font.DemiBold
                                     horizontalAlignment: Text.AlignHCenter
                                     verticalAlignment: Text.AlignVCenter
                                     z: 2
                                 }
 
                                 Text {
-                                    anchors.bottom: parent.bottom
-                                    anchors.bottomMargin: 8
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    anchors.verticalCenterOffset: Math.min(16, parent.height * 0.30)
                                     width: parent.width
-                                    height: 18
+                                    height: 16
                                     text: root.formatCalendarDuration(calendarDayCell.focusedSeconds)
                                     // Keep empty days clean; show HH:MM only after time is recorded.
                                     visible: calendarDayCell.dayNumber !== ""
                                              && calendarDayCell.focusedSeconds > 0
                                     color: theme.accent
-                                    font.pixelSize: 12
-                                    font.weight: calendarDayCell.focusedSeconds > 0 ? Font.Medium : Font.Normal
+                                    font.pixelSize: 11
+                                    font.weight: Font.Normal
                                     horizontalAlignment: Text.AlignHCenter
                                     verticalAlignment: Text.AlignVCenter
                                     z: 2
