@@ -8,6 +8,8 @@ QtObject {
     property real lastTickAt: 0
     property real focusedRemainderMilliseconds: 0
     property string statusMessage: ""
+    property string activeSubjectId: ""
+    property var subjectElapsedMilliseconds: ({})
 
     function formattedTime() {
         var totalMinutes = Math.floor(elapsedMilliseconds / 60000)
@@ -42,9 +44,13 @@ QtObject {
                     Math.max(0, Math.floor(elapsedMilliseconds)))
         var runningSaved = appSettingsService.setValue(
                     "timer.wasRunning", timerRunning)
-        if (!elapsedSaved || !runningSaved)
+        var subjectIdSaved = appSettingsService.setValue(
+                    "timer.activeSubjectId", activeSubjectId)
+        var subjectTimesSaved = appSettingsService.setValue(
+                    "timer.subjectElapsedMilliseconds", subjectElapsedMilliseconds)
+        if (!elapsedSaved || !runningSaved || !subjectIdSaved || !subjectTimesSaved)
             console.warn("[TimerPersistence] Could not save stopwatch state; check the settings-path diagnostics in argon-runtime.log.")
-        return elapsedSaved && runningSaved
+        return elapsedSaved && runningSaved && subjectIdSaved && subjectTimesSaved
     }
 
     function toggleTimer() {
@@ -78,6 +84,18 @@ QtObject {
 
         elapsedMilliseconds += elapsed
 
+        // Keep an independent lifetime total for the subject currently assigned
+        // to the running stopwatch. Persist it alongside normal timer state.
+        if (activeSubjectId.length > 0) {
+            var updatedSubjectTimes = {}
+            var subjectKeys = Object.keys(subjectElapsedMilliseconds || ({}))
+            for (var i = 0; i < subjectKeys.length; ++i)
+                updatedSubjectTimes[subjectKeys[i]] = Number(subjectElapsedMilliseconds[subjectKeys[i]]) || 0
+            var subjectKey = String(activeSubjectId)
+            updatedSubjectTimes[subjectKey] = Math.max(0, Number(updatedSubjectTimes[subjectKey]) || 0) + elapsed
+            subjectElapsedMilliseconds = updatedSubjectTimes
+        }
+
         // Count only whole elapsed seconds in the daily analytics record.
         var accumulated = focusedRemainderMilliseconds + elapsed
         var wholeSeconds = Math.floor(accumulated / 1000)
@@ -93,6 +111,11 @@ QtObject {
                                      "timer.elapsedMilliseconds", 0))
         if (isFinite(savedElapsed) && savedElapsed >= 0)
             elapsedMilliseconds = savedElapsed
+
+        activeSubjectId = String(appSettingsService.value("timer.activeSubjectId", ""))
+        var storedSubjectTimes = appSettingsService.value("timer.subjectElapsedMilliseconds", ({}))
+        subjectElapsedMilliseconds = storedSubjectTimes && typeof storedSubjectTimes === "object"
+                ? storedSubjectTimes : ({})
 
         // Resume only if the stopwatch was running when Argon last saved state.
         // lastTickAt is reset first so time spent updating/restarting is not counted.
