@@ -109,6 +109,62 @@ Item {
             console.warn("[Timer] Could not save the selected subject.")
     }
 
+    function orderedSubjects() {
+        var ordered = subjects.slice()
+        if (selectedSubjectId.length === 0)
+            return ordered
+        var selectedIndex = -1
+        for (var i = 0; i < ordered.length; ++i) {
+            if (String(ordered[i].id) === selectedSubjectId) {
+                selectedIndex = i
+                break
+            }
+        }
+        if (selectedIndex > 0)
+            ordered.unshift(ordered.splice(selectedIndex, 1)[0])
+        return ordered
+    }
+
+    function formattedSubjectElapsed(subjectId) {
+        var trackedMilliseconds = Number(controller.subjectElapsedMilliseconds[String(subjectId)] || 0)
+        var totalMinutes = Math.floor(Math.max(0, trackedMilliseconds) / 60000)
+        var hours = Math.floor(totalMinutes / 60)
+        var minutes = totalMinutes % 60
+        return (hours < 10 ? "0" : "") + hours + ":"
+                + (minutes < 10 ? "0" : "") + minutes
+    }
+
+    function startSubjectTimer(subjectId) {
+        var requestedId = String(subjectId)
+        selectSubject(requestedId)
+
+        if (controller.timerRunning) {
+            if (String(controller.activeSubjectId) === requestedId) {
+                controller.toggleTimer()
+                return
+            }
+
+            // Attribute the preceding interval to the subject that was active.
+            controller.tick()
+            controller.activeSubjectId = requestedId
+            controller.persistElapsedState()
+            return
+        }
+
+        controller.activeSubjectId = requestedId
+        controller.toggleTimer()
+    }
+
+    function toggleSelectedSubjectTimer() {
+        if (controller.timerRunning) {
+            controller.toggleTimer()
+            return
+        }
+        if (selectedSubjectId.length > 0)
+            controller.activeSubjectId = selectedSubjectId
+        controller.toggleTimer()
+    }
+
     function introProgress(delay) {
         if (timerIntroProgress <= delay)
             return 0
@@ -502,15 +558,15 @@ Item {
             color: theme.window
         }
 
-    // Subject cards live in an opaque panel below the timer.
+    // Compact subject list, placed higher with the Add control centered beneath it.
     Rectangle {
         id: subjectsPanel
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.bottom: parent.bottom
-        anchors.bottomMargin: 22
-        width: Math.min(760, parent.width - 64)
-        height: Math.min(224, Math.max(166, parent.height * 0.34))
-        radius: 20
+        anchors.bottomMargin: 82
+        width: Math.min(560, parent.width - 80)
+        height: Math.min(260, Math.max(196, parent.height * 0.36))
+        radius: 18
         color: theme.surface
         border.color: theme.border
         border.width: 1
@@ -518,95 +574,70 @@ Item {
 
         RowLayout {
             id: subjectsHeader
-            visible: root.subjects.length > 0
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.top: parent.top
-            anchors.leftMargin: 18
-            anchors.rightMargin: 18
-            anchors.topMargin: 14
+            anchors.leftMargin: 16
+            anchors.rightMargin: 16
+            anchors.topMargin: 12
             height: 24
             spacing: 8
 
             Text {
                 text: "SUBJECTS"
                 color: theme.mutedText
-                font.pixelSize: 11
+                font.pixelSize: 10
                 font.weight: Font.DemiBold
-                font.letterSpacing: 1.1
+                font.letterSpacing: 1.0
                 Layout.alignment: Qt.AlignVCenter
             }
 
             Text {
                 text: String(root.subjects.length)
                 color: theme.mutedText
-                font.pixelSize: 11
+                font.pixelSize: 10
                 Layout.alignment: Qt.AlignVCenter
             }
 
             Item { Layout.fillWidth: true; Layout.preferredHeight: 1 }
-
-            Rectangle {
-                Layout.preferredWidth: addHeaderText.implicitWidth + 24
-                Layout.preferredHeight: 25
-                Layout.alignment: Qt.AlignVCenter
-                radius: 8
-                color: addHeaderMouse.containsMouse
-                       ? Qt.rgba(theme.accent.r, theme.accent.g, theme.accent.b, 0.18)
-                       : Qt.rgba(theme.accent.r, theme.accent.g, theme.accent.b, 0.09)
-                border.color: Qt.rgba(theme.accent.r, theme.accent.g, theme.accent.b, 0.34)
-
-                Text {
-                    id: addHeaderText
-                    anchors.centerIn: parent
-                    text: "+ Add"
-                    color: theme.accent
-                    font.pixelSize: 11
-                    font.weight: Font.DemiBold
-                }
-                MouseArea {
-                    id: addHeaderMouse
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: root.openSubjectDialog()
-                }
-            }
         }
 
         Flickable {
             id: subjectCardsViewport
             anchors.left: parent.left
             anchors.right: parent.right
-            anchors.top: root.subjects.length > 0 ? subjectsHeader.bottom : parent.top
+            anchors.top: subjectsHeader.bottom
             anchors.bottom: parent.bottom
-            anchors.leftMargin: 14
-            anchors.rightMargin: 14
-            anchors.topMargin: root.subjects.length > 0 ? 8 : 14
-            anchors.bottomMargin: 12
+            anchors.leftMargin: 12
+            anchors.rightMargin: 12
+            anchors.topMargin: 8
+            anchors.bottomMargin: 10
             clip: true
             contentWidth: width
-            contentHeight: subjectCardsFlow.implicitHeight
+            contentHeight: subjectRowsColumn.implicitHeight
             boundsBehavior: Flickable.StopAtBounds
-            visible: root.subjects.length > 0
 
-            Flow {
-                id: subjectCardsFlow
+            Column {
+                id: subjectRowsColumn
                 width: subjectCardsViewport.width
-                spacing: 10
+                spacing: 7
 
                 Repeater {
-                    model: root.subjects
+                    model: root.orderedSubjects()
                     delegate: Rectangle {
                         required property var modelData
                         readonly property var subjectData: modelData
-                        width: 158
-                        height: 76
-                        radius: 12
-                        color: Qt.lighter(theme.surface, 1.12)
-                        border.width: root.selectedSubjectId === String(subjectData.id) ? 1.6 : 1
-                        border.color: root.selectedSubjectId === String(subjectData.id)
-                                      ? String(subjectData.colour) : theme.border
+                        readonly property bool isSelected: root.selectedSubjectId === String(subjectData.id)
+                        width: subjectRowsColumn.width
+                        height: 44
+                        radius: 10
+                        color: isSelected
+                               ? Qt.rgba(Qt.color(String(subjectData.colour)).r,
+                                         Qt.color(String(subjectData.colour)).g,
+                                         Qt.color(String(subjectData.colour)).b, 0.12)
+                               : Qt.rgba(1, 1, 1, 0.025)
+                        border.width: isSelected ? 1.5 : 1
+                        border.color: isSelected ? String(subjectData.colour) : theme.border
                         clip: true
 
                         Rectangle {
@@ -619,11 +650,11 @@ Item {
 
                         Column {
                             anchors.left: parent.left
-                            anchors.right: parent.right
+                            anchors.right: subjectTimerControl.left
                             anchors.verticalCenter: parent.verticalCenter
-                            anchors.leftMargin: 14
+                            anchors.leftMargin: 13
                             anchors.rightMargin: 10
-                            spacing: 7
+                            spacing: 3
 
                             Text {
                                 width: parent.width
@@ -636,99 +667,112 @@ Item {
 
                             Text {
                                 width: parent.width
-                                text: "Goal · " + String(subjectData.goalHours) + " h"
+                                text: "Focused " + root.formattedSubjectElapsed(subjectData.id)
+                                      + "  ·  Goal " + String(subjectData.goalHours) + " h"
                                 color: theme.mutedText
-                                font.pixelSize: 11
+                                font.pixelSize: 10
+                                elide: Text.ElideRight
                             }
                         }
 
                         MouseArea {
-                            id: subjectCardMouse
-                            anchors.fill: parent
+                            anchors.left: parent.left
+                            anchors.top: parent.top
+                            anchors.bottom: parent.bottom
+                            anchors.right: subjectTimerControl.left
+                            anchors.rightMargin: 4
                             hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
                             onClicked: root.selectSubject(subjectData.id)
                         }
 
-                        ToolTip.visible: subjectCardMouse.containsMouse
-                        ToolTip.text: String(subjectData.name || "Subject")
-                        ToolTip.delay: 500
-                    }
-                }
+                        Rectangle {
+                            id: subjectTimerControl
+                            anchors.right: parent.right
+                            anchors.rightMargin: 7
+                            anchors.verticalCenter: parent.verticalCenter
+                            width: 31
+                            height: 31
+                            radius: 8
+                            z: 2
+                            color: subjectTimerMouse.containsMouse
+                                   ? Qt.rgba(Qt.color(String(subjectData.colour)).r,
+                                             Qt.color(String(subjectData.colour)).g,
+                                             Qt.color(String(subjectData.colour)).b, 0.22)
+                                   : Qt.rgba(1, 1, 1, 0.035)
+                            border.color: controller.timerRunning
+                                          && String(controller.activeSubjectId) === String(subjectData.id)
+                                          ? String(subjectData.colour) : theme.border
 
-                Rectangle {
-                    width: 158
-                    height: 76
-                    radius: 12
-                    color: addSubjectTileMouse.containsMouse
-                           ? Qt.rgba(theme.accent.r, theme.accent.g, theme.accent.b, 0.10)
-                           : Qt.rgba(1, 1, 1, 0.025)
-                    border.color: addSubjectTileMouse.containsMouse ? theme.accent : theme.border
+                            Text {
+                                anchors.centerIn: parent
+                                text: controller.timerRunning
+                                      && String(controller.activeSubjectId) === String(subjectData.id)
+                                      ? "Ⅱ" : "▶"
+                                color: String(subjectData.colour)
+                                font.pixelSize: 12
+                                font.weight: Font.DemiBold
+                            }
 
-                    Column {
-                        anchors.centerIn: parent
-                        spacing: 4
-                        Text {
-                            anchors.horizontalCenter: parent.horizontalCenter
-                            text: "+"
-                            color: theme.accent
-                            font.pixelSize: 25
-                            font.weight: Font.Light
+                            MouseArea {
+                                id: subjectTimerMouse
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: root.startSubjectTimer(subjectData.id)
+                            }
+
+                            ToolTip.visible: subjectTimerMouse.containsMouse
+                            ToolTip.text: controller.timerRunning
+                                          && String(controller.activeSubjectId) === String(subjectData.id)
+                                          ? "Pause this subject" : "Start timer on this subject"
+                            ToolTip.delay: 350
                         }
-                        Text {
-                            anchors.horizontalCenter: parent.horizontalCenter
-                            text: "Add a subject"
-                            color: theme.mutedText
-                            font.pixelSize: 11
-                        }
-                    }
-                    MouseArea {
-                        id: addSubjectTileMouse
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: root.openSubjectDialog()
                     }
                 }
             }
         }
+    }
+
+    Row {
+        id: addSubjectButton
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.top: subjectsPanel.bottom
+        anchors.topMargin: 8
+        spacing: 9
+        z: 3
 
         Rectangle {
-            id: emptyAddSubjectButton
-            visible: root.subjects.length === 0
-            anchors.centerIn: parent
-            width: 190
-            height: 88
-            radius: 14
-            color: emptyAddMouse.containsMouse
-                   ? Qt.rgba(theme.accent.r, theme.accent.g, theme.accent.b, 0.12)
-                   : Qt.rgba(1, 1, 1, 0.035)
-            border.color: emptyAddMouse.containsMouse ? theme.accent : theme.border
+            width: 36
+            height: 34
+            radius: 9
+            color: addSubjectMouse.containsMouse
+                   ? Qt.rgba(theme.accent.r, theme.accent.g, theme.accent.b, 0.17)
+                   : theme.surface
+            border.color: addSubjectMouse.containsMouse ? theme.accent : theme.border
 
-            Column {
+            Text {
                 anchors.centerIn: parent
-                spacing: 4
-                Text {
-                    anchors.horizontalCenter: parent.horizontalCenter
-                    text: "+"
-                    color: theme.accent
-                    font.pixelSize: 28
-                    font.weight: Font.Light
-                }
-                Text {
-                    anchors.horizontalCenter: parent.horizontalCenter
-                    text: "Add a subject"
-                    color: theme.mutedText
-                    font.pixelSize: 12
-                }
+                text: "+"
+                color: theme.accent
+                font.pixelSize: 23
+                font.weight: Font.Light
             }
+
             MouseArea {
-                id: emptyAddMouse
+                id: addSubjectMouse
                 anchors.fill: parent
                 hoverEnabled: true
                 cursorShape: Qt.PointingHandCursor
                 onClicked: root.openSubjectDialog()
             }
+        }
+
+        Text {
+            anchors.verticalCenter: parent.verticalCenter
+            text: "Add subject"
+            color: addSubjectMouse.containsMouse ? theme.accent : theme.mutedText
+            font.pixelSize: 12
         }
     }
 
@@ -1200,12 +1244,12 @@ Item {
         }
     }
 
-    // Keep the timer prominent above the subject collection.
+    // Timer sits lower with larger digits and a lighter set of controls.
     ColumnLayout {
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.top: parent.top
-        anchors.topMargin: 40
-        spacing: 22
+        anchors.topMargin: 72
+        spacing: 15
         z: 3
         opacity: root.introProgress(0.20)
         scale: 0.96 + 0.04 * root.introProgress(0.20)
@@ -1218,7 +1262,7 @@ Item {
             Layout.alignment: Qt.AlignHCenter
             text: controller.formattedTime()
             color: theme.text
-            font.pixelSize: 84
+            font.pixelSize: 100
             font.weight: Font.Light
             font.kerning: false
         }
@@ -1230,12 +1274,12 @@ Item {
             Button {
                 id: stopwatchToggleButton
                 text: controller.timerRunning ? "Pause" : "Start"
-                implicitWidth: 132
-                implicitHeight: 46
-                font.pixelSize: 14
+                implicitWidth: 108
+                implicitHeight: 39
+                font.pixelSize: 12
                 font.weight: Font.DemiBold
                 scale: hovered ? 1.035 : 1
-                onClicked: controller.toggleTimer()
+                onClicked: root.toggleSelectedSubjectTimer()
 
                 Behavior on scale {
                     NumberAnimation {
@@ -1302,9 +1346,9 @@ Item {
                 text: "↻"
                 ToolTip.visible: hovered
                 ToolTip.text: "Reset stopwatch"
-                implicitWidth: 48
-                implicitHeight: 46
-                font.pixelSize: 21
+                implicitWidth: 40
+                implicitHeight: 39
+                font.pixelSize: 17
                 scale: hovered ? 1.08 : 1
                 onClicked: controller.resetTimer()
 
