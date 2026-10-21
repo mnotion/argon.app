@@ -113,10 +113,15 @@ QString DailyAnalyticsService::dailyFilePath() const
     return filePathForDate(QDate::currentDate());
 }
 
-void DailyAnalyticsService::addFocusedSeconds(qint64 seconds,
-                                                const QString &subjectId,
-                                                const QString &subjectName,
-                                                const QString &subjectColour)
+void DailyAnalyticsService::addFocusedSeconds(qint64 seconds)
+{
+    addSubjectFocusedSeconds(seconds, QString(), QString(), QString());
+}
+
+void DailyAnalyticsService::addSubjectFocusedSeconds(qint64 seconds,
+                                                     const QString &subjectId,
+                                                     const QString &subjectName,
+                                                     const QString &subjectColour)
 {
     if (seconds <= 0)
         return;
