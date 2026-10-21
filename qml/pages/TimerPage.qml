@@ -1206,12 +1206,12 @@ Item {
         }
     }
 
-    // Timer sits lower with larger digits and a lighter set of controls.
+    // Keep the timer directly above the subjects panel and make the digits prominent.
     ColumnLayout {
         anchors.horizontalCenter: parent.horizontalCenter
-        anchors.top: parent.top
-        anchors.topMargin: 48
-        spacing: 11
+        anchors.bottom: subjectsPanel.top
+        anchors.bottomMargin: 8
+        spacing: 8
         z: 3
         opacity: root.introProgress(0.20)
         scale: 0.96 + 0.04 * root.introProgress(0.20)
@@ -1232,7 +1232,7 @@ Item {
             Layout.alignment: Qt.AlignHCenter
             text: controller.formattedTime()
             color: theme.text
-            font.pixelSize: 100
+            font.pixelSize: 156
             font.weight: Font.Light
             font.kerning: false
         }
