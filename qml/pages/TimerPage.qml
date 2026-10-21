@@ -35,6 +35,7 @@ Item {
     property bool calendarGestureDecided: false
     property bool calendarHorizontalGesture: false
     property var subjects: []
+    property var subjectDisplayOrder: []
     property string selectedSubjectId: ""
     property bool subjectDialogOpen: false
     property string newSubjectName: ""
@@ -52,6 +53,7 @@ Item {
         subjects = storedSubjects && storedSubjects.length !== undefined
                 ? storedSubjects : []
         selectedSubjectId = String(appSettingsService.value("timer.selectedSubjectId", ""))
+        refreshSubjectDisplayOrder()
     }
 
     function openSubjectDialog() {
@@ -99,6 +101,7 @@ Item {
         subjects = updatedSubjects
         selectedSubjectId = subjectId
         appSettingsService.setValue("timer.selectedSubjectId", selectedSubjectId)
+        refreshSubjectDisplayOrder()
         subjectDialogOpen = false
         subjectFormError = ""
     }
@@ -120,14 +123,26 @@ Item {
         return Math.max(0, Number(controller.subjectMonthlyElapsedMilliseconds[monthSubjectKey]) || 0)
     }
 
-    function orderedSubjects() {
-        // Selection only changes highlighting. Ordering is based on this month's
-        // accumulated time, with insertion order preserved for ties.
+    function refreshSubjectDisplayOrder() {
+        // Selection only changes highlighting. Recalculate periodically from this
+        // month's totals, but replace the Repeater model only when the order changes.
         var ordered = subjects.slice()
         ordered.sort(function(a, b) {
             return root.monthlySubjectElapsed(b.id) - root.monthlySubjectElapsed(a.id)
         })
-        return ordered
+
+        var orderChanged = ordered.length !== subjectDisplayOrder.length
+        if (!orderChanged) {
+            for (var i = 0; i < ordered.length; ++i) {
+                if (String(ordered[i].id) !== String(subjectDisplayOrder[i].id)) {
+                    orderChanged = true
+                    break
+                }
+            }
+        }
+
+        if (orderChanged)
+            subjectDisplayOrder = ordered
     }
 
     function formattedSubjectElapsed(subjectId) {
@@ -541,6 +556,14 @@ Item {
         timerPageEntrance.start()
     }
 
+    Timer {
+        id: subjectOrderRefreshTimer
+        interval: 5000
+        repeat: true
+        running: true
+        onTriggered: root.refreshSubjectDisplayOrder()
+    }
+
     Connections {
         target: dailyAnalyticsService
         function onDailyStatsChanged() {
@@ -628,7 +651,7 @@ Item {
                 spacing: 7
 
                 Repeater {
-                    model: root.orderedSubjects()
+                    model: root.subjectDisplayOrder
                     delegate: Rectangle {
                         required property var modelData
                         readonly property var subjectData: modelData
