@@ -22,6 +22,10 @@ Item {
     property var calendarFocusedSeconds: ({})
     property string calendarTodayIsoDate: ""
     property double todayFocusedSeconds: 0
+    property bool calendarDetailsVisible: false
+    property string selectedCalendarDate: ""
+    property var selectedCalendarSubjectFocus: []
+    property real calendarDetailsWidth: Math.max(240, Math.min(380, root.width * 0.26, root.width - 700))
     property real calendarSwipeStartX: 0
     property real calendarSwipeStartY: 0
     property real calendarDragOffset: 0
@@ -205,6 +209,7 @@ Item {
         var date = new Date(displayedCalendarYear, displayedCalendarMonth + offset, 1)
         displayedCalendarYear = date.getFullYear()
         displayedCalendarMonth = date.getMonth()
+        calendarDetailsVisible = false
     }
 
     function calendarMonthDate(offset) {
@@ -266,6 +271,37 @@ Item {
             return ""
         var month = calendarMonthDate(offset)
         return calendarDateKey(new Date(month.getFullYear(), month.getMonth(), Number(day)))
+    }
+
+    function selectCalendarDate(isoDate) {
+        if (!isoDate)
+            return
+        selectedCalendarDate = String(isoDate)
+        selectedCalendarSubjectFocus = dailyAnalyticsService.subjectFocusForDate(selectedCalendarDate)
+        calendarDetailsVisible = true
+    }
+
+    function closeCalendarDetails() {
+        calendarDetailsVisible = false
+    }
+
+    function refreshSelectedCalendarDetails() {
+        if (selectedCalendarDate.length > 0)
+            selectedCalendarSubjectFocus = dailyAnalyticsService.subjectFocusForDate(selectedCalendarDate)
+    }
+
+    function selectedCalendarTotalSeconds() {
+        if (selectedCalendarDate.length === 0)
+            return 0
+        if (selectedCalendarDate === calendarTodayIsoDate)
+            return todayFocusedSeconds
+        return dailyAnalyticsService.focusedSecondsForDate(selectedCalendarDate)
+    }
+
+    function formattedSelectedCalendarDate() {
+        if (selectedCalendarDate.length === 0)
+            return ""
+        return Qt.formatDate(new Date(selectedCalendarDate + "T12:00:00"), "dddd, d MMMM yyyy")
     }
 
     function formatCalendarDuration(seconds) {
@@ -499,6 +535,8 @@ Item {
         target: dailyAnalyticsService
         function onDailyStatsChanged() {
             root.refreshTodayCalendarData()
+            if (root.selectedCalendarDate === root.calendarTodayIsoDate)
+                root.refreshSelectedCalendarDetails()
         }
     }
 
@@ -603,7 +641,7 @@ Item {
         id: subjectsPanel
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.verticalCenter: parent.verticalCenter
-        anchors.verticalCenterOffset: 100
+        anchors.verticalCenterOffset: (stopwatchControlStack.height + 54 - addSubjectButton.height - 8) / 2
         width: Math.min(560, parent.width - 80)
         height: Math.min(260, Math.max(196, parent.height * 0.36))
         radius: 18
@@ -822,14 +860,18 @@ Item {
     // Calendar swipe follows the pointer and previews adjacent months before release.
     Rectangle {
         id: monthlyCalendarCard
-        x: (root.width - width) / 2
+        x: root.calendarDetailsVisible
+           ? (root.width - (width + 24 + root.calendarDetailsWidth)) / 2
+           : (root.width - width) / 2
         anchors.verticalCenter: parent.verticalCenter
         anchors.verticalCenterOffset: -8
             + (root.calendarSettled
                ? Math.sin(root.calendarCloudPhase * 2 * Math.PI) * 3 : 0)
-        width: Math.min(920, Math.max(320, parent.width - 120))
-        height: Math.min(780, Math.max(360, parent.height - 100),
-                         220 + root.calendarWeekCount(0) * 100)
+        width: root.calendarDetailsVisible
+               ? Math.min(660, Math.max(340, parent.width - root.calendarDetailsWidth - 124))
+               : Math.min(760, Math.max(380, parent.width * 0.58))
+        height: Math.min(parent.height - 64, 660,
+                         Math.max(420, 190 + root.calendarWeekCount(0) * 78))
         radius: 20
         color: Qt.lighter(theme.surface, 1.0 + 0.11 * root.calendarCloudPhase)
         border.color: Qt.lighter(theme.border, 1.0 + 0.06 * root.calendarCloudPhase)
@@ -859,8 +901,14 @@ Item {
 
         Behavior on x {
             NumberAnimation {
-                duration: 900
-                easing.type: Easing.OutExpo
+                duration: 460
+                easing.type: Easing.OutCubic
+            }
+        }
+        Behavior on width {
+            NumberAnimation {
+                duration: 460
+                easing.type: Easing.OutCubic
             }
         }
         Behavior on scale {
@@ -1217,6 +1265,7 @@ Item {
 
     // Keep the timer directly above the subjects panel and make the digits prominent.
     ColumnLayout {
+        id: stopwatchControlStack
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.bottom: subjectsPanel.top
         anchors.bottomMargin: 54
