@@ -11,17 +11,11 @@ Item {
     property var controller: null
     property bool dailyCardExpanded: false
     property bool dailyCardSettled: false
-    property bool dailyHandleSettled: false
-    property bool handleExpanded: false
     property real dailyCardCloudPhase: 0
-    property real dailyHandleCloudPhase: 0
     property bool calendarExpanded: false
     property bool calendarSettled: false
-    property bool calendarHandleSettled: false
-    property bool calendarHandleExpanded: false
     property bool calendarWaveVisible: false
     property real calendarCloudPhase: 0
-    property real calendarHandleCloudPhase: 0
     property int displayedCalendarYear: new Date().getFullYear()
     property int displayedCalendarMonth: new Date().getMonth()
     property var calendarFocusedSeconds: ({})
@@ -33,6 +27,11 @@ Item {
     property int calendarCommitOffset: 0
     property bool calendarGestureDecided: false
     property bool calendarHorizontalGesture: false
+    property real pageSwipeStartX: 0
+    property real pageSwipeStartY: 0
+    property real pageSwipeDistanceX: 0
+    property real pageSwipeDistanceY: 0
+    property bool pageSwipeStartedInsideCalendar: false
     property real timerIntroProgress: 0
 
     function introProgress(delay) {
@@ -188,45 +187,31 @@ Item {
 
     onDailyCardExpandedChanged: {
         cardSettleTimer.stop()
-        handleDelayTimer.stop()
-        handleSettleTimer.stop()
         dateFadeTimer.stop()
 
         if (dailyCardExpanded) {
             focusedTimeText.opacity = 0
             focusedDateText.opacity = 0
             cardSettleTimer.start()
-            handleDelayTimer.start()
-            handleSettleTimer.start()
         } else {
             dailyCardSettled = false
-            dailyHandleSettled = false
             dailyCardCloudPhase = 0
-            dailyHandleCloudPhase = 0
             focusedTimeText.opacity = 0
             focusedDateText.opacity = 0
-            handleExpanded = false
         }
     }
 
     onCalendarExpandedChanged: {
         calendarSettleTimer.stop()
-        calendarHandleDelayTimer.stop()
-        calendarHandleSettleTimer.stop()
         calendarWaveRevealTimer.stop()
 
         if (calendarExpanded) {
             calendarWaveVisible = false
             calendarSettleTimer.start()
-            calendarHandleDelayTimer.start()
-            calendarHandleSettleTimer.start()
         } else {
             calendarSettled = false
-            calendarHandleSettled = false
             calendarCloudPhase = 0
-            calendarHandleCloudPhase = 0
             calendarWaveVisible = false
-            calendarHandleExpanded = false
         }
     }
 
@@ -252,24 +237,6 @@ Item {
                 root.calendarSettled = true
                 calendarWaveRevealTimer.start()
             }
-        }
-    }
-
-    // Match the daily-card handle's tiny delay before it follows the calendar.
-    Timer {
-        id: calendarHandleDelayTimer
-        interval: 8
-        repeat: false
-        onTriggered: root.calendarHandleExpanded = root.calendarExpanded
-    }
-
-    Timer {
-        id: calendarHandleSettleTimer
-        interval: 908
-        repeat: false
-        onTriggered: {
-            if (root.calendarExpanded)
-                root.calendarHandleSettled = true
         }
     }
 
@@ -299,43 +266,6 @@ Item {
             to: 0
             duration: 3000
             easing.type: Easing.InOutSine
-        }
-    }
-
-    SequentialAnimation {
-        running: root.calendarHandleSettled
-        loops: Animation.Infinite
-        NumberAnimation {
-            target: root
-            property: "calendarHandleCloudPhase"
-            to: 1
-            duration: 3000
-            easing.type: Easing.InOutSine
-        }
-        NumberAnimation {
-            target: root
-            property: "calendarHandleCloudPhase"
-            to: 0
-            duration: 3000
-            easing.type: Easing.InOutSine
-        }
-    }
-
-    // Just over one frame at 180 Hz: the handle trails the card very slightly.
-    Timer {
-        id: handleDelayTimer
-        interval: 8
-        repeat: false
-        onTriggered: root.handleExpanded = root.dailyCardExpanded
-    }
-
-    Timer {
-        id: handleSettleTimer
-        interval: 908
-        repeat: false
-        onTriggered: {
-            if (root.dailyCardExpanded)
-                root.dailyHandleSettled = true
         }
     }
 
@@ -369,25 +299,6 @@ Item {
         }
     }
 
-    SequentialAnimation {
-        running: root.dailyHandleSettled
-        loops: Animation.Infinite
-        NumberAnimation {
-            target: root
-            property: "dailyHandleCloudPhase"
-            to: 1
-            duration: 3000
-            easing.type: Easing.InOutSine
-        }
-        NumberAnimation {
-            target: root
-            property: "dailyHandleCloudPhase"
-            to: 0
-            duration: 3000
-            easing.type: Easing.InOutSine
-        }
-    }
-
     NumberAnimation {
         id: timerPageEntrance
         target: root
@@ -401,6 +312,7 @@ Item {
     Component.onCompleted: {
         dailyAnalyticsService.refreshToday()
         refreshCalendarData()
+        dailyCardExpanded = true
         timerIntroProgress = 0
         timerPageEntrance.start()
     }
@@ -409,6 +321,44 @@ Item {
         target: dailyAnalyticsService
         function onDailyStatsChanged() {
             root.refreshTodayCalendarData()
+        }
+    }
+
+    DragHandler {
+        id: timerPageSwipeHandler
+        target: null
+        acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchScreen | PointerDevice.TouchPad
+
+        onActiveChanged: {
+            if (active) {
+                root.pageSwipeStartX = centroid.pressPosition.x
+                root.pageSwipeStartY = centroid.pressPosition.y
+                root.pageSwipeDistanceX = 0
+                root.pageSwipeDistanceY = 0
+                root.pageSwipeStartedInsideCalendar = root.calendarExpanded
+                        && root.pageSwipeStartX >= monthlyCalendarCard.x
+                        && root.pageSwipeStartX <= monthlyCalendarCard.x + monthlyCalendarCard.width
+                        && root.pageSwipeStartY >= monthlyCalendarCard.y
+                        && root.pageSwipeStartY <= monthlyCalendarCard.y + monthlyCalendarCard.height
+            } else {
+                var dx = root.pageSwipeDistanceX
+                var dy = root.pageSwipeDistanceY
+                if (!root.pageSwipeStartedInsideCalendar
+                        && Math.abs(dx) >= 90
+                        && Math.abs(dx) > Math.abs(dy) * 1.2) {
+                    if (dx < 0)
+                        root.calendarExpanded = true
+                    else if (root.calendarExpanded)
+                        root.calendarExpanded = false
+                }
+            }
+        }
+
+        onTranslationChanged: {
+            if (active) {
+                root.pageSwipeDistanceX = translation.x
+                root.pageSwipeDistanceY = translation.y
+            }
         }
     }
 
@@ -802,89 +752,6 @@ Item {
         }
     }
 
-    // Mirrored counterpart of the daily-focus handle, attached to the calendar's right edge.
-    Rectangle {
-        id: calendarCardHandle
-        x: (root.calendarExpanded ? 22 : 24 - monthlyCalendarCard.width) + monthlyCalendarCard.width - 12
-        anchors.verticalCenter: parent.verticalCenter
-        anchors.verticalCenterOffset: -8
-            + (root.calendarHandleSettled
-               ? Math.sin(root.calendarHandleCloudPhase * 2 * Math.PI) * 3 : 0)
-        width: 38
-        height: 54
-        radius: 9
-        color: calendarHandleHover.containsMouse
-               ? Qt.rgba(theme.accent.r, theme.accent.g, theme.accent.b, 0.14)
-               : Qt.lighter(theme.surface, 1.0 + 0.11 * root.calendarHandleCloudPhase)
-        border.color: calendarHandleHover.containsMouse
-                      ? theme.accent
-                      : Qt.lighter(theme.border, 1.0 + 0.06 * root.calendarHandleCloudPhase)
-        border.width: calendarHandleHover.containsMouse ? 1.4 : 1
-        z: 5
-        opacity: root.introProgress(0.10)
-        scale: calendarHandleHover.containsMouse
-               ? 1.09 : (root.calendarHandleExpanded ? 1.02 : 0.96)
-
-        transform: [
-            Scale {
-                origin.x: calendarCardHandle.width / 2
-                origin.y: calendarCardHandle.height / 2
-                xScale: 0.95 + 0.05 * root.introProgress(0.10)
-                yScale: 0.95 + 0.05 * root.introProgress(0.10)
-            },
-            Translate {
-                y: (1 - root.introProgress(0.10)) * 12
-            }
-        ]
-
-        Behavior on x {
-            SequentialAnimation {
-                PauseAnimation { duration: 16 }
-                NumberAnimation {
-                    duration: 900
-                    easing.type: Easing.OutExpo
-                }
-            }
-        }
-        Behavior on scale {
-            NumberAnimation {
-                duration: 300
-                easing.type: Easing.OutBack
-            }
-        }
-        Behavior on color { ColorAnimation { duration: 220 } }
-        Behavior on border.color { ColorAnimation { duration: 220 } }
-        Behavior on border.width { NumberAnimation { duration: 180 } }
-
-        Grid {
-            anchors.centerIn: parent
-            columns: 2
-            rows: 3
-            columnSpacing: 4
-            rowSpacing: 4
-
-            Repeater {
-                model: 6
-                delegate: Rectangle {
-                    required property int index
-                    width: 3
-                    height: 3
-                    radius: 1.5
-                    color: calendarHandleHover.containsMouse ? theme.accent : theme.mutedText
-                    Behavior on color { ColorAnimation { duration: 180 } }
-                }
-            }
-        }
-
-        MouseArea {
-            id: calendarHandleHover
-            anchors.fill: parent
-            hoverEnabled: true
-            cursorShape: Qt.PointingHandCursor
-            onClicked: root.calendarExpanded = !root.calendarExpanded
-        }
-    }
-
     // The stopwatch remains centered and independent of the daily focus card.
     ColumnLayout {
         anchors.centerIn: parent
@@ -1159,85 +1026,5 @@ Item {
         }
     }
 
-    // Separate handle: x and expansion state trail the card by only 8 ms.
-    Rectangle {
-        id: dailyCardHandle
-        x: root.width - (root.dailyCardExpanded ? dailyFocusedCard.width + 48 : 24) - 30
-        anchors.verticalCenter: parent.verticalCenter
-        anchors.verticalCenterOffset: -8
-            + (root.dailyHandleSettled
-               ? Math.sin(root.dailyHandleCloudPhase * 2 * Math.PI) * 3 : 0)
-        width: 38
-        height: 54
-        radius: 9
-        color: handleHover.containsMouse
-               ? Qt.rgba(theme.accent.r, theme.accent.g, theme.accent.b, 0.14)
-               : Qt.lighter(theme.surface, 1.0 + 0.11 * root.dailyHandleCloudPhase)
-        border.color: handleHover.containsMouse
-                      ? theme.accent
-                      : Qt.lighter(theme.border, 1.0 + 0.06 * root.dailyHandleCloudPhase)
-        border.width: handleHover.containsMouse ? 1.4 : 1
-        z: 5
-        opacity: root.introProgress(0.40)
-        scale: handleHover.containsMouse
-               ? 1.09 : (root.handleExpanded ? 1.02 : 0.96)
-        transform: [
-            Scale {
-                origin.x: dailyCardHandle.width / 2
-                origin.y: dailyCardHandle.height / 2
-                xScale: 0.95 + 0.05 * root.introProgress(0.40)
-                yScale: 0.95 + 0.05 * root.introProgress(0.40)
-            },
-            Translate {
-                y: (1 - root.introProgress(0.40)) * 12
-            }
-        ]
 
-        Behavior on x {
-            SequentialAnimation {
-                PauseAnimation { duration: 16 }
-                NumberAnimation {
-                    duration: 900
-                    easing.type: Easing.OutExpo
-                }
-            }
-        }
-        Behavior on scale {
-            NumberAnimation {
-                duration: 300
-                easing.type: Easing.OutBack
-            }
-        }
-        Behavior on color { ColorAnimation { duration: 220 } }
-        Behavior on border.color { ColorAnimation { duration: 220 } }
-        Behavior on border.width { NumberAnimation { duration: 180 } }
-
-        Grid {
-            anchors.centerIn: parent
-            columns: 2
-            rows: 3
-            columnSpacing: 4
-            rowSpacing: 4
-
-            Repeater {
-                model: 6
-                delegate: Rectangle {
-                    required property int index
-                    width: 3
-                    height: 3
-                    radius: 1.5
-                    color: handleHover.containsMouse ? theme.accent : theme.mutedText
-                    Behavior on color { ColorAnimation { duration: 180 } }
-                }
-            }
-        }
-
-        MouseArea {
-            id: handleHover
-            anchors.fill: parent
-            hoverEnabled: true
-            cursorShape: Qt.PointingHandCursor
-            onClicked: root.dailyCardExpanded = !root.dailyCardExpanded
-        }
-    }
 }
