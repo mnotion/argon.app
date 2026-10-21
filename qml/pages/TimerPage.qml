@@ -584,7 +584,7 @@ Item {
             spacing: 8
 
             Text {
-                text: "SUBJECTS"
+                text: "Subjects"
                 color: theme.mutedText
                 font.pixelSize: 10
                 font.weight: Font.DemiBold
@@ -639,39 +639,41 @@ Item {
                         border.color: isSelected ? String(subjectData.colour) : theme.border
                         clip: true
 
+                        // Square off the left corners so the colour marker meets the card edge cleanly.
+                        Rectangle {
+                            anchors.left: parent.left
+                            anchors.top: parent.top
+                            width: 10
+                            height: 10
+                            color: parent.color
+                        }
+                        Rectangle {
+                            anchors.left: parent.left
+                            anchors.bottom: parent.bottom
+                            width: 10
+                            height: 10
+                            color: parent.color
+                        }
                         Rectangle {
                             anchors.left: parent.left
                             anchors.top: parent.top
                             anchors.bottom: parent.bottom
                             width: 4
                             color: String(subjectData.colour)
+                            z: 1
                         }
 
-                        Column {
+                        Text {
                             anchors.left: parent.left
-                            anchors.right: subjectTimerControl.left
+                            anchors.right: subjectElapsedBadge.left
                             anchors.verticalCenter: parent.verticalCenter
                             anchors.leftMargin: 13
-                            anchors.rightMargin: 10
-                            spacing: 3
-
-                            Text {
-                                width: parent.width
-                                text: String(subjectData.name || "Subject")
-                                color: theme.text
-                                font.pixelSize: 13
-                                font.weight: Font.DemiBold
-                                elide: Text.ElideRight
-                            }
-
-                            Text {
-                                width: parent.width
-                                text: "Focused " + root.formattedSubjectElapsed(subjectData.id)
-                                      + "  ·  Goal " + String(subjectData.goalHours) + " h"
-                                color: theme.mutedText
-                                font.pixelSize: 10
-                                elide: Text.ElideRight
-                            }
+                            anchors.rightMargin: 8
+                            text: String(subjectData.name || "Subject")
+                            color: theme.text
+                            font.pixelSize: 13
+                            font.weight: Font.DemiBold
+                            elide: Text.ElideRight
                         }
 
                         MouseArea {
@@ -683,6 +685,29 @@ Item {
                             hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
                             onClicked: root.selectSubject(subjectData.id)
+                        }
+
+                        Rectangle {
+                            id: subjectElapsedBadge
+                            anchors.right: subjectTimerControl.left
+                            anchors.rightMargin: 8
+                            anchors.verticalCenter: parent.verticalCenter
+                            width: 56
+                            height: 23
+                            radius: 7
+                            color: "transparent"
+                            border.color: isSelected
+                                          ? Qt.rgba(subjectAccent.r, subjectAccent.g, subjectAccent.b, 0.68)
+                                          : theme.border
+                            border.width: 1
+
+                            Text {
+                                anchors.centerIn: parent
+                                text: "(" + root.formattedSubjectElapsed(subjectData.id) + ")"
+                                color: theme.mutedText
+                                font.pixelSize: 9
+                                font.weight: Font.Medium
+                            }
                         }
 
                         Rectangle {
