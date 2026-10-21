@@ -828,8 +828,8 @@ Item {
             + (root.calendarSettled
                ? Math.sin(root.calendarCloudPhase * 2 * Math.PI) * 3 : 0)
         width: Math.min(920, Math.max(320, parent.width - 120))
-        height: Math.min(700, parent.height - 90,
-                         190 + root.calendarWeekCount(0) * 78)
+        height: Math.min(780, Math.max(360, parent.height - 100),
+                         220 + root.calendarWeekCount(0) * 100)
         radius: 20
         color: Qt.lighter(theme.surface, 1.0 + 0.11 * root.calendarCloudPhase)
         border.color: Qt.lighter(theme.border, 1.0 + 0.06 * root.calendarCloudPhase)
@@ -986,8 +986,9 @@ Item {
                         text: "Monthly Focus: " + root.formatCalendarDuration(
                                   root.calendarMonthTotalSeconds(monthPage.monthOffset))
                         color: theme.mutedText
-                        font.pixelSize: 12
-                        font.letterSpacing: 0.8
+                        font.pixelSize: 13
+                        font.capitalization: Font.MixedCase
+                        font.letterSpacing: 0.2
                         horizontalAlignment: Text.AlignHCenter
                         verticalAlignment: Text.AlignVCenter
                     }
@@ -1041,10 +1042,10 @@ Item {
                                 id: calendarDayCell
                                 required property int index
                                 width: calendarViewport.width / 7
-                                height: Math.max(42, Math.min(88,
-                                    (calendarViewport.height - 156
+                                height: Math.max(42,
+                                    (calendarViewport.height - 138
                                      - 3 * (root.calendarWeekCount(monthPage.monthOffset) - 1))
-                                    / root.calendarWeekCount(monthPage.monthOffset)))
+                                    / root.calendarWeekCount(monthPage.monthOffset))
 
                                 property string dayNumber: root.calendarCellDay(index, monthPage.monthOffset)
                                 property string isoDate: root.calendarIsoDate(dayNumber, monthPage.monthOffset)
@@ -1102,8 +1103,8 @@ Item {
                                     text: calendarDayCell.dayNumber
                                     visible: calendarDayCell.dayNumber !== ""
                                     color: calendarDayCell.today ? theme.accent : theme.text
-                                    font.pixelSize: 17
-                                    font.weight: Font.DemiBold
+                                    font.pixelSize: 18
+                                    font.weight: Font.Bold
                                     horizontalAlignment: Text.AlignHCenter
                                     verticalAlignment: Text.AlignVCenter
                                     z: 2
@@ -1111,7 +1112,7 @@ Item {
 
                                 Text {
                                     anchors.verticalCenter: parent.verticalCenter
-                                    anchors.verticalCenterOffset: Math.min(16, parent.height * 0.30)
+                                    anchors.verticalCenterOffset: parent.height * 0.15
                                     width: parent.width
                                     height: 16
                                     text: root.formatCalendarDuration(calendarDayCell.focusedSeconds)
@@ -1119,7 +1120,7 @@ Item {
                                     visible: calendarDayCell.dayNumber !== ""
                                              && calendarDayCell.focusedSeconds > 0
                                     color: theme.accent
-                                    font.pixelSize: 11
+                                    font.pixelSize: 12
                                     font.weight: Font.Normal
                                     horizontalAlignment: Text.AlignHCenter
                                     verticalAlignment: Text.AlignVCenter
