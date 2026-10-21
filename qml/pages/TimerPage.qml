@@ -1134,11 +1134,19 @@ Item {
                                     anchors.margins: 1
                                     radius: 6
                                     visible: calendarDayCell.dayNumber !== ""
-                                    color: root.calendarCellBackground(
-                                               calendarDayCell.focusedSeconds,
-                                               calendarDayCell.today)
-                                    border.color: calendarDayCell.today ? theme.accent : "transparent"
-                                    border.width: calendarDayCell.today ? 1 : 0
+                                    color: root.calendarDetailsVisible
+                                           && root.selectedCalendarDate === calendarDayCell.isoDate
+                                           ? Qt.rgba(theme.accent.r, theme.accent.g, theme.accent.b, 0.24)
+                                           : root.calendarCellBackground(
+                                                 calendarDayCell.focusedSeconds,
+                                                 calendarDayCell.today)
+                                    border.color: root.calendarDetailsVisible
+                                                  && root.selectedCalendarDate === calendarDayCell.isoDate
+                                                  ? theme.accent
+                                                  : (calendarDayCell.today ? theme.accent : "transparent")
+                                    border.width: root.calendarDetailsVisible
+                                                  && root.selectedCalendarDate === calendarDayCell.isoDate
+                                                  ? 1.7 : (calendarDayCell.today ? 1 : 0)
                                     z: 0
                                 }
 
@@ -1174,6 +1182,16 @@ Item {
                                     verticalAlignment: Text.AlignVCenter
                                     z: 2
                                 }
+
+                                MouseArea {
+                                    anchors.fill: parent
+                                    z: 4
+                                    enabled: calendarDayCell.dayNumber !== ""
+                                    acceptedButtons: Qt.LeftButton
+                                    hoverEnabled: true
+                                    cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
+                                    onClicked: root.selectCalendarDate(calendarDayCell.isoDate)
+                                }
                             }
                         }
                     }
@@ -1199,66 +1217,58 @@ Item {
             }
         }
 
-        // The gesture surface is limited to the calendar box.
-        MouseArea {
-            id: calendarSwipeArea
-            anchors.fill: parent
-            z: 10
-            preventStealing: false
+        // DragHandler leaves ordinary taps available to each date cell.
+        DragHandler {
+            id: calendarHorizontalDragHandler
+            target: null
+            acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+                             | PointerDevice.TouchScreen | PointerDevice.Stylus
+            dragThreshold: 8
+            xAxis.enabled: true
+            yAxis.enabled: false
 
-            onPressed: function(mouse) {
-                if (calendarSnapAnimation.running) {
+            property real capturedX: 0
+
+            onActiveChanged: {
+                if (active) {
                     calendarSnapAnimation.stop()
+                    capturedX = 0
                     root.calendarDragOffset = 0
+                    root.calendarCommitOffset = 0
+                    return
                 }
 
-                root.calendarSwipeStartX = mouse.x
-                root.calendarSwipeStartY = mouse.y
-                root.calendarGestureDecided = false
-                root.calendarHorizontalGesture = false
-                root.calendarCommitOffset = 0
+                var swipeX = capturedX
+                capturedX = 0
+                if (Math.abs(swipeX) < 20) {
+                    root.calendarDragOffset = 0
+                    return
+                }
+
+                var threshold = calendarViewport.width * 0.35
+                if (root.calendarDragOffset < -threshold)
+                    root.calendarCommitOffset = 1
+                else if (root.calendarDragOffset > threshold)
+                    root.calendarCommitOffset = -1
+                else
+                    root.calendarCommitOffset = 0
+
+                calendarSnapAnimation.start()
             }
 
-            onPositionChanged: function(mouse) {
-                if (!pressed)
-                    return
-
-                var dx = mouse.x - root.calendarSwipeStartX
-                var dy = mouse.y - root.calendarSwipeStartY
-
-                if (!root.calendarGestureDecided
-                        && (Math.abs(dx) > 8 || Math.abs(dy) > 8)) {
-                    root.calendarGestureDecided = true
-                    root.calendarHorizontalGesture = Math.abs(dx) > Math.abs(dy) * 1.15
-                }
-
-                if (root.calendarHorizontalGesture) {
-                    calendarSnapAnimation.stop()
+            onActiveTranslationChanged: {
+                if (active) {
+                    capturedX = activeTranslation.x
                     root.calendarDragOffset = Math.max(
                                 -calendarViewport.width,
-                                Math.min(calendarViewport.width, dx))
+                                Math.min(calendarViewport.width, activeTranslation.x))
                 }
-            }
-
-            onReleased: {
-                root.calendarCommitOffset = 0
-                if (root.calendarHorizontalGesture) {
-                    var threshold = calendarViewport.width * 0.5
-                    if (root.calendarDragOffset < -threshold)
-                        root.calendarCommitOffset = 1
-                    else if (root.calendarDragOffset > threshold)
-                        root.calendarCommitOffset = -1
-                }
-                calendarSnapAnimation.start()
-                root.calendarGestureDecided = false
-                root.calendarHorizontalGesture = false
             }
 
             onCanceled: {
+                capturedX = 0
                 root.calendarCommitOffset = 0
                 calendarSnapAnimation.start()
-                root.calendarGestureDecided = false
-                root.calendarHorizontalGesture = false
             }
         }
     }
