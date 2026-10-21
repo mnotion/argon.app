@@ -654,13 +654,33 @@ Item {
                             height: 10
                             color: parent.color
                         }
+
+                        // Continue the top and bottom outlines right to the accent rail,
+                        // so squaring the left corners does not leave a visible gap.
+                        Rectangle {
+                            anchors.left: parent.left
+                            anchors.leftMargin: 4
+                            anchors.top: parent.top
+                            width: 6
+                            height: parent.border.width
+                            color: parent.border.color
+                        }
+                        Rectangle {
+                            anchors.left: parent.left
+                            anchors.leftMargin: 4
+                            anchors.bottom: parent.bottom
+                            width: 6
+                            height: parent.border.width
+                            color: parent.border.color
+                        }
+
                         Rectangle {
                             anchors.left: parent.left
                             anchors.top: parent.top
                             anchors.bottom: parent.bottom
                             width: 4
                             color: String(subjectData.colour)
-                            z: 1
+                            z: 2
                         }
 
                         Text {
