@@ -895,18 +895,8 @@ Item {
             }
         ]
 
-        Behavior on x {
-            NumberAnimation {
-                duration: 460
-                easing.type: Easing.OutCubic
-            }
-        }
-        Behavior on width {
-            NumberAnimation {
-                duration: 460
-                easing.type: Easing.OutCubic
-            }
-        }
+        // Keep x/width updates synchronous with the details panel to avoid
+        // intermediate off-screen positions on normal-sized windows.
         Behavior on scale {
             NumberAnimation {
                 duration: 900
@@ -1292,9 +1282,7 @@ Item {
             }
         }
 
-        Behavior on x {
-            NumberAnimation { duration: 460; easing.type: Easing.OutCubic }
-        }
+        // x follows the calendar card directly; do not animate this geometry separately.
         Behavior on opacity {
             NumberAnimation { duration: 300; easing.type: Easing.OutCubic }
         }
