@@ -1,1 +1,0 @@
-Reserved for the independent C++ stylus input, pressure processing, stroke geometry, rendering and latency measurement subsystem. Keep platform input adapters separate from stroke processing and rendering.
