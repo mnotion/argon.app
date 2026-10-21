@@ -285,16 +285,6 @@ ApplicationWindow {
                 Text { Layout.fillWidth: true; text: "Include hidden files"; color: theme.text; font.pixelSize: 12 }
                 Switch { checked: window.searchIncludeHidden; onToggled: window.searchIncludeHidden = checked }
             }
-            RowLayout {
-                Layout.fillWidth: true
-                visible: window.activePage === "Notes"
-                Text { Layout.fillWidth: true; text: "Show canvas grid"; color: theme.text; font.pixelSize: 12 }
-            }
-            RowLayout {
-                Layout.fillWidth: true
-                visible: window.activePage === "Notes"
-                Text { Layout.fillWidth: true; text: "Pen pressure sensitivity"; color: theme.text; font.pixelSize: 12 }
-            }
             Text { Layout.fillWidth: true; visible: window.activePage === "Timer"; text: "Timer options"; color: theme.accent; font.pixelSize: 12; font.weight: Font.DemiBold }
             RowLayout {
                 Layout.fillWidth: true
