@@ -22,10 +22,11 @@ public:
     int completedFocusSessionsToday() const;
     QString dailyFilePath() const;
 
-    Q_INVOKABLE void addFocusedSeconds(qint64 seconds,
-                                       const QString &subjectId = QString(),
-                                       const QString &subjectName = QString(),
-                                       const QString &subjectColour = QString());
+    Q_INVOKABLE void addFocusedSeconds(qint64 seconds);
+    Q_INVOKABLE void addSubjectFocusedSeconds(qint64 seconds,
+                                              const QString &subjectId,
+                                              const QString &subjectName,
+                                              const QString &subjectColour);
     Q_INVOKABLE void recordFocusSessionCompleted();
     Q_INVOKABLE void refreshToday();
     Q_INVOKABLE qint64 focusedSecondsForDate(const QString &isoDate) const;
