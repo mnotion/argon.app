@@ -639,41 +639,7 @@ Item {
                         border.color: isSelected ? String(subjectData.colour) : theme.border
                         clip: true
 
-                        // Square off the left corners so the colour marker meets the card edge cleanly.
-                        Rectangle {
-                            anchors.left: parent.left
-                            anchors.top: parent.top
-                            width: 10
-                            height: 10
-                            color: parent.color
-                        }
-                        Rectangle {
-                            anchors.left: parent.left
-                            anchors.bottom: parent.bottom
-                            width: 10
-                            height: 10
-                            color: parent.color
-                        }
-
-                        // Continue the top and bottom outlines right to the accent rail,
-                        // so squaring the left corners does not leave a visible gap.
-                        Rectangle {
-                            anchors.left: parent.left
-                            anchors.leftMargin: 4
-                            anchors.top: parent.top
-                            width: 6
-                            height: parent.border.width
-                            color: parent.border.color
-                        }
-                        Rectangle {
-                            anchors.left: parent.left
-                            anchors.leftMargin: 4
-                            anchors.bottom: parent.bottom
-                            width: 6
-                            height: parent.border.width
-                            color: parent.border.color
-                        }
-
+                        // A single accent rail replaces the rounded card's left border.
                         Rectangle {
                             anchors.left: parent.left
                             anchors.top: parent.top
@@ -688,7 +654,7 @@ Item {
                             anchors.right: subjectElapsedBadge.left
                             anchors.verticalCenter: parent.verticalCenter
                             anchors.leftMargin: 13
-                            anchors.rightMargin: 8
+                            anchors.rightMargin: 12
                             text: String(subjectData.name || "Subject")
                             color: theme.text
                             font.pixelSize: 13
@@ -707,27 +673,17 @@ Item {
                             onClicked: root.selectSubject(subjectData.id)
                         }
 
-                        Rectangle {
+                        Text {
                             id: subjectElapsedBadge
                             anchors.right: subjectTimerControl.left
-                            anchors.rightMargin: 8
+                            anchors.rightMargin: 12
                             anchors.verticalCenter: parent.verticalCenter
-                            width: 56
-                            height: 23
-                            radius: 7
-                            color: "transparent"
-                            border.color: isSelected
-                                          ? Qt.rgba(subjectAccent.r, subjectAccent.g, subjectAccent.b, 0.68)
-                                          : theme.border
-                            border.width: 1
-
-                            Text {
-                                anchors.centerIn: parent
-                                text: "(" + root.formattedSubjectElapsed(subjectData.id) + ")"
-                                color: theme.mutedText
-                                font.pixelSize: 9
-                                font.weight: Font.Medium
-                            }
+                            text: root.formattedSubjectElapsed(subjectData.id)
+                            color: isSelected ? String(subjectData.colour) : theme.mutedText
+                            font.pixelSize: 12
+                            font.weight: Font.Medium
+                            horizontalAlignment: Text.AlignRight
+                            verticalAlignment: Text.AlignVCenter
                         }
 
                         Rectangle {
