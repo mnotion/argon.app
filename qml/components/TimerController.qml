@@ -10,6 +10,49 @@ QtObject {
     property string statusMessage: ""
     property string activeSubjectId: ""
     property var subjectElapsedMilliseconds: ({})
+    property var subjectMonthlyElapsedMilliseconds: ({})
+
+    function monthKeyForTimestamp(timestamp) {
+        var date = new Date(timestamp)
+        var month = date.getMonth() + 1
+        return date.getFullYear() + "-" + (month < 10 ? "0" : "") + month
+    }
+
+    function addSubjectElapsedInterval(subjectId, startTimestamp, endTimestamp) {
+        var elapsed = Math.max(0, endTimestamp - startTimestamp)
+        if (subjectId.length === 0 || elapsed <= 0)
+            return
+
+        var lifetimeTotals = {}
+        var lifetimeKeys = Object.keys(subjectElapsedMilliseconds || ({}))
+        for (var i = 0; i < lifetimeKeys.length; ++i)
+            lifetimeTotals[lifetimeKeys[i]] = Number(subjectElapsedMilliseconds[lifetimeKeys[i]]) || 0
+
+        var monthlyTotals = {}
+        var monthlyKeys = Object.keys(subjectMonthlyElapsedMilliseconds || ({}))
+        for (var j = 0; j < monthlyKeys.length; ++j)
+            monthlyTotals[monthlyKeys[j]] = Number(subjectMonthlyElapsedMilliseconds[monthlyKeys[j]]) || 0
+
+        var id = String(subjectId)
+        lifetimeTotals[id] = Math.max(0, Number(lifetimeTotals[id]) || 0) + elapsed
+
+        // Split an interval at month boundaries so time crossing midnight on the
+        // last day of a month is credited to the correct calendar month.
+        var cursor = startTimestamp
+        while (cursor < endTimestamp) {
+            var monthStartDate = new Date(cursor)
+            var nextMonth = new Date(monthStartDate.getFullYear(),
+                                     monthStartDate.getMonth() + 1, 1).getTime()
+            var segmentEnd = Math.min(endTimestamp, nextMonth)
+            var key = monthKeyForTimestamp(cursor) + "|" + id
+            monthlyTotals[key] = Math.max(0, Number(monthlyTotals[key]) || 0)
+                    + Math.max(0, segmentEnd - cursor)
+            cursor = segmentEnd
+        }
+
+        subjectElapsedMilliseconds = lifetimeTotals
+        subjectMonthlyElapsedMilliseconds = monthlyTotals
+    }
 
     function formattedTime() {
         var totalMinutes = Math.floor(elapsedMilliseconds / 60000)
@@ -48,9 +91,13 @@ QtObject {
                     "timer.activeSubjectId", activeSubjectId)
         var subjectTimesSaved = appSettingsService.setValue(
                     "timer.subjectElapsedMilliseconds", subjectElapsedMilliseconds)
-        if (!elapsedSaved || !runningSaved || !subjectIdSaved || !subjectTimesSaved)
+        var monthlyTimesSaved = appSettingsService.setValue(
+                    "timer.subjectMonthlyElapsedMilliseconds", subjectMonthlyElapsedMilliseconds)
+        if (!elapsedSaved || !runningSaved || !subjectIdSaved
+                || !subjectTimesSaved || !monthlyTimesSaved)
             console.warn("[TimerPersistence] Could not save stopwatch state; check the settings-path diagnostics in argon-runtime.log.")
-        return elapsedSaved && runningSaved && subjectIdSaved && subjectTimesSaved
+        return elapsedSaved && runningSaved && subjectIdSaved
+                && subjectTimesSaved && monthlyTimesSaved
     }
 
     function toggleTimer() {
@@ -77,24 +124,18 @@ QtObject {
             return
         }
 
-        var elapsed = Math.max(0, now - lastTickAt)
+        var intervalStart = lastTickAt
+        var elapsed = Math.max(0, now - intervalStart)
         lastTickAt = now
         if (elapsed <= 0)
             return
 
         elapsedMilliseconds += elapsed
 
-        // Keep an independent lifetime total for the subject currently assigned
-        // to the running stopwatch. Persist it alongside normal timer state.
-        if (activeSubjectId.length > 0) {
-            var updatedSubjectTimes = {}
-            var subjectKeys = Object.keys(subjectElapsedMilliseconds || ({}))
-            for (var i = 0; i < subjectKeys.length; ++i)
-                updatedSubjectTimes[subjectKeys[i]] = Number(subjectElapsedMilliseconds[subjectKeys[i]]) || 0
-            var subjectKey = String(activeSubjectId)
-            updatedSubjectTimes[subjectKey] = Math.max(0, Number(updatedSubjectTimes[subjectKey]) || 0) + elapsed
-            subjectElapsedMilliseconds = updatedSubjectTimes
-        }
+        // Store both lifetime subject time and a separately keyed calendar-month
+        // total. The monthly map drives subject ordering in the Timer page.
+        if (activeSubjectId.length > 0)
+            addSubjectElapsedInterval(activeSubjectId, intervalStart, now)
 
         // Count only whole elapsed seconds in the daily analytics record.
         var accumulated = focusedRemainderMilliseconds + elapsed
@@ -116,6 +157,9 @@ QtObject {
         var storedSubjectTimes = appSettingsService.value("timer.subjectElapsedMilliseconds", ({}))
         subjectElapsedMilliseconds = storedSubjectTimes && typeof storedSubjectTimes === "object"
                 ? storedSubjectTimes : ({})
+        var storedMonthlyTimes = appSettingsService.value("timer.subjectMonthlyElapsedMilliseconds", ({}))
+        subjectMonthlyElapsedMilliseconds = storedMonthlyTimes && typeof storedMonthlyTimes === "object"
+                ? storedMonthlyTimes : ({})
 
         // Resume only if the stopwatch was running when Argon last saved state.
         // lastTickAt is reset first so time spent updating/restarting is not counted.
