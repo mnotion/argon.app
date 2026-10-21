@@ -242,14 +242,6 @@ Item {
         opacity: 1
         Behavior on opacity { NumberAnimation { duration: 450; easing.type: Easing.OutCubic } }
 
-        Connections {
-            target: root
-            function onActivePageChanged() {
-            }
-            function onBannerOpenChanged() {
-            }
-        }
-
         Column {
             anchors.centerIn: parent
             spacing: 1
