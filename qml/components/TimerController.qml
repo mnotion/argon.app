@@ -157,7 +157,7 @@ QtObject {
                         }
                     }
                 }
-                dailyAnalyticsService.addFocusedSeconds(
+                dailyAnalyticsService.addSubjectFocusedSeconds(
                             wholeSeconds, focusSubjectId,
                             focusSubjectName, focusSubjectColour)
             } else {
