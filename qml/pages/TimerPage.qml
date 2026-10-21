@@ -823,9 +823,9 @@ Item {
         anchors.verticalCenterOffset: -8
             + (root.calendarSettled
                ? Math.sin(root.calendarCloudPhase * 2 * Math.PI) * 3 : 0)
-        width: 300
-        height: 360
-        radius: 16
+        width: Math.min(920, Math.max(320, parent.width - 120))
+        height: Math.min(780, Math.max(420, parent.height - 110))
+        radius: 20
         color: Qt.lighter(theme.surface, 1.0 + 0.11 * root.calendarCloudPhase)
         border.color: Qt.lighter(theme.border, 1.0 + 0.06 * root.calendarCloudPhase)
         border.width: 1
@@ -868,10 +868,10 @@ Item {
         Item {
             id: calendarViewport
             anchors.fill: parent
-            anchors.leftMargin: 18
-            anchors.rightMargin: 18
-            anchors.topMargin: 24
-            anchors.bottomMargin: 12
+            anchors.leftMargin: 24
+            anchors.rightMargin: 24
+            anchors.topMargin: 30
+            anchors.bottomMargin: 22
             clip: true
 
             Row {
@@ -916,13 +916,13 @@ Item {
 
                 Column {
                     anchors.fill: parent
-                    spacing: 8
+                    spacing: 16
 
                     Row {
                         id: calendarMonthHeading
                         anchors.horizontalCenter: parent.horizontalCenter
                         spacing: 5
-                        height: 24
+                        height: 38
                         opacity: root.calendarWaveVisible ? 1 : 0
                         Behavior on opacity {
                             SequentialAnimation {
@@ -937,7 +937,7 @@ Item {
 
                         Item {
                             width: monthNameText.implicitWidth + 28
-                            height: 24
+                            height: 38
 
                             Text {
                                 id: monthNameText
@@ -945,7 +945,7 @@ Item {
                                 text: root.calendarMonthName(monthPage.monthOffset)
                                 color: root.isCurrentMonthOffset(monthPage.monthOffset)
                                        ? theme.accent : theme.text
-                                font.pixelSize: 18
+                                font.pixelSize: 29
                                 font.weight: root.isCurrentMonthOffset(monthPage.monthOffset)
                                              ? Font.DemiBold : Font.Medium
                             }
@@ -955,7 +955,7 @@ Item {
                             anchors.verticalCenter: parent.verticalCenter
                             text: root.calendarYearText(monthPage.monthOffset)
                             color: theme.mutedText
-                            font.pixelSize: 16
+                            font.pixelSize: 24
                             font.weight: Font.Normal
                         }
                     }
@@ -963,7 +963,7 @@ Item {
                     Text {
                         id: calendarMonthTotalLabel
                         width: parent.width
-                        height: 13
+                        height: 20
                         opacity: root.calendarWaveVisible ? 1 : 0
                         Behavior on opacity {
                             SequentialAnimation {
@@ -981,8 +981,8 @@ Item {
                         text: "MONTHLY FOCUS  " + root.formatCalendarDuration(
                                   root.calendarMonthTotalSeconds(monthPage.monthOffset))
                         color: theme.mutedText
-                        font.pixelSize: 9
-                        font.letterSpacing: 0.6
+                        font.pixelSize: 12
+                        font.letterSpacing: 0.8
                         horizontalAlignment: Text.AlignHCenter
                         verticalAlignment: Text.AlignVCenter
                     }
@@ -1014,10 +1014,10 @@ Item {
                             delegate: Text {
                                 required property string modelData
                                 width: calendarViewport.width / 7
-                                height: 22
+                                height: 32
                                 text: modelData
                                 color: theme.mutedText
-                                font.pixelSize: 11
+                                font.pixelSize: 15
                                 horizontalAlignment: Text.AlignHCenter
                                 verticalAlignment: Text.AlignVCenter
                             }
@@ -1036,7 +1036,7 @@ Item {
                                 id: calendarDayCell
                                 required property int index
                                 width: calendarViewport.width / 7
-                                height: 36
+                                height: Math.max(42, Math.min(76, (calendarViewport.height - 150) / 6))
 
                                 property string dayNumber: root.calendarCellDay(index, monthPage.monthOffset)
                                 property string isoDate: root.calendarIsoDate(dayNumber, monthPage.monthOffset)
@@ -1088,13 +1088,13 @@ Item {
                                 Text {
                                     id: dayNumberText
                                     anchors.top: parent.top
-                                    anchors.topMargin: 2
+                                    anchors.topMargin: 7
                                     width: parent.width
-                                    height: 14
+                                    height: 22
                                     text: calendarDayCell.dayNumber
                                     visible: calendarDayCell.dayNumber !== ""
                                     color: calendarDayCell.today ? theme.accent : theme.text
-                                    font.pixelSize: 11
+                                    font.pixelSize: 16
                                     font.weight: calendarDayCell.today ? Font.DemiBold : Font.Normal
                                     horizontalAlignment: Text.AlignHCenter
                                     verticalAlignment: Text.AlignVCenter
@@ -1103,15 +1103,15 @@ Item {
 
                                 Text {
                                     anchors.bottom: parent.bottom
-                                    anchors.bottomMargin: 5
+                                    anchors.bottomMargin: 8
                                     width: parent.width
-                                    height: 12
+                                    height: 18
                                     text: root.formatCalendarDuration(calendarDayCell.focusedSeconds)
                                     // Keep empty days clean; show HH:MM only after time is recorded.
                                     visible: calendarDayCell.dayNumber !== ""
                                              && calendarDayCell.focusedSeconds > 0
                                     color: theme.accent
-                                    font.pixelSize: 9
+                                    font.pixelSize: 12
                                     font.weight: calendarDayCell.focusedSeconds > 0 ? Font.Medium : Font.Normal
                                     horizontalAlignment: Text.AlignHCenter
                                     verticalAlignment: Text.AlignVCenter
