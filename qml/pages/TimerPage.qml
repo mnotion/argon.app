@@ -39,7 +39,7 @@ Item {
     property bool subjectDialogOpen: false
     property string newSubjectName: ""
     property string newSubjectGoal: ""
-    property color newSubjectColour: "#8CBFFF"
+    property string newSubjectColour: "#8CBFFF"
     property string subjectFormError: ""
     property var subjectColourPalette: [
         "#8CBFFF", "#81C995", "#F4C96B", "#E99AAE",
