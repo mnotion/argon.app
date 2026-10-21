@@ -1210,7 +1210,7 @@ Item {
     ColumnLayout {
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.bottom: subjectsPanel.top
-        anchors.bottomMargin: 8
+        anchors.bottomMargin: 54
         spacing: 8
         z: 3
         opacity: root.introProgress(0.20)
