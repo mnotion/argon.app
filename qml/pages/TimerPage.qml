@@ -516,7 +516,7 @@ Item {
         border.width: 1
         z: 2
 
-        Row {
+        RowLayout {
             id: subjectsHeader
             visible: root.subjects.length > 0
             anchors.left: parent.left
@@ -534,23 +534,22 @@ Item {
                 font.pixelSize: 11
                 font.weight: Font.DemiBold
                 font.letterSpacing: 1.1
-                anchors.verticalCenter: parent.verticalCenter
+                Layout.alignment: Qt.AlignVCenter
             }
 
             Text {
                 text: String(root.subjects.length)
                 color: theme.mutedText
                 font.pixelSize: 11
-                anchors.verticalCenter: parent.verticalCenter
+                Layout.alignment: Qt.AlignVCenter
             }
 
-            Item { width: 1; height: 1 }
+            Item { Layout.fillWidth: true; Layout.preferredHeight: 1 }
 
             Rectangle {
-                anchors.right: parent.right
-                anchors.verticalCenter: parent.verticalCenter
-                width: addHeaderText.implicitWidth + 24
-                height: 25
+                Layout.preferredWidth: addHeaderText.implicitWidth + 24
+                Layout.preferredHeight: 25
+                Layout.alignment: Qt.AlignVCenter
                 radius: 8
                 color: addHeaderMouse.containsMouse
                        ? Qt.rgba(theme.accent.r, theme.accent.g, theme.accent.b, 0.18)
@@ -644,6 +643,7 @@ Item {
                         }
 
                         MouseArea {
+                            id: subjectCardMouse
                             anchors.fill: parent
                             hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
@@ -653,12 +653,6 @@ Item {
                         ToolTip.visible: subjectCardMouse.containsMouse
                         ToolTip.text: String(subjectData.name || "Subject")
                         ToolTip.delay: 500
-                        MouseArea {
-                            id: subjectCardMouse
-                            anchors.fill: parent
-                            hoverEnabled: true
-                            acceptedButtons: Qt.NoButton
-                        }
                     }
                 }
 
