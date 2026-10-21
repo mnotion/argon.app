@@ -300,7 +300,7 @@ bool DailyAnalyticsService::saveToday() const
     }
 
     QJsonObject object;
-    object.insert(QStringLiteral("schemaVersion"), 1);
+    object.insert(QStringLiteral("schemaVersion"), 2);
     object.insert(QStringLiteral("date"), QDate::currentDate().toString(Qt::ISODate));
     object.insert(QStringLiteral("focusedSeconds"), double(m_focusedSecondsToday));
     object.insert(QStringLiteral("completedFocusSessions"), m_completedFocusSessionsToday);
