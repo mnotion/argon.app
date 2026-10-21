@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import QtQuick.Effects
 import "../themes"
 
 Item {
@@ -33,7 +34,80 @@ Item {
     property int calendarCommitOffset: 0
     property bool calendarGestureDecided: false
     property bool calendarHorizontalGesture: false
+    property var subjects: []
+    property string selectedSubjectId: ""
+    property bool subjectDialogOpen: false
+    property string newSubjectName: ""
+    property string newSubjectGoal: ""
+    property color newSubjectColour: "#8CBFFF"
+    property string subjectFormError: ""
+    property var subjectColourPalette: [
+        "#8CBFFF", "#81C995", "#F4C96B", "#E99AAE",
+        "#B5A2F5", "#E9A16D", "#62C5C1", "#D8DDE7"
+    ]
     property real timerIntroProgress: 0
+
+    function loadSubjects() {
+        var storedSubjects = appSettingsService.value("timer.subjects", [])
+        subjects = storedSubjects && storedSubjects.length !== undefined
+                ? storedSubjects : []
+        selectedSubjectId = String(appSettingsService.value("timer.selectedSubjectId", ""))
+    }
+
+    function openSubjectDialog() {
+        newSubjectName = ""
+        newSubjectGoal = ""
+        newSubjectColour = subjectColourPalette[0]
+        subjectFormError = ""
+        subjectDialogOpen = true
+        Qt.callLater(function() { subjectNameInput.forceActiveFocus() })
+    }
+
+    function closeSubjectDialog() {
+        subjectDialogOpen = false
+        subjectFormError = ""
+    }
+
+    function addSubject() {
+        var name = newSubjectName.trim()
+        var goalHours = Number(newSubjectGoal)
+        if (name.length === 0) {
+            subjectFormError = "Enter a subject name."
+            subjectNameInput.forceActiveFocus()
+            return
+        }
+        if (newSubjectGoal.trim().length === 0 || !isFinite(goalHours) || goalHours <= 0) {
+            subjectFormError = "Enter a goal greater than zero hours."
+            subjectGoalInput.forceActiveFocus()
+            return
+        }
+
+        var subjectId = String(new Date().getTime()) + "-" + String(subjects.length + 1)
+        var newSubject = {
+            "id": subjectId,
+            "name": name,
+            "colour": String(newSubjectColour),
+            "goalHours": goalHours
+        }
+        var updatedSubjects = subjects.slice()
+        updatedSubjects.push(newSubject)
+        if (!appSettingsService.setValue("timer.subjects", updatedSubjects)) {
+            subjectFormError = "The subject could not be saved. Please try again."
+            return
+        }
+
+        subjects = updatedSubjects
+        selectedSubjectId = subjectId
+        appSettingsService.setValue("timer.selectedSubjectId", selectedSubjectId)
+        subjectDialogOpen = false
+        subjectFormError = ""
+    }
+
+    function selectSubject(subjectId) {
+        selectedSubjectId = String(subjectId)
+        if (!appSettingsService.setValue("timer.selectedSubjectId", selectedSubjectId))
+            console.warn("[Timer] Could not save the selected subject.")
+    }
 
     function introProgress(delay) {
         if (timerIntroProgress <= delay)
@@ -401,6 +475,7 @@ Item {
     Component.onCompleted: {
         dailyAnalyticsService.refreshToday()
         refreshCalendarData()
+        loadSubjects()
         timerIntroProgress = 0
         timerPageEntrance.start()
     }
@@ -412,9 +487,255 @@ Item {
         }
     }
 
-    Rectangle {
+    Item {
+        id: pageContent
         anchors.fill: parent
-        color: theme.window
+        layer.enabled: root.subjectDialogOpen
+        layer.effect: MultiEffect {
+            blurEnabled: root.subjectDialogOpen
+            blur: root.subjectDialogOpen ? 0.9 : 0
+            blurMax: 32
+        }
+
+        Rectangle {
+            anchors.fill: parent
+            color: theme.window
+        }
+
+    // Subject cards live in an opaque panel below the timer.
+    Rectangle {
+        id: subjectsPanel
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.bottom: parent.bottom
+        anchors.bottomMargin: 22
+        width: Math.min(760, parent.width - 64)
+        height: Math.min(224, Math.max(166, parent.height * 0.34))
+        radius: 20
+        color: theme.surface
+        border.color: theme.border
+        border.width: 1
+        z: 2
+
+        Row {
+            id: subjectsHeader
+            visible: root.subjects.length > 0
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.top: parent.top
+            anchors.leftMargin: 18
+            anchors.rightMargin: 18
+            anchors.topMargin: 14
+            height: 24
+            spacing: 8
+
+            Text {
+                text: "SUBJECTS"
+                color: theme.mutedText
+                font.pixelSize: 11
+                font.weight: Font.DemiBold
+                font.letterSpacing: 1.1
+                anchors.verticalCenter: parent.verticalCenter
+            }
+
+            Text {
+                text: String(root.subjects.length)
+                color: theme.mutedText
+                font.pixelSize: 11
+                anchors.verticalCenter: parent.verticalCenter
+            }
+
+            Item { width: 1; height: 1 }
+
+            Rectangle {
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                width: addHeaderText.implicitWidth + 24
+                height: 25
+                radius: 8
+                color: addHeaderMouse.containsMouse
+                       ? Qt.rgba(theme.accent.r, theme.accent.g, theme.accent.b, 0.18)
+                       : Qt.rgba(theme.accent.r, theme.accent.g, theme.accent.b, 0.09)
+                border.color: Qt.rgba(theme.accent.r, theme.accent.g, theme.accent.b, 0.34)
+
+                Text {
+                    id: addHeaderText
+                    anchors.centerIn: parent
+                    text: "+ Add"
+                    color: theme.accent
+                    font.pixelSize: 11
+                    font.weight: Font.DemiBold
+                }
+                MouseArea {
+                    id: addHeaderMouse
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: root.openSubjectDialog()
+                }
+            }
+        }
+
+        Flickable {
+            id: subjectCardsViewport
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.top: root.subjects.length > 0 ? subjectsHeader.bottom : parent.top
+            anchors.bottom: parent.bottom
+            anchors.leftMargin: 14
+            anchors.rightMargin: 14
+            anchors.topMargin: root.subjects.length > 0 ? 8 : 14
+            anchors.bottomMargin: 12
+            clip: true
+            contentWidth: width
+            contentHeight: subjectCardsFlow.implicitHeight
+            boundsBehavior: Flickable.StopAtBounds
+            visible: root.subjects.length > 0
+
+            Flow {
+                id: subjectCardsFlow
+                width: subjectCardsViewport.width
+                spacing: 10
+
+                Repeater {
+                    model: root.subjects
+                    delegate: Rectangle {
+                        required property var modelData
+                        readonly property var subjectData: modelData
+                        width: 158
+                        height: 76
+                        radius: 12
+                        color: Qt.lighter(theme.surface, 1.12)
+                        border.width: root.selectedSubjectId === String(subjectData.id) ? 1.6 : 1
+                        border.color: root.selectedSubjectId === String(subjectData.id)
+                                      ? String(subjectData.colour) : theme.border
+                        clip: true
+
+                        Rectangle {
+                            anchors.left: parent.left
+                            anchors.top: parent.top
+                            anchors.bottom: parent.bottom
+                            width: 4
+                            color: String(subjectData.colour)
+                        }
+
+                        Column {
+                            anchors.left: parent.left
+                            anchors.right: parent.right
+                            anchors.verticalCenter: parent.verticalCenter
+                            anchors.leftMargin: 14
+                            anchors.rightMargin: 10
+                            spacing: 7
+
+                            Text {
+                                width: parent.width
+                                text: String(subjectData.name || "Subject")
+                                color: theme.text
+                                font.pixelSize: 13
+                                font.weight: Font.DemiBold
+                                elide: Text.ElideRight
+                            }
+
+                            Text {
+                                width: parent.width
+                                text: "Goal · " + String(subjectData.goalHours) + " h"
+                                color: theme.mutedText
+                                font.pixelSize: 11
+                            }
+                        }
+
+                        MouseArea {
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: root.selectSubject(subjectData.id)
+                        }
+
+                        ToolTip.visible: subjectCardMouse.containsMouse
+                        ToolTip.text: String(subjectData.name || "Subject")
+                        ToolTip.delay: 500
+                        MouseArea {
+                            id: subjectCardMouse
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            acceptedButtons: Qt.NoButton
+                        }
+                    }
+                }
+
+                Rectangle {
+                    width: 158
+                    height: 76
+                    radius: 12
+                    color: addSubjectTileMouse.containsMouse
+                           ? Qt.rgba(theme.accent.r, theme.accent.g, theme.accent.b, 0.10)
+                           : Qt.rgba(1, 1, 1, 0.025)
+                    border.color: addSubjectTileMouse.containsMouse ? theme.accent : theme.border
+
+                    Column {
+                        anchors.centerIn: parent
+                        spacing: 4
+                        Text {
+                            anchors.horizontalCenter: parent.horizontalCenter
+                            text: "+"
+                            color: theme.accent
+                            font.pixelSize: 25
+                            font.weight: Font.Light
+                        }
+                        Text {
+                            anchors.horizontalCenter: parent.horizontalCenter
+                            text: "Add a subject"
+                            color: theme.mutedText
+                            font.pixelSize: 11
+                        }
+                    }
+                    MouseArea {
+                        id: addSubjectTileMouse
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: root.openSubjectDialog()
+                    }
+                }
+            }
+        }
+
+        Rectangle {
+            id: emptyAddSubjectButton
+            visible: root.subjects.length === 0
+            anchors.centerIn: parent
+            width: 190
+            height: 88
+            radius: 14
+            color: emptyAddMouse.containsMouse
+                   ? Qt.rgba(theme.accent.r, theme.accent.g, theme.accent.b, 0.12)
+                   : Qt.rgba(1, 1, 1, 0.035)
+            border.color: emptyAddMouse.containsMouse ? theme.accent : theme.border
+
+            Column {
+                anchors.centerIn: parent
+                spacing: 4
+                Text {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    text: "+"
+                    color: theme.accent
+                    font.pixelSize: 28
+                    font.weight: Font.Light
+                }
+                Text {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    text: "Add a subject"
+                    color: theme.mutedText
+                    font.pixelSize: 12
+                }
+            }
+            MouseArea {
+                id: emptyAddMouse
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onClicked: root.openSubjectDialog()
+            }
+        }
     }
 
     // Calendar swipe follows the pointer and previews adjacent months before release.
@@ -885,10 +1206,13 @@ Item {
         }
     }
 
-    // The stopwatch remains centered and independent of the daily focus card.
+    // Keep the timer prominent above the subject collection.
     ColumnLayout {
-        anchors.centerIn: parent
-        spacing: 26
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.top: parent.top
+        anchors.topMargin: 40
+        spacing: 22
+        z: 3
         opacity: root.introProgress(0.20)
         scale: 0.96 + 0.04 * root.introProgress(0.20)
 
@@ -1238,6 +1562,209 @@ Item {
             hoverEnabled: true
             cursorShape: Qt.PointingHandCursor
             onClicked: root.dailyCardExpanded = !root.dailyCardExpanded
+        }
+    }
+    } // pageContent
+
+    // Modal overlay intentionally has no title-bar close button; Cancel is the dismissal action.
+    Rectangle {
+        id: subjectModalOverlay
+        anchors.fill: parent
+        visible: root.subjectDialogOpen
+        color: "#B8000000"
+        z: 100
+
+        MouseArea {
+            anchors.fill: parent
+            onClicked: { /* Keep the form open until Add or Cancel is chosen. */ }
+        }
+
+        Rectangle {
+            id: subjectModal
+            anchors.centerIn: parent
+            width: Math.min(440, parent.width - 36)
+            height: 426
+            radius: 18
+            color: theme.surfaceRaised
+            border.color: theme.border
+            border.width: 1
+            z: 1
+
+            ColumnLayout {
+                anchors.fill: parent
+                anchors.margins: 26
+                spacing: 10
+
+                Text {
+                    text: "Add a subject"
+                    color: theme.text
+                    font.pixelSize: 22
+                    font.weight: Font.DemiBold
+                    Layout.fillWidth: true
+                    Layout.bottomMargin: 5
+                }
+
+                Text {
+                    text: "Name"
+                    color: theme.mutedText
+                    font.pixelSize: 12
+                    font.weight: Font.DemiBold
+                    Layout.fillWidth: true
+                }
+
+                TextField {
+                    id: subjectNameInput
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 42
+                    placeholderText: "e.g. Geopolitics"
+                    text: root.newSubjectName
+                    onTextChanged: root.newSubjectName = text
+                    color: theme.text
+                    selectionColor: theme.accent
+                    selectedTextColor: theme.accentText
+                    leftPadding: 12
+                    rightPadding: 12
+                    font.pixelSize: 13
+                    background: Rectangle {
+                        radius: 9
+                        color: theme.window
+                        border.width: subjectNameInput.activeFocus ? 1.4 : 1
+                        border.color: subjectNameInput.activeFocus ? theme.accent : theme.border
+                    }
+                }
+
+                Text {
+                    text: "Colour"
+                    color: theme.mutedText
+                    font.pixelSize: 12
+                    font.weight: Font.DemiBold
+                    Layout.fillWidth: true
+                }
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 34
+                    spacing: 11
+
+                    Repeater {
+                        model: root.subjectColourPalette
+                        delegate: Rectangle {
+                            required property string modelData
+                            Layout.preferredWidth: 27
+                            Layout.preferredHeight: 27
+                            radius: 13.5
+                            color: modelData
+                            border.width: root.newSubjectColour === modelData ? 3 : 1
+                            border.color: root.newSubjectColour === modelData
+                                          ? theme.text : Qt.rgba(1, 1, 1, 0.28)
+
+                            MouseArea {
+                                anchors.fill: parent
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: root.newSubjectColour = modelData
+                            }
+                        }
+                    }
+                }
+
+                Text {
+                    text: "Goal (hours)"
+                    color: theme.mutedText
+                    font.pixelSize: 12
+                    font.weight: Font.DemiBold
+                    Layout.fillWidth: true
+                }
+
+                TextField {
+                    id: subjectGoalInput
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 42
+                    placeholderText: "e.g. 5"
+                    text: root.newSubjectGoal
+                    onTextChanged: root.newSubjectGoal = text
+                    color: theme.text
+                    selectionColor: theme.accent
+                    selectedTextColor: theme.accentText
+                    leftPadding: 12
+                    rightPadding: 12
+                    font.pixelSize: 13
+                    inputMethodHints: Qt.ImhFormattedNumbersOnly
+                    validator: DoubleValidator {
+                        bottom: 0.1
+                        top: 10000
+                        decimals: 2
+                        notation: DoubleValidator.StandardNotation
+                    }
+                    background: Rectangle {
+                        radius: 9
+                        color: theme.window
+                        border.width: subjectGoalInput.activeFocus ? 1.4 : 1
+                        border.color: subjectGoalInput.activeFocus ? theme.accent : theme.border
+                    }
+                }
+
+                Text {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: visible ? 18 : 0
+                    visible: root.subjectFormError.length > 0
+                    text: root.subjectFormError
+                    color: "#F19A9A"
+                    font.pixelSize: 11
+                    wrapMode: Text.WordWrap
+                }
+
+                Item { Layout.fillHeight: true; Layout.minimumHeight: 0 }
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 44
+                    spacing: 10
+
+                    Item { Layout.fillWidth: true }
+
+                    Button {
+                        text: "Cancel"
+                        Layout.preferredWidth: 100
+                        Layout.preferredHeight: 42
+                        onClicked: root.closeSubjectDialog()
+                        background: Rectangle {
+                            radius: 9
+                            color: parent.hovered ? theme.border : theme.surface
+                            border.color: theme.border
+                        }
+                        contentItem: Text {
+                            text: parent.text
+                            color: theme.text
+                            font.pixelSize: 12
+                            font.weight: Font.DemiBold
+                            horizontalAlignment: Text.AlignHCenter
+                            verticalAlignment: Text.AlignVCenter
+                        }
+                    }
+
+                    Button {
+                        text: "Add"
+                        Layout.preferredWidth: 100
+                        Layout.preferredHeight: 42
+                        enabled: root.newSubjectName.trim().length > 0
+                                 && root.newSubjectGoal.trim().length > 0
+                                 && Number(root.newSubjectGoal) > 0
+                        onClicked: root.addSubject()
+                        background: Rectangle {
+                            radius: 9
+                            color: parent.enabled ? theme.accent : theme.border
+                        }
+                        contentItem: Text {
+                            text: parent.text
+                            color: parent.enabled ? theme.accentText : theme.mutedText
+                            font.pixelSize: 12
+                            font.weight: Font.DemiBold
+                            horizontalAlignment: Text.AlignHCenter
+                            verticalAlignment: Text.AlignVCenter
+                        }
+                    }
+                }
+            }
         }
     }
 }
