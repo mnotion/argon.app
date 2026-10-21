@@ -660,22 +660,15 @@ Item {
                         width: subjectRowsColumn.width
                         height: 44
                         radius: 10
+                        // A very subtle tint from the subject colour fills the whole card.
                         color: isSelected
-                               ? Qt.rgba(subjectAccent.r, subjectAccent.g, subjectAccent.b, 0.12)
-                               : Qt.rgba(1, 1, 1, 0.025)
+                               ? Qt.rgba(subjectAccent.r, subjectAccent.g, subjectAccent.b, 0.075)
+                               : Qt.rgba(subjectAccent.r, subjectAccent.g, subjectAccent.b, 0.035)
                         border.width: isSelected ? 1.5 : 1
-                        border.color: isSelected ? String(subjectData.colour) : theme.border
+                        border.color: isSelected
+                                      ? Qt.rgba(subjectAccent.r, subjectAccent.g, subjectAccent.b, 0.62)
+                                      : theme.border
                         clip: true
-
-                        // A single accent rail replaces the rounded card's left border.
-                        Rectangle {
-                            anchors.left: parent.left
-                            anchors.top: parent.top
-                            anchors.bottom: parent.bottom
-                            width: 4
-                            color: String(subjectData.colour)
-                            z: 2
-                        }
 
                         Text {
                             anchors.left: parent.left
