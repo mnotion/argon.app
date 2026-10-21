@@ -128,6 +128,13 @@ if exist "%SOURCE_SEARCH%\LDA1 (3).pdf" if not exist "%TARGET_SEARCH%\LDA1 (3).p
 
 echo.
 echo === Activating staged Argon and Bootstrap ===
+rem Stop running instances before replacing their deployed folders. Windows can
+rem deny directory activation while an executable or one of its DLLs is in use.
+echo Closing running Argon and Bootstrap processes, if any...
+taskkill /F /T /IM Argon.exe >nul 2>&1
+taskkill /F /T /IM Bootstrap.exe >nul 2>&1
+timeout /t 2 /nobreak >nul
+
 rem Keep both previous payloads until the replacement app and bootstrap are active.
 if exist "%PREVIOUS_APP_DIR%" rmdir /s /q "%PREVIOUS_APP_DIR%"
 if exist "%PREVIOUS_BOOTSTRAP_DIR%" rmdir /s /q "%PREVIOUS_BOOTSTRAP_DIR%"
@@ -168,6 +175,9 @@ if errorlevel 1 (
 move "%SIM_STAGE_APP_DIR%" "%SIM_APP_DIR%" >nul
 if errorlevel 1 (
     echo [ERROR] Could not activate the new Argon app folder.
+    echo Source: "%SIM_STAGE_APP_DIR%"
+    echo Target: "%SIM_APP_DIR%"
+    echo Windows denied the folder move. Check file locks and folder permissions.
     if exist "%SIM_APP_DIR%" rmdir /s /q "%SIM_APP_DIR%"
     if exist "%PREVIOUS_APP_DIR%" if not exist "%SIM_APP_DIR%" move "%PREVIOUS_APP_DIR%" "%SIM_APP_DIR%" >nul
     if exist "%SIM_BOOTSTRAP_DIR%" rmdir /s /q "%SIM_BOOTSTRAP_DIR%"
