@@ -18,7 +18,6 @@
 #include "app/AppServices.h"
 #include "app/UserSettingsService.h"
 #include "analytics/DailyAnalyticsService.h"
-#include "documents/DocumentService.h"
 #include "search/SearchService.h"
 #include "versioning/ReleaseMetadataService.h"
 #include "versioning/AppUpdateService.h"
@@ -82,7 +81,6 @@ int main(int argc, char *argv[])
     AppServices appServices;
     UserSettingsService userSettingsService;
     DailyAnalyticsService dailyAnalyticsService;
-    DocumentService documentService;
     SearchService searchService;
     ReleaseMetadataService releaseMetadataService;
     UpdaterStatusService updaterStatusService;
@@ -101,7 +99,6 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty("appServices", &appServices);
     engine.rootContext()->setContextProperty("appSettingsService", &userSettingsService);
     engine.rootContext()->setContextProperty("dailyAnalyticsService", &dailyAnalyticsService);
-    engine.rootContext()->setContextProperty("documentService", &documentService);
     engine.rootContext()->setContextProperty("searchService", &searchService);
     engine.rootContext()->setContextProperty("releaseMetadataService", &releaseMetadataService);
     engine.rootContext()->setContextProperty("updaterStatusService", &updaterStatusService);

@@ -7,7 +7,7 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
-find_package(Qt6 6.5 REQUIRED COMPONENTS Quick QuickControls2 Pdf PdfQuick Network)
+find_package(Qt6 6.5 REQUIRED COMPONENTS Quick QuickControls2 Network)
 qt_standard_project_setup(REQUIRES 6.5)
 
 qt_add_executable(Argon
@@ -20,8 +20,6 @@ qt_add_executable(Argon
     src/app/UserSettingsService.h
     src/analytics/DailyAnalyticsService.cpp
     src/analytics/DailyAnalyticsService.h
-    src/documents/DocumentService.cpp
-    src/documents/DocumentService.h
     src/search/SearchService.cpp
     src/search/SearchService.h
     src/search/DropImportWorker.cpp
@@ -45,13 +43,7 @@ qt_add_qml_module(Argon
         qml/Main.qml
         qml/components/SideBar.qml
         qml/components/TimerController.qml
-        qml/components/TopBar.qml
-        qml/components/WorkspaceCard.qml
-        qml/pages/NotesPage.qml
         qml/pages/TimerPage.qml
-        qml/pages/ResourcesPage.qml
-        qml/pages/AnalyticsPage.qml
-        qml/pages/DocPage.qml
         qml/themes/Theme.qml
     RESOURCES
         qml/assets/icons/Settings/setting-icon.png
@@ -60,8 +52,6 @@ qt_add_qml_module(Argon
 target_link_libraries(Argon PRIVATE
     Qt6::Quick
     Qt6::QuickControls2
-    Qt6::Pdf
-    Qt6::PdfQuick
     Qt6::Network
 )
 
