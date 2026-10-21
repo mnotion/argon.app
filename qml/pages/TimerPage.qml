@@ -504,25 +504,29 @@ Item {
         repeat: false
     }
 
-    // Consume one wheel gesture as one section step. The cooldown ignores
-    // the multiple wheel events commonly emitted by one physical mouse notch.
+    // Wheel, touchpad, and stylus scrolling all move the page in the natural
+    // content direction: scrolling down moves the visible section upward.
     WheelHandler {
         id: sectionWheelHandler
         target: null
-        acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+        acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad | PointerDevice.Stylus
+        property real accumulatedDelta: 0
 
         onWheel: function(event) {
             event.accepted = true
-            if (root.subjectDialogOpen)
+            if (root.subjectDialogOpen || sectionScrollCooldown.running)
                 return
 
-            var delta = event.angleDelta.y
-            if (delta === 0)
-                delta = event.pixelDelta.y
-            if (delta < 0)
-                root.moveScrollSection(1)
-            else if (delta > 0)
-                root.moveScrollSection(-1)
+            var delta = event.pixelDelta.y !== 0 ? event.pixelDelta.y : event.angleDelta.y
+            accumulatedDelta += delta
+            if (Math.abs(accumulatedDelta) < 18)
+                return
+
+            // Positive wheel delta means scrolling up; invert the section index
+            // so positive/downward content motion reveals the next section.
+            var direction = accumulatedDelta < 0 ? 1 : -1
+            accumulatedDelta = 0
+            root.moveScrollSection(direction)
         }
     }
 
@@ -1158,8 +1162,8 @@ Item {
     ColumnLayout {
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.top: parent.top
-        anchors.topMargin: 72
-        spacing: 15
+        anchors.topMargin: 48
+        spacing: 11
         z: 3
         opacity: root.introProgress(0.20)
         scale: 0.96 + 0.04 * root.introProgress(0.20)
