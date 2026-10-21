@@ -627,14 +627,13 @@ Item {
                     delegate: Rectangle {
                         required property var modelData
                         readonly property var subjectData: modelData
+                        readonly property color subjectAccent: String(subjectData.colour)
                         readonly property bool isSelected: root.selectedSubjectId === String(subjectData.id)
                         width: subjectRowsColumn.width
                         height: 44
                         radius: 10
                         color: isSelected
-                               ? Qt.rgba(Qt.color(String(subjectData.colour)).r,
-                                         Qt.color(String(subjectData.colour)).g,
-                                         Qt.color(String(subjectData.colour)).b, 0.12)
+                               ? Qt.rgba(subjectAccent.r, subjectAccent.g, subjectAccent.b, 0.12)
                                : Qt.rgba(1, 1, 1, 0.025)
                         border.width: isSelected ? 1.5 : 1
                         border.color: isSelected ? String(subjectData.colour) : theme.border
@@ -696,9 +695,7 @@ Item {
                             radius: 8
                             z: 2
                             color: subjectTimerMouse.containsMouse
-                                   ? Qt.rgba(Qt.color(String(subjectData.colour)).r,
-                                             Qt.color(String(subjectData.colour)).g,
-                                             Qt.color(String(subjectData.colour)).b, 0.22)
+                                   ? Qt.rgba(subjectAccent.r, subjectAccent.g, subjectAccent.b, 0.22)
                                    : Qt.rgba(1, 1, 1, 0.035)
                             border.color: controller.timerRunning
                                           && String(controller.activeSubjectId) === String(subjectData.id)
