@@ -109,19 +109,24 @@ Item {
             console.warn("[Timer] Could not save the selected subject.")
     }
 
+    function currentMonthKey() {
+        var now = new Date()
+        var month = now.getMonth() + 1
+        return now.getFullYear() + "-" + (month < 10 ? "0" : "") + month
+    }
+
+    function monthlySubjectElapsed(subjectId) {
+        var monthSubjectKey = currentMonthKey() + "|" + String(subjectId)
+        return Math.max(0, Number(controller.subjectMonthlyElapsedMilliseconds[monthSubjectKey]) || 0)
+    }
+
     function orderedSubjects() {
+        // Selection only changes highlighting. Ordering is based on this month's
+        // accumulated time, with insertion order preserved for ties.
         var ordered = subjects.slice()
-        if (selectedSubjectId.length === 0)
-            return ordered
-        var selectedIndex = -1
-        for (var i = 0; i < ordered.length; ++i) {
-            if (String(ordered[i].id) === selectedSubjectId) {
-                selectedIndex = i
-                break
-            }
-        }
-        if (selectedIndex > 0)
-            ordered.unshift(ordered.splice(selectedIndex, 1)[0])
+        ordered.sort(function(a, b) {
+            return root.monthlySubjectElapsed(b.id) - root.monthlySubjectElapsed(a.id)
+        })
         return ordered
     }
 
