@@ -141,8 +141,29 @@ QtObject {
         var accumulated = focusedRemainderMilliseconds + elapsed
         var wholeSeconds = Math.floor(accumulated / 1000)
         focusedRemainderMilliseconds = accumulated - wholeSeconds * 1000
-        if (wholeSeconds > 0)
-            dailyAnalyticsService.addFocusedSeconds(wholeSeconds)
+        if (wholeSeconds > 0) {
+            var focusSubjectId = String(activeSubjectId)
+            if (focusSubjectId.length > 0) {
+                var focusSubjectName = focusSubjectId
+                var focusSubjectColour = "#8CBFFF"
+                var storedSubjects = appSettingsService.value("timer.subjects", [])
+                if (storedSubjects && storedSubjects.length !== undefined) {
+                    for (var subjectIndex = 0; subjectIndex < storedSubjects.length; ++subjectIndex) {
+                        var subject = storedSubjects[subjectIndex]
+                        if (String(subject.id) === focusSubjectId) {
+                            focusSubjectName = String(subject.name || focusSubjectId)
+                            focusSubjectColour = String(subject.colour || focusSubjectColour)
+                            break
+                        }
+                    }
+                }
+                dailyAnalyticsService.addFocusedSeconds(
+                            wholeSeconds, focusSubjectId,
+                            focusSubjectName, focusSubjectColour)
+            } else {
+                dailyAnalyticsService.addFocusedSeconds(wholeSeconds)
+            }
+        }
     }
 
     Component.onCompleted: {
