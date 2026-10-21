@@ -1383,46 +1383,55 @@ Item {
                 wrapMode: Text.WordWrap
             }
 
-            ColumnLayout {
+            Flickable {
+                id: subjectBreakdownViewport
                 Layout.fillWidth: true
-                spacing: 9
+                Layout.fillHeight: true
+                clip: true
+                contentWidth: width
+                contentHeight: subjectBreakdownColumn.implicitHeight
+                boundsBehavior: Flickable.StopAtBounds
 
-                Repeater {
-                    model: root.selectedCalendarSubjectFocus
+                ColumnLayout {
+                    id: subjectBreakdownColumn
+                    width: subjectBreakdownViewport.width
+                    spacing: 9
 
-                    delegate: RowLayout {
-                        required property var modelData
-                        Layout.fillWidth: true
-                        Layout.minimumHeight: 36
-                        spacing: 10
+                    Repeater {
+                        model: root.selectedCalendarSubjectFocus
 
-                        Rectangle {
-                            Layout.preferredWidth: 9
-                            Layout.preferredHeight: 9
-                            radius: 4.5
-                            color: String(modelData.colour || "#8CBFFF")
-                        }
-
-                        Text {
+                        delegate: RowLayout {
+                            required property var modelData
                             Layout.fillWidth: true
-                            text: String(modelData.name || "Subject")
-                            color: theme.text
-                            font.pixelSize: 13
-                            font.weight: Font.Medium
-                            elide: Text.ElideRight
-                        }
+                            Layout.minimumHeight: 36
+                            spacing: 10
 
-                        Text {
-                            text: root.formatCalendarDuration(Number(modelData.seconds) || 0)
-                            color: theme.accent
-                            font.pixelSize: 12
-                            font.weight: Font.Medium
+                            Rectangle {
+                                Layout.preferredWidth: 9
+                                Layout.preferredHeight: 9
+                                radius: 4.5
+                                color: String(modelData.colour || "#8CBFFF")
+                            }
+
+                            Text {
+                                Layout.fillWidth: true
+                                text: String(modelData.name || "Subject")
+                                color: theme.text
+                                font.pixelSize: 13
+                                font.weight: Font.Medium
+                                elide: Text.ElideRight
+                            }
+
+                            Text {
+                                text: root.formatCalendarDuration(Number(modelData.seconds) || 0)
+                                color: theme.accent
+                                font.pixelSize: 12
+                                font.weight: Font.Medium
+                            }
                         }
                     }
                 }
             }
-
-            Item { Layout.fillHeight: true }
         }
     }
 
