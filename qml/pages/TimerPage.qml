@@ -1273,6 +1273,159 @@ Item {
         }
     }
 
+    // Selected-date details expand alongside the calendar.
+    Rectangle {
+        id: calendarDetailsPanel
+        x: monthlyCalendarCard.x + monthlyCalendarCard.width + 24
+        anchors.verticalCenter: parent.verticalCenter
+        width: root.calendarDetailsWidth
+        height: monthlyCalendarCard.height
+        radius: 20
+        color: theme.surface
+        border.color: theme.border
+        border.width: 1
+        z: 5
+        visible: root.calendarDetailsVisible || opacity > 0.01
+        opacity: root.calendarDetailsVisible ? root.introProgress(0.02) : 0
+        scale: root.calendarDetailsVisible ? 1 : 0.94
+
+        transform: Translate {
+            y: (1 - root.scrollSectionIndex) * root.height
+            Behavior on y {
+                NumberAnimation { duration: 620; easing.type: Easing.InOutCubic }
+            }
+        }
+
+        Behavior on x {
+            NumberAnimation { duration: 460; easing.type: Easing.OutCubic }
+        }
+        Behavior on opacity {
+            NumberAnimation { duration: 300; easing.type: Easing.OutCubic }
+        }
+        Behavior on scale {
+            NumberAnimation { duration: 360; easing.type: Easing.OutCubic }
+        }
+
+        ColumnLayout {
+            anchors.fill: parent
+            anchors.margins: 22
+            spacing: 14
+
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 8
+
+                Text {
+                    Layout.fillWidth: true
+                    text: root.formattedSelectedCalendarDate()
+                    color: theme.text
+                    font.pixelSize: 19
+                    font.weight: Font.DemiBold
+                    wrapMode: Text.WordWrap
+                }
+
+                Button {
+                    Layout.preferredWidth: 30
+                    Layout.preferredHeight: 30
+                    text: "×"
+                    font.pixelSize: 21
+                    onClicked: root.closeCalendarDetails()
+                    background: Rectangle {
+                        radius: 8
+                        color: parent.hovered ? theme.border : "transparent"
+                    }
+                    contentItem: Text {
+                        text: parent.text
+                        color: theme.mutedText
+                        font: parent.font
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                    }
+                }
+            }
+
+            Text {
+                text: "DAILY FOCUS"
+                color: theme.mutedText
+                font.pixelSize: 10
+                font.letterSpacing: 1.2
+                font.weight: Font.DemiBold
+            }
+
+            Text {
+                text: root.formatCalendarDuration(root.selectedCalendarTotalSeconds())
+                color: theme.accent
+                font.pixelSize: 34
+                font.weight: Font.Light
+            }
+
+            Rectangle {
+                Layout.fillWidth: true
+                height: 1
+                color: theme.border
+            }
+
+            Text {
+                text: "Subjects studied"
+                color: theme.text
+                font.pixelSize: 15
+                font.weight: Font.DemiBold
+            }
+
+            Text {
+                Layout.fillWidth: true
+                visible: root.selectedCalendarSubjectFocus.length === 0
+                text: root.selectedCalendarTotalSeconds() > 0
+                      ? "Focus time was recorded, but no subject breakdown is available for this date."
+                      : "No focus recorded on this date yet."
+                color: theme.mutedText
+                font.pixelSize: 12
+                wrapMode: Text.WordWrap
+            }
+
+            ColumnLayout {
+                Layout.fillWidth: true
+                spacing: 9
+
+                Repeater {
+                    model: root.selectedCalendarSubjectFocus
+
+                    delegate: RowLayout {
+                        required property var modelData
+                        Layout.fillWidth: true
+                        Layout.minimumHeight: 36
+                        spacing: 10
+
+                        Rectangle {
+                            Layout.preferredWidth: 9
+                            Layout.preferredHeight: 9
+                            radius: 4.5
+                            color: String(modelData.colour || "#8CBFFF")
+                        }
+
+                        Text {
+                            Layout.fillWidth: true
+                            text: String(modelData.name || "Subject")
+                            color: theme.text
+                            font.pixelSize: 13
+                            font.weight: Font.Medium
+                            elide: Text.ElideRight
+                        }
+
+                        Text {
+                            text: root.formatCalendarDuration(Number(modelData.seconds) || 0)
+                            color: theme.accent
+                            font.pixelSize: 12
+                            font.weight: Font.Medium
+                        }
+                    }
+                }
+            }
+
+            Item { Layout.fillHeight: true }
+        }
+    }
+
     // Keep the timer directly above the subjects panel and make the digits prominent.
     ColumnLayout {
         id: stopwatchControlStack
