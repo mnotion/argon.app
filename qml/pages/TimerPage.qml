@@ -602,8 +602,8 @@ Item {
     Rectangle {
         id: subjectsPanel
         anchors.horizontalCenter: parent.horizontalCenter
-        anchors.bottom: parent.bottom
-        anchors.bottomMargin: 82
+        anchors.verticalCenter: parent.verticalCenter
+        anchors.verticalCenterOffset: 100
         width: Math.min(560, parent.width - 80)
         height: Math.min(260, Math.max(196, parent.height * 0.36))
         radius: 18
