@@ -30,6 +30,7 @@ Item {
     property string historyPeriod: "weekly"
     property int historyChartYear: new Date().getFullYear()
     property int historyChartMonth: new Date().getMonth()
+    property real historyRevealProgress: 0
     property int hoveredWeeklyPointIndex: -1
     property real historyHoverX: 0
     property real historyHoverY: 0
@@ -548,7 +549,7 @@ Item {
     }
 
     function setHistoryPeriod(period) {
-        if (period !== "weekly" && period !== "monthly")
+        if (period !== "weekly" && period !== "monthly" && period !== "daily")
             return
 
         historyPeriod = period
@@ -557,7 +558,13 @@ Item {
             historyChartYear = today.getFullYear()
             historyChartMonth = today.getMonth()
         }
+
+        hoveredWeeklyPointIndex = -1
+        historyRevealAnimation.stop()
+        historyRevealProgress = 0
         refreshHistoryChartData()
+        if (scrollSectionIndex === 2)
+            historyRevealAnimation.start()
     }
 
     function historyChartTitle() {
@@ -568,64 +575,79 @@ Item {
         }
 
         var today = new Date()
-        today.setHours(0, 0, 0, 0)
-        var monday = new Date(today.getTime())
-        monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7))
-        var sunday = new Date(monday.getTime())
-        sunday.setDate(monday.getDate() + 6)
+        if (historyPeriod === "daily")
+            return Qt.formatDate(today, "dddd d MMMM yyyy")
 
-        if (monday.getMonth() === sunday.getMonth()
-                && monday.getFullYear() === sunday.getFullYear()) {
-            return Qt.formatDate(monday, "d") + "–" + Qt.formatDate(sunday, "d MMMM yyyy")
-        }
-        return Qt.formatDate(monday, "d MMM") + " – " + Qt.formatDate(sunday, "d MMM yyyy")
+        // Weeks are fixed blocks within each month: 1–7, 8–14, 15–21, 22–28, 29–31.
+        var weekNumber = Math.floor((today.getDate() - 1) / 7) + 1
+        return "Week " + weekNumber + " " + Qt.formatDate(today, "MMMM yyyy")
     }
 
     function refreshHistoryChartData() {
         var today = new Date()
         today.setHours(0, 0, 0, 0)
-        var rangeStart
-        var dayCount
-
-        if (historyPeriod === "monthly") {
-            rangeStart = new Date(historyChartYear, historyChartMonth, 1)
-            dayCount = new Date(historyChartYear, historyChartMonth + 1, 0).getDate()
-        } else {
-            rangeStart = new Date(today.getTime())
-            rangeStart.setDate(rangeStart.getDate() - ((rangeStart.getDay() + 6) % 7))
-            dayCount = 7
-        }
-
+        var todayKey = calendarDateKey(today)
         var points = []
         var maxSeconds = 0
-        var todayKey = calendarDateKey(today)
 
-        for (var dayIndex = 0; dayIndex < dayCount; ++dayIndex) {
-            var date = new Date(rangeStart.getTime())
-            date.setDate(rangeStart.getDate() + dayIndex)
-            var key = calendarDateKey(date)
-            var seconds = Math.max(
-                        0, Number(dailyAnalyticsService.focusedSecondsForDate(key)) || 0)
+        if (historyPeriod === "daily") {
+            var hourlySeconds = dailyAnalyticsService.focusedSecondsByHourForDate(todayKey)
+            for (var hour = 0; hour < 24; ++hour) {
+                var hourSeconds = Math.max(0, Number(hourlySeconds[hour]) || 0)
+                points.push({
+                    "date": todayKey,
+                    "weekday": Qt.formatDate(today, "ddd"),
+                    "day": today.getDate(),
+                    "hour": hour,
+                    "label": hour,
+                    "seconds": hourSeconds
+                })
+                maxSeconds = Math.max(maxSeconds, hourSeconds)
+            }
+        } else {
+            var rangeStart
+            var dayCount
 
-            if (key === todayKey) {
-                seconds = Math.max(
-                            seconds, Number(dailyAnalyticsService.focusedSecondsToday) || 0)
+            if (historyPeriod === "monthly") {
+                rangeStart = new Date(historyChartYear, historyChartMonth, 1)
+                dayCount = new Date(historyChartYear, historyChartMonth + 1, 0).getDate()
+            } else {
+                // Use the month-relative seven-day blocks instead of Monday–Sunday.
+                var weekOffset = Math.floor((today.getDate() - 1) / 7) * 7
+                var daysInCurrentMonth = new Date(
+                            today.getFullYear(), today.getMonth() + 1, 0).getDate()
+                rangeStart = new Date(today.getFullYear(), today.getMonth(), weekOffset + 1)
+                dayCount = Math.min(7, daysInCurrentMonth - weekOffset)
             }
 
-            points.push({
-                "date": key,
-                "weekday": Qt.formatDate(date, "ddd"),
-                "day": date.getDate(),
-                "label": historyPeriod === "weekly" ? dayIndex + 1 : date.getDate(),
-                "seconds": seconds
-            })
-            maxSeconds = Math.max(maxSeconds, seconds)
+            for (var dayIndex = 0; dayIndex < dayCount; ++dayIndex) {
+                var date = new Date(rangeStart.getTime())
+                date.setDate(rangeStart.getDate() + dayIndex)
+                var key = calendarDateKey(date)
+                var seconds = Math.max(
+                            0, Number(dailyAnalyticsService.focusedSecondsForDate(key)) || 0)
+
+                if (key === todayKey) {
+                    seconds = Math.max(
+                                seconds, Number(dailyAnalyticsService.focusedSecondsToday) || 0)
+                }
+
+                points.push({
+                    "date": key,
+                    "weekday": Qt.formatDate(date, "ddd"),
+                    "day": date.getDate(),
+                    "label": historyPeriod === "weekly" ? dayIndex + 1 : date.getDate(),
+                    "seconds": seconds
+                })
+                maxSeconds = Math.max(maxSeconds, seconds)
+            }
         }
 
         weeklyFocusPoints = points
-        // Leave three full hours above the busiest day; empty charts start at 3h.
+        // Leave three full hours above the busiest plotted day/hour; empty charts start at 3h.
         weeklyYAxisMax = Math.max(3, Math.ceil(maxSeconds / 3600) + 3)
-        hoveredWeeklyPointIndex = -1
+        if (hoveredWeeklyPointIndex >= points.length)
+            hoveredWeeklyPointIndex = -1
     }
 
     function formatWeeklyDuration(seconds) {
@@ -640,11 +662,18 @@ Item {
     }
 
     onScrollSectionIndexChanged: {
-        // The monthly calendar's staged reveal depends on this state transition.
-        // Restore it here so its heading, weekday row and dates become visible.
+        // The calendar reveal remains tied to the same section state as before.
         calendarExpanded = scrollSectionIndex === 1
-        if (scrollSectionIndex !== 2)
+        if (scrollSectionIndex === 2) {
             hoveredWeeklyPointIndex = -1
+            historyRevealAnimation.stop()
+            historyRevealProgress = 0
+            historyRevealAnimation.start()
+        } else {
+            hoveredWeeklyPointIndex = -1
+            historyRevealAnimation.stop()
+            historyRevealProgress = 0
+        }
     }
 
     onCalendarExpandedChanged: {
@@ -711,6 +740,17 @@ Item {
         from: 0
         to: 1
         duration: 920
+        easing.type: Easing.OutCubic
+    }
+
+    // Animate only the graph's internals; the card itself scrolls like every other page.
+    NumberAnimation {
+        id: historyRevealAnimation
+        target: root
+        property: "historyRevealProgress"
+        from: 0
+        to: 1
+        duration: 1150
         easing.type: Easing.OutCubic
     }
 
