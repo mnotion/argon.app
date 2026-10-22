@@ -568,8 +568,7 @@ Item {
         historyRevealAnimation.stop()
         refreshHistoryChartData()
         // Changing the viewing mode is instantaneous; only entering the page
-        // plays the line/axis intro sequence.
-        historyRevealAnimation.stop()
+        // plays the card/graph entrance sequence.
         historyLineProgress = 1
         historyAxisProgress = 1
         historyLockHighlight = 0
@@ -672,6 +671,8 @@ Item {
         historyLockHighlight = 0
         hoveredWeeklyPointIndex = -1
         historyWheelDelta = 0
+        historyCardEntranceProgress = 1
+        historyGraphEntranceProgress = 1
         historyPendingDirection = direction
         historyPendingAction = resetToToday ? "today" : "shift"
         historyNavigationFast = fast
@@ -2022,7 +2023,7 @@ Item {
                     }
 
                     Behavior on color { ColorAnimation { duration: 180; easing.type: Easing.OutCubic } }
-                    Behavior on border.color { ColorAnimation { duration: 180; easing.type: Easing.OutCubic } }
+                    Behavior on border.color { ColorAnimation { duration: 100; easing.type: Easing.OutCubic } }
                 }
 
                 contentItem: Text {
@@ -2065,9 +2066,6 @@ Item {
         visible: root.scrollSectionIndex === 2
         opacity: root.historyCardEntranceProgress
         scale: 0.88 + 0.12 * root.historyCardEntranceProgress
-        Behavior on scale {
-            NumberAnimation { duration: 320; easing.type: Easing.OutCubic }
-        }
 
         ColumnLayout {
             anchors.fill: parent
@@ -2133,7 +2131,7 @@ Item {
                                 verticalAlignment: Text.AlignVCenter
                             }
                         }
-                        onClicked: historyPeriodMenu.opened ? historyPeriodMenu.close() : historyPeriodMenu.open()
+                        onClicked: historyPeriodMenu.visible ? historyPeriodMenu.close() : historyPeriodMenu.open()
                     }
 
                     Popup {
