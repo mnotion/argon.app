@@ -2155,6 +2155,7 @@ Item {
         z: 119
         opacity: root.subjectContextMenuOpen ? 1 : 0
         visible: root.subjectContextMenuOpen || opacity > 0.01
+        enabled: root.subjectContextMenuOpen
         Behavior on opacity { NumberAnimation { duration: 130; easing.type: Easing.OutCubic } }
         MouseArea {
             anchors.fill: parent
