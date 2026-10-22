@@ -569,7 +569,18 @@ Item {
             maxSeconds = Math.max(maxSeconds, seconds)
         }
 
+        // TEMPORARY GRAPH TEST DATA — remove after testing.
+        var testHours = [0.5, 1.3, 0.6, 0, 0, 1.2, 0.7]
+
+        for (var i = 0; i < points.length; ++i) {
+            points[i].seconds = testHours[i] * 3600
+        }
+
+        points[1].seconds = 4 * 3600
+        points[5].seconds = 2.5 * 3600
+
         weeklyFocusPoints = points
+        maxSeconds = 4 * 3600
         // Leave three full hours of headroom above the busiest day.
         // With no recorded time the chart still starts at a 3-hour maximum.
         weeklyYAxisMax = Math.max(3, Math.ceil(maxSeconds / 3600) + 3)
