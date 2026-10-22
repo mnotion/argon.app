@@ -18,7 +18,11 @@ ApplicationWindow {
     flags: Qt.Window | Qt.FramelessWindowHint
     color: "transparent"
 
-    Theme { id: theme }
+    Theme {
+        id: theme
+        lightMode: window.lightMode
+        accent: window.accentColor
+    }
     TimerController { id: timerControllerInstance }
     property string activePage: "Search"
     property bool settingsOpen: false
@@ -31,6 +35,11 @@ ApplicationWindow {
     property string demoUsername: ""
     property string profileMessage: ""
     property bool lightMode: false
+    property color accentColor: "#8CBFFF"
+    readonly property var accentPalette: [
+        "#8CBFFF", "#58A6FF", "#9B8AFB", "#D98CEB", "#F18AAB",
+        "#F28C6B", "#F2C14E", "#8CCF7E", "#4CC9B0", "#8A99A8"
+    ]
     property bool searchCaseSensitive: false
     property bool searchIncludeHidden: false
     property bool timerSoundEnabled: true
@@ -54,6 +63,9 @@ ApplicationWindow {
         window.settingsLoaded = false
 
         window.lightMode = appSettingsService.value("preferences.lightMode", false)
+        var storedAccent = String(appSettingsService.value("preferences.accentColor", "#8CBFFF"))
+        window.accentColor = window.accentPalette.indexOf(storedAccent) >= 0
+                ? storedAccent : "#8CBFFF"
         window.searchCaseSensitive = appSettingsService.value("preferences.searchCaseSensitive", false)
         window.searchIncludeHidden = appSettingsService.value("preferences.searchIncludeHidden", false)
         window.timerSoundEnabled = appSettingsService.value("preferences.timerSoundEnabled", true)
@@ -72,6 +84,7 @@ ApplicationWindow {
             return
 
         appSettingsService.setValue("preferences.lightMode", window.lightMode)
+        appSettingsService.setValue("preferences.accentColor", String(window.accentColor))
         appSettingsService.setValue("preferences.searchCaseSensitive", window.searchCaseSensitive)
         appSettingsService.setValue("preferences.searchIncludeHidden", window.searchIncludeHidden)
         appSettingsService.setValue("preferences.timerSoundEnabled", window.timerSoundEnabled)
@@ -130,6 +143,7 @@ ApplicationWindow {
         }
     }
     onLightModeChanged: window.persistSetting("preferences.lightMode", window.lightMode)
+    onAccentColorChanged: window.persistSetting("preferences.accentColor", String(window.accentColor))
     onSearchCaseSensitiveChanged: window.persistSetting("preferences.searchCaseSensitive", window.searchCaseSensitive)
     onSearchIncludeHiddenChanged: window.persistSetting("preferences.searchIncludeHidden", window.searchIncludeHidden)
     onTimerSoundEnabledChanged: window.persistSetting("preferences.timerSoundEnabled", window.timerSoundEnabled)
@@ -210,7 +224,7 @@ ApplicationWindow {
         z: 150
         radius: 14
         visible: window.settingsOpen || x < window.width
-        color: Qt.rgba(0.12, 0.12, 0.12, 0.48)
+        color: Qt.rgba(theme.surfaceRaised.r, theme.surfaceRaised.g, theme.surfaceRaised.b, 0.97)
         border.color: theme.border
         border.width: 1
         clip: false
@@ -269,8 +283,41 @@ ApplicationWindow {
             Rectangle { Layout.fillWidth: true; height: 1; color: theme.border }
             RowLayout {
                 Layout.fillWidth: true
-                Text { Layout.fillWidth: true; text: "Light theme"; color: theme.text; font.pixelSize: 13 }
+                Text { Layout.fillWidth: true; text: "Light mode"; color: theme.text; font.pixelSize: 13 }
                 Switch { checked: window.lightMode; onToggled: window.lightMode = checked }
+            }
+            Text {
+                Layout.fillWidth: true
+                text: "Accent colour"
+                color: theme.text
+                font.pixelSize: 12
+                font.weight: Font.DemiBold
+            }
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 6
+                Repeater {
+                    model: window.accentPalette
+                    delegate: Rectangle {
+                        required property color modelData
+                        Layout.preferredWidth: 19
+                        Layout.preferredHeight: 19
+                        radius: 10
+                        color: modelData
+                        border.width: String(window.accentColor) === String(modelData) ? 3 : 1
+                        border.color: String(window.accentColor) === String(modelData)
+                                      ? theme.text : Qt.rgba(theme.text.r, theme.text.g, theme.text.b, 0.28)
+                        scale: accentSwatchMouse.containsMouse ? 1.12 : 1
+                        Behavior on scale { NumberAnimation { duration: 130; easing.type: Easing.OutCubic } }
+                        MouseArea {
+                            id: accentSwatchMouse
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: window.accentColor = String(modelData)
+                        }
+                    }
+                }
             }
             Text { Layout.fillWidth: true; visible: window.activePage === "Search"; text: "Search options"; color: theme.accent; font.pixelSize: 12; font.weight: Font.DemiBold }
             RowLayout {
@@ -347,7 +394,7 @@ ApplicationWindow {
         z: 150
         radius: 14
         visible: window.profileOpen || x > -width
-        color: Qt.rgba(0.12, 0.12, 0.12, 0.48)
+        color: Qt.rgba(theme.surfaceRaised.r, theme.surfaceRaised.g, theme.surfaceRaised.b, 0.97)
         border.color: theme.border
         border.width: 1
         clip: true
@@ -824,6 +871,8 @@ ApplicationWindow {
             z: 30
             Layout.fillWidth: true
             activePage: window.activePage
+            lightMode: window.lightMode
+            accentColor: window.accentColor
             onPageSelected: function(pageName) {
                 window.activePage = pageName
                 window.settingsOpen = false
@@ -1266,7 +1315,11 @@ ApplicationWindow {
 
         Item {
             id: searchPlaceholder
-            Theme { id: searchTheme }
+            Theme {
+            id: searchTheme
+            lightMode: window.lightMode
+            accent: window.accentColor
+        }
 
             property string query: ""
             property var results: []
@@ -1705,6 +1758,8 @@ ApplicationWindow {
         id: timerPage
         TimerPage {
             controller: timerControllerInstance
+            lightMode: window.lightMode
+            accentColor: window.accentColor
             onPageSelected: function(pageName) {
                 window.activePage = pageName
                 sideBar.bannerOpen = false
