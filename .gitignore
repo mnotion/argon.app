@@ -1,5 +1,0 @@
-# Local chemistry resource; keep its contents out of repository changes
-/chem/
-
-# Generated Qt / CMake build output
-/build/
