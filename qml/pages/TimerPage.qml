@@ -1948,7 +1948,8 @@ Item {
                     readonly property real plotHeight: Math.max(1, plotBottom - plotTop)
 
                     function pointX(index) {
-                        return plotLeft + index * plotWidth / 6
+                        var pointCount = root.weeklyFocusPoints.length
+                        return plotLeft + index * plotWidth / Math.max(1, pointCount - 1)
                     }
 
                     function pointY(index) {
@@ -2040,7 +2041,6 @@ Item {
                             }
 
                             // Weekday labels underneath each point.
-                            ctx.font = "13px Sansation"
                             ctx.textAlign = "center"
                             ctx.textBaseline = "top"
                             ctx.fillStyle = labelCss
