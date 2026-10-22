@@ -1946,24 +1946,13 @@ Item {
                             ctx.lineJoin = "round"
                             ctx.stroke()
 
-                            // Daily markers; the hovered marker blooms without clicking.
+                            // Static base markers. Hover effects are separate QML items,
+                            // so cursor movement never triggers a full canvas repaint.
                             for (var pointIndex = 0; pointIndex < root.weeklyFocusPoints.length; ++pointIndex) {
-                                var px = pointX(pointIndex)
-                                var py = pointY(pointIndex)
-                                var isHovered = pointIndex === root.hoveredWeeklyPointIndex
-                                if (isHovered) {
-                                    ctx.beginPath()
-                                    ctx.arc(px, py, 15, 0, Math.PI * 2)
-                                    ctx.fillStyle = "rgba(" + accentR + "," + accentG + "," + accentB + ",0.20)"
-                                    ctx.fill()
-                                    ctx.shadowBlur = 18
-                                    ctx.shadowColor = accentCss
-                                }
                                 ctx.beginPath()
-                                ctx.arc(px, py, isHovered ? 8 : 5, 0, Math.PI * 2)
+                                ctx.arc(pointX(pointIndex), pointY(pointIndex), 5, 0, Math.PI * 2)
                                 ctx.fillStyle = accentCss
                                 ctx.fill()
-                                ctx.shadowBlur = 0
                             }
 
                             // Weekday labels underneath each point.
@@ -1983,7 +1972,6 @@ Item {
                         target: root
                         function onWeeklyFocusPointsChanged() { historyCanvas.requestPaint() }
                         function onWeeklyYAxisMaxChanged() { historyCanvas.requestPaint() }
-                        function onHoveredWeeklyPointIndexChanged() { historyCanvas.requestPaint() }
                     }
                     Connections {
                         target: theme
@@ -2005,19 +1993,24 @@ Item {
 
                     function updateHoveredPoint(mouseX, mouseY) {
                         var nearestIndex = -1
-                        var nearestDistance = 100000
+                        var nearestDistanceSquared = 19 * 19
                         for (var i = 0; i < root.weeklyFocusPoints.length; ++i) {
                             var dx = mouseX - historyCanvas.pointX(i)
                             var dy = mouseY - historyCanvas.pointY(i)
-                            var distance = Math.sqrt(dx * dx + dy * dy)
-                            if (distance < nearestDistance) {
-                                nearestDistance = distance
+                            var distanceSquared = dx * dx + dy * dy
+                            if (distanceSquared < nearestDistanceSquared) {
+                                nearestDistanceSquared = distanceSquared
                                 nearestIndex = i
                             }
                         }
-                        root.hoveredWeeklyPointIndex = nearestDistance <= 19 ? nearestIndex : -1
-                        root.historyHoverX = mouseX
-                        root.historyHoverY = mouseY
+                        // Tooltip follows the selected point; update only when it changes.
+                        if (nearestIndex !== root.hoveredWeeklyPointIndex) {
+                            root.hoveredWeeklyPointIndex = nearestIndex
+                            if (nearestIndex >= 0) {
+                                root.historyHoverX = historyCanvas.pointX(nearestIndex)
+                                root.historyHoverY = historyCanvas.pointY(nearestIndex)
+                            }
+                        }
                     }
 
                     onPositionChanged: function(mouse) {
@@ -2029,9 +2022,42 @@ Item {
                     onExited: root.hoveredWeeklyPointIndex = -1
                 }
 
+                // Hover decoration is pointer-transparent and does not redraw the Canvas.
+                Rectangle {
+                    id: historyHoveredPointGlow
+                    z: 4
+                    enabled: false
+                    width: 30
+                    height: 30
+                    radius: 15
+                    color: Qt.rgba(theme.accent.r, theme.accent.g, theme.accent.b, 0.16)
+                    border.color: Qt.rgba(theme.accent.r, theme.accent.g, theme.accent.b, 0.42)
+                    border.width: 1
+                    visible: root.hoveredWeeklyPointIndex >= 0 && root.hoveredWeeklyPointIndex < root.weeklyFocusPoints.length
+                    x: visible ? historyCanvas.pointX(root.hoveredWeeklyPointIndex) - width / 2 : 0
+                    y: visible ? historyCanvas.pointY(root.hoveredWeeklyPointIndex) - height / 2 : 0
+                    opacity: visible ? 1 : 0
+                }
+
+                Rectangle {
+                    id: historyHoveredPointDot
+                    z: 6
+                    enabled: false
+                    width: 16
+                    height: 16
+                    radius: 8
+                    color: theme.accent
+                    opacity: root.hoveredWeeklyPointIndex >= 0 ? 1 : 0
+                    visible: opacity > 0.01
+                    x: visible ? historyCanvas.pointX(root.hoveredWeeklyPointIndex) - width / 2 : 0
+                    y: visible ? historyCanvas.pointY(root.hoveredWeeklyPointIndex) - height / 2 : 0
+                    Behavior on opacity { NumberAnimation { duration: 100; easing.type: Easing.OutCubic } }
+                }
+
                 Rectangle {
                     id: historyHoverTooltip
                     z: 8
+                    enabled: false
                     visible: root.hoveredWeeklyPointIndex >= 0
                              && root.hoveredWeeklyPointIndex < root.weeklyFocusPoints.length
                     width: 156
