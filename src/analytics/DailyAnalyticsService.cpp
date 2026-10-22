@@ -7,6 +7,8 @@
 #include <QFileInfo>
 #include <QFile>
 #include <QJsonDocument>
+#include <QJsonArray>
+#include <QTime>
 #include <QJsonObject>
 #include <QVariantMap>
 #include <QVariantList>
@@ -133,6 +135,15 @@ void DailyAnalyticsService::addSubjectFocusedSeconds(qint64 seconds,
 
     m_focusedSecondsToday += seconds;
 
+    // Track when focus happened so Daily history can show the distribution by hour.
+    // Existing records remain valid; their unknown historical hourly distribution is not guessed.
+    const int hour = QTime::currentTime().hour();
+    while (m_hourlyFocusSecondsToday.size() < 24)
+        m_hourlyFocusSecondsToday.append(0);
+    const qint64 previousHourSeconds = qMax<qint64>(
+        0, qint64(m_hourlyFocusSecondsToday.at(hour).toDouble(0)));
+    m_hourlyFocusSecondsToday.replace(hour, double(previousHourSeconds + seconds));
+
     const QString id = subjectId.trimmed();
     if (!id.isEmpty()) {
         QJsonObject subject = m_subjectFocusToday.value(id).toObject();
@@ -206,6 +217,42 @@ qint64 DailyAnalyticsService::focusedSecondsForDate(const QString &isoDate) cons
     return qMax<qint64>(0, qint64(seconds));
 }
 
+QVariantList DailyAnalyticsService::focusedSecondsByHourForDate(const QString &isoDate) const
+{
+    const QDate date = QDate::fromString(isoDate, Qt::ISODate);
+    if (!date.isValid() || date.toString(Qt::ISODate) != isoDate)
+        return QVariantList(24, QVariant::fromValue<qint64>(0));
+
+    QJsonArray hourly;
+    if (isoDate == m_loadedDate) {
+        hourly = m_hourlyFocusSecondsToday;
+    } else {
+        QFile file(filePathForDate(date));
+        if (!file.exists() || !file.open(QIODevice::ReadOnly))
+            return QVariantList(24, QVariant::fromValue<qint64>(0));
+
+        QJsonParseError parseError;
+        const QJsonDocument document = QJsonDocument::fromJson(file.readAll(), &parseError);
+        if (parseError.error != QJsonParseError::NoError || !document.isObject())
+            return QVariantList(24, QVariant::fromValue<qint64>(0));
+
+        const QJsonObject object = document.object();
+        if (object.value(QStringLiteral("date")).toString() != isoDate)
+            return QVariantList(24, QVariant::fromValue<qint64>(0));
+        hourly = object.value(QStringLiteral("hourlyFocusSeconds")).toArray();
+    }
+
+    QVariantList result;
+    result.reserve(24);
+    for (int hour = 0; hour < 24; ++hour) {
+        const qint64 seconds = hour < hourly.size()
+            ? qMax<qint64>(0, qint64(hourly.at(hour).toDouble(0)))
+            : 0;
+        result.append(QVariant::fromValue(seconds));
+    }
+    return result;
+}
+
 QVariantList DailyAnalyticsService::subjectFocusForDate(const QString &isoDate) const
 {
     const QDate date = QDate::fromString(isoDate, Qt::ISODate);
@@ -261,6 +308,9 @@ bool DailyAnalyticsService::loadToday()
     m_focusedSecondsToday = 0;
     m_completedFocusSessionsToday = 0;
     m_subjectFocusToday = QJsonObject();
+    m_hourlyFocusSecondsToday = QJsonArray();
+    for (int hour = 0; hour < 24; ++hour)
+        m_hourlyFocusSecondsToday.append(0);
 
     const QString path = filePathForDate(QDate::currentDate());
     QFile file(path);
@@ -288,6 +338,15 @@ bool DailyAnalyticsService::loadToday()
     m_focusedSecondsToday = qMax<qint64>(0, qint64(object.value(QStringLiteral("focusedSeconds")).toDouble(0)));
     m_completedFocusSessionsToday = qMax(0, object.value(QStringLiteral("completedFocusSessions")).toInt(0));
     m_subjectFocusToday = object.value(QStringLiteral("subjectFocus")).toObject();
+    const QJsonArray storedHourly = object.value(QStringLiteral("hourlyFocusSeconds")).toArray();
+    if (!storedHourly.isEmpty()) {
+        m_hourlyFocusSecondsToday = QJsonArray();
+        for (int hour = 0; hour < 24; ++hour)
+            m_hourlyFocusSecondsToday.append(
+                hour < storedHourly.size()
+                    ? qMax<qint64>(0, qint64(storedHourly.at(hour).toDouble(0)))
+                    : 0);
+    }
     return true;
 }
 
@@ -300,11 +359,12 @@ bool DailyAnalyticsService::saveToday() const
     }
 
     QJsonObject object;
-    object.insert(QStringLiteral("schemaVersion"), 2);
+    object.insert(QStringLiteral("schemaVersion"), 3);
     object.insert(QStringLiteral("date"), QDate::currentDate().toString(Qt::ISODate));
     object.insert(QStringLiteral("focusedSeconds"), double(m_focusedSecondsToday));
     object.insert(QStringLiteral("completedFocusSessions"), m_completedFocusSessionsToday);
     object.insert(QStringLiteral("subjectFocus"), m_subjectFocusToday);
+    object.insert(QStringLiteral("hourlyFocusSeconds"), m_hourlyFocusSecondsToday);
     object.insert(QStringLiteral("updatedAt"), QDateTime::currentDateTime().toString(Qt::ISODateWithMs));
 
     const QByteArray json = QJsonDocument(object).toJson(QJsonDocument::Indented);

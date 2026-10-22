@@ -6,13 +6,16 @@ import "../themes"
 
 Item {
     id: root
-    Theme { id: theme }
+    property bool lightMode: false
+    property string accentColor: "#8CBFFF"
+    Theme {
+        id: theme
+        lightMode: root.lightMode
+        accent: root.accentColor
+    }
     signal pageSelected(string pageName)
 
     property var controller: null
-    property bool dailyCardExpanded: false
-    property bool dailyCardSettled: false
-    property real dailyCardCloudPhase: 0
     property bool calendarExpanded: false
     property bool calendarSettled: false
     property bool calendarWaveVisible: false
@@ -22,6 +25,27 @@ Item {
     property var calendarFocusedSeconds: ({})
     property string calendarTodayIsoDate: ""
     property double todayFocusedSeconds: 0
+    property var weeklyFocusPoints: []
+    property int weeklyYAxisMax: 3
+    property string historyPeriod: "weekly"
+    property var historyReferenceDate: new Date()
+    property string historyHeading: ""
+    property real historyLineProgress: 0
+    property real historyAxisProgress: 0
+    property real historyLockHighlight: 0
+    property real historyCardEntranceProgress: 0
+    property real historyGraphEntranceProgress: 0
+    property real historyPlotDragOffset: 0
+    property real historyMenuX: 0
+    property real historyMenuY: 0
+    property bool historyNavigationAnimating: false
+    property bool historyNavigationFast: false
+    property string historyPendingAction: ""
+    property int historyPendingDirection: 0
+    property real historyWheelDelta: 0
+    property int hoveredWeeklyPointIndex: -1
+    property real historyHoverX: 0
+    property real historyHoverY: 0
     property bool calendarDetailsVisible: false
     property real calendarDetailsProgress: calendarDetailsVisible ? 1 : 0
     property string selectedCalendarDate: ""
@@ -38,17 +62,26 @@ Item {
         }
     }
     property int calendarCommitOffset: 0
-    // Three vertically paged sections: timer + subjects, monthly analytics, daily focus.
+    // Three vertically paged sections: timer + subjects, monthly calendar, weekly history chart.
     property int scrollSectionIndex: 0
     property int scrollSectionCount: 3
     property var subjects: []
     property var subjectDisplayOrder: []
     property string selectedSubjectId: ""
     property bool subjectDialogOpen: false
+    property string editingSubjectId: ""
     property string newSubjectName: ""
     property string newSubjectGoal: ""
     property string newSubjectColour: "#8CBFFF"
     property string subjectFormError: ""
+    property bool subjectContextMenuOpen: false
+    property string contextMenuSubjectId: ""
+    property real subjectContextMenuX: 0
+    property real subjectContextMenuY: 0
+    property int deleteConfirmStage: 0
+    property bool secondDeleteConfirmationPending: false
+    property string deleteSubjectId: ""
+    property string subjectDeleteError: ""
     property var subjectColourPalette: [
         "#8CBFFF", "#81C995", "#F4C96B", "#E99AAE",
         "#B5A2F5", "#E9A16D", "#62C5C1", "#D8DDE7"
@@ -64,6 +97,7 @@ Item {
     }
 
     function openSubjectDialog() {
+        editingSubjectId = ""
         newSubjectName = ""
         newSubjectGoal = ""
         newSubjectColour = subjectColourPalette[0]
@@ -72,9 +106,133 @@ Item {
         Qt.callLater(function() { subjectNameInput.forceActiveFocus() })
     }
 
+    function openEditSubjectDialog(subjectId) {
+        var targetId = String(subjectId)
+        var target = null
+        for (var i = 0; i < subjects.length; ++i) {
+            if (String(subjects[i].id) === targetId) {
+                target = subjects[i]
+                break
+            }
+        }
+        if (target === null)
+            return
+
+        subjectContextMenuOpen = false
+        contextMenuSubjectId = ""
+        editingSubjectId = targetId
+        newSubjectName = String(target.name || "")
+        newSubjectGoal = String(Number(target.goalHours) || "")
+        newSubjectColour = String(target.colour || subjectColourPalette[0])
+        subjectFormError = ""
+        subjectDialogOpen = true
+        Qt.callLater(function() { subjectNameInput.forceActiveFocus() })
+    }
+
     function closeSubjectDialog() {
         subjectDialogOpen = false
+        editingSubjectId = ""
         subjectFormError = ""
+    }
+
+    function openSubjectContextMenu(subjectId, sourceItem, sourceX, sourceY) {
+        if (root.subjectDialogOpen || root.deleteConfirmStage > 0)
+            return
+        contextMenuSubjectId = String(subjectId)
+        var point = sourceItem.mapToItem(root, sourceX, sourceY)
+        subjectContextMenuX = Math.max(8, Math.min(root.width - 176, point.x))
+        subjectContextMenuY = Math.max(8, Math.min(root.height - 104, point.y))
+        subjectContextMenuOpen = true
+    }
+
+    function requestSubjectDelete() {
+        deleteSubjectId = contextMenuSubjectId
+        contextMenuSubjectId = ""
+        subjectContextMenuOpen = false
+        subjectDeleteError = ""
+        deleteConfirmStage = 1
+    }
+
+    function confirmSubjectDelete() {
+        if (deleteConfirmStage === 1) {
+            subjectDeleteError = ""
+            // Fade out the first warning before reopening with the final wording.
+            deleteConfirmStage = 0
+            secondDeleteConfirmationPending = true
+            deleteConfirmReopenTimer.restart()
+            return
+        }
+        if (deleteConfirmStage === 2)
+            deleteSubjectForever()
+    }
+
+    function cancelSubjectDelete() {
+        deleteConfirmReopenTimer.stop()
+        secondDeleteConfirmationPending = false
+        deleteConfirmStage = 0
+        deleteSubjectId = ""
+        subjectDeleteError = ""
+    }
+
+    function deleteSubjectForever() {
+        var targetId = deleteSubjectId
+        var updatedSubjects = subjects.filter(function(subject) {
+            return String(subject.id) !== targetId
+        })
+        if (updatedSubjects.length === subjects.length) {
+            cancelSubjectDelete()
+            return
+        }
+
+        var deletingActiveSubject = String(controller.activeSubjectId) === targetId
+        // Attribute the final running interval while the subject metadata still exists.
+        if (deletingActiveSubject && controller.timerRunning)
+            controller.tick()
+
+        if (!appSettingsService.setValue("timer.subjects", updatedSubjects)) {
+            subjectDeleteError = "Could not save the deletion. Please try again."
+            return
+        }
+
+        if (deletingActiveSubject) {
+            controller.timerRunning = false
+            controller.activeSubjectId = ""
+            controller.statusMessage = "Paused."
+            controller.persistElapsedState()
+        }
+
+        subjects = updatedSubjects
+        if (String(selectedSubjectId) === targetId) {
+            selectedSubjectId = ""
+            if (!appSettingsService.setValue("timer.selectedSubjectId", "")) {
+                console.warn("[Timer] Could not clear the deleted selected subject.")
+            }
+        }
+        if (editingSubjectId === targetId)
+            closeSubjectDialog()
+
+        // Remove the deleted card's lifetime and monthly ordering counters as well.
+        var remainingLifetimeTotals = {}
+        var lifetimeKeys = Object.keys(controller.subjectElapsedMilliseconds || ({}))
+        for (var lifetimeIndex = 0; lifetimeIndex < lifetimeKeys.length; ++lifetimeIndex) {
+            var lifetimeKey = lifetimeKeys[lifetimeIndex]
+            if (String(lifetimeKey) !== targetId)
+                remainingLifetimeTotals[lifetimeKey] = controller.subjectElapsedMilliseconds[lifetimeKey]
+        }
+        controller.subjectElapsedMilliseconds = remainingLifetimeTotals
+
+        var remainingMonthlyTotals = {}
+        var monthlyKeys = Object.keys(controller.subjectMonthlyElapsedMilliseconds || ({}))
+        for (var monthlyIndex = 0; monthlyIndex < monthlyKeys.length; ++monthlyIndex) {
+            var monthlyKey = monthlyKeys[monthlyIndex]
+            if (String(monthlyKey).slice(monthlyKey.lastIndexOf("|") + 1) !== targetId)
+                remainingMonthlyTotals[monthlyKey] = controller.subjectMonthlyElapsedMilliseconds[monthlyKey]
+        }
+        controller.subjectMonthlyElapsedMilliseconds = remainingMonthlyTotals
+        controller.persistElapsedState()
+
+        refreshSubjectDisplayOrder()
+        cancelSubjectDelete()
     }
 
     function addSubject() {
@@ -88,6 +246,35 @@ Item {
         if (newSubjectGoal.trim().length === 0 || !isFinite(goalHours) || goalHours <= 0) {
             subjectFormError = "Enter a goal greater than zero hours."
             subjectGoalInput.forceActiveFocus()
+            return
+        }
+
+        if (editingSubjectId.length > 0) {
+            var editedId = editingSubjectId
+            var editedSubjects = subjects.map(function(subject) {
+                if (String(subject.id) !== editedId)
+                    return subject
+                return {
+                    "id": String(subject.id),
+                    "name": name,
+                    "colour": String(newSubjectColour),
+                    "goalHours": goalHours
+                }
+            })
+            var foundEditedSubject = editedSubjects.some(function(subject) {
+                return String(subject.id) === editedId
+            })
+            if (!foundEditedSubject) {
+                subjectFormError = "This subject no longer exists."
+                return
+            }
+            if (!appSettingsService.setValue("timer.subjects", editedSubjects)) {
+                subjectFormError = "The subject could not be saved. Please try again."
+                return
+            }
+            subjects = editedSubjects
+            refreshSubjectDisplayOrder()
+            closeSubjectDialog()
             return
         }
 
@@ -109,8 +296,7 @@ Item {
         selectedSubjectId = subjectId
         appSettingsService.setValue("timer.selectedSubjectId", selectedSubjectId)
         refreshSubjectDisplayOrder()
-        subjectDialogOpen = false
-        subjectFormError = ""
+        closeSubjectDialog()
     }
 
     function selectSubject(subjectId) {
@@ -368,43 +554,280 @@ Item {
         var currentDateKey = calendarDateKey(new Date())
         if (currentDateKey !== calendarTodayIsoDate) {
             refreshCalendarData()
+        } else {
+            todayFocusedSeconds = dailyAnalyticsService.focusedSecondsForDate(currentDateKey)
+        }
+        refreshHistoryChartData()
+    }
+
+    function setHistoryPeriod(period) {
+        if (period !== "weekly" && period !== "monthly" && period !== "daily")
+            return
+
+        historyPeriod = period
+        historyReferenceDate = new Date()
+        hoveredWeeklyPointIndex = -1
+        historyRevealAnimation.stop()
+        refreshHistoryChartData()
+        // Changing the viewing mode is instantaneous; only entering the page
+        // plays the card/graph entrance sequence.
+        historyLineProgress = 1
+        historyAxisProgress = 1
+        historyLockHighlight = 0
+        if (scrollSectionIndex === 2) {
+            historyCardEntranceProgress = 1
+            historyGraphEntranceProgress = 1
+        }
+    }
+
+    function toggleHistoryPeriodMenu() {
+        if (historyPeriodMenu.opened) {
+            historyPeriodMenu.close()
             return
         }
-        todayFocusedSeconds = dailyAnalyticsService.focusedSecondsForDate(currentDateKey)
+
+        // Map the selector's bottom edge into the top-level window overlay at click time.
+        // The popup is independent of card clipping and any nested transforms.
+        var anchor = historyPeriodDropdown.mapToItem(
+                    Overlay.overlay, 0, historyPeriodDropdown.height)
+        historyMenuX = Math.max(8, Math.min(
+                    Overlay.overlay.width - historyPeriodDropdown.width - 8, anchor.x))
+        historyMenuY = anchor.y + 6
+        historyPeriodMenu.open()
     }
 
-    function formattedFocusedTime() {
-        var totalMinutes = Math.floor(dailyAnalyticsService.focusedSecondsToday / 60)
-        if (totalMinutes < 60)
-            return totalMinutes + " min"
-        return Math.floor(totalMinutes / 60) + " h " + (totalMinutes % 60) + " min"
+    function historyChartTitle() {
+        var reference = new Date(historyReferenceDate)
+        if (historyPeriod === "monthly")
+            return Qt.formatDate(new Date(reference.getFullYear(), reference.getMonth(), 1), "MMMM yyyy")
+        if (historyPeriod === "daily")
+            return Qt.formatDate(reference, "dddd d MMMM yyyy")
+
+        var weekNumber = Math.floor((reference.getDate() - 1) / 7) + 1
+        return "Week " + weekNumber + " " + Qt.formatDate(reference, "MMMM yyyy")
     }
 
-    function formattedDate() {
-        var date = new Date()
-        var day = date.getDate()
-        var suffix = "th"
-        if (day % 100 < 11 || day % 100 > 13) {
-            if (day % 10 === 1) suffix = "st"
-            else if (day % 10 === 2) suffix = "nd"
-            else if (day % 10 === 3) suffix = "rd"
-        }
-        return Qt.formatDate(date, "MMMM ") + day + suffix
+    function restartHistoryReveal() {
+        historyRevealAnimation.stop()
+        historyCardEntranceProgress = 0
+        historyGraphEntranceProgress = 0
+        historyLineProgress = 1
+        historyAxisProgress = 1
+        historyLockHighlight = 0
+        historyPlotDragOffset = 0
+        historyNavigationAnimating = false
+        historyNavigationFast = false
+        hoveredWeeklyPointIndex = -1
+        refreshHistoryChartData()
+        if (scrollSectionIndex === 2)
+            historyRevealAnimation.start()
     }
 
-    onDailyCardExpandedChanged: {
-        cardSettleTimer.stop()
-        dateFadeTimer.stop()
-
-        if (dailyCardExpanded) {
-            focusedTimeText.opacity = 0
-            focusedDateText.opacity = 0
-            cardSettleTimer.start()
+    function shiftHistoryPeriod(direction) {
+        var reference = new Date(historyReferenceDate)
+        if (historyPeriod === "monthly") {
+            historyReferenceDate = new Date(reference.getFullYear(),
+                                             reference.getMonth() + direction, 1)
+        } else if (historyPeriod === "daily") {
+            reference.setDate(reference.getDate() + direction)
+            historyReferenceDate = reference
         } else {
-            dailyCardSettled = false
-            dailyCardCloudPhase = 0
-            focusedTimeText.opacity = 0
-            focusedDateText.opacity = 0
+            var currentWeekIndex = Math.floor((reference.getDate() - 1) / 7)
+            var currentMonthStart = new Date(reference.getFullYear(), reference.getMonth(), 1)
+            var currentMonthWeeks = Math.ceil(
+                        new Date(reference.getFullYear(), reference.getMonth() + 1, 0).getDate() / 7)
+            var targetWeekIndex = currentWeekIndex + direction
+            var targetMonthStart = currentMonthStart
+
+            if (targetWeekIndex < 0) {
+                targetMonthStart = new Date(reference.getFullYear(), reference.getMonth() - 1, 1)
+                var previousMonthDays = new Date(
+                            targetMonthStart.getFullYear(), targetMonthStart.getMonth() + 1, 0).getDate()
+                targetWeekIndex = Math.ceil(previousMonthDays / 7) - 1
+            } else if (targetWeekIndex >= currentMonthWeeks) {
+                targetMonthStart = new Date(reference.getFullYear(), reference.getMonth() + 1, 1)
+                targetWeekIndex = 0
+            }
+
+            historyReferenceDate = new Date(targetMonthStart.getFullYear(),
+                                            targetMonthStart.getMonth(),
+                                            targetWeekIndex * 7 + 1)
+        }
+        refreshHistoryChartData()
+        hoveredWeeklyPointIndex = -1
+    }
+
+    function historyPeriodIsCurrent() {
+        var reference = new Date(historyReferenceDate)
+        var today = new Date()
+        if (historyPeriod === "monthly")
+            return reference.getFullYear() === today.getFullYear()
+                    && reference.getMonth() === today.getMonth()
+        if (historyPeriod === "weekly")
+            return reference.getFullYear() === today.getFullYear()
+                    && reference.getMonth() === today.getMonth()
+                    && Math.floor((reference.getDate() - 1) / 7)
+                       === Math.floor((today.getDate() - 1) / 7)
+        return calendarDateKey(reference) === calendarDateKey(today)
+    }
+
+    function resetHistoryPeriodToToday() {
+        historyReferenceDate = new Date()
+        refreshHistoryChartData()
+        hoveredWeeklyPointIndex = -1
+    }
+
+    function requestHistoryNavigation(direction, fast, resetToToday) {
+        if (historyNavigationAnimating)
+            return
+        if (resetToToday && historyPeriodIsCurrent())
+            return
+
+        historyRevealAnimation.stop()
+        historyLineProgress = 1
+        historyAxisProgress = 1
+        historyLockHighlight = 0
+        hoveredWeeklyPointIndex = -1
+        historyWheelDelta = 0
+        historyCardEntranceProgress = 1
+        historyGraphEntranceProgress = 1
+        historyPendingDirection = direction
+        historyPendingAction = resetToToday ? "today" : "shift"
+        historyNavigationFast = fast
+        historyNavigationAnimating = true
+        historyPlotSnapBack.stop()
+
+        historyPlotOutAnimation.to = direction > 0 ? -historyPlot.width : historyPlot.width
+        historyPlotOutAnimation.restart()
+    }
+
+    function completeHistoryNavigation() {
+        if (historyPendingAction === "today") {
+            historyReferenceDate = new Date()
+            refreshHistoryChartData()
+        } else {
+            shiftHistoryPeriod(historyPendingDirection)
+        }
+
+        hoveredWeeklyPointIndex = -1
+        // Bring the new period in from the opposite edge.
+        historyPlotDragOffset = historyPendingDirection > 0
+                ? historyPlot.width : -historyPlot.width
+        historyPlotInAnimation.restart()
+    }
+
+    function historyPlotPointCount() {
+        return weeklyFocusPoints.length
+    }
+
+    function refreshHistoryChartData() {
+        var reference = new Date(historyReferenceDate)
+        reference.setHours(0, 0, 0, 0)
+        var today = new Date()
+        today.setHours(0, 0, 0, 0)
+        var todayKey = calendarDateKey(today)
+        var points = []
+        var maxSeconds = 0
+
+        if (historyPeriod === "daily") {
+            var selectedKey = calendarDateKey(reference)
+            var hourlySeconds = dailyAnalyticsService.focusedSecondsByHourForDate(selectedKey)
+            for (var hour = 0; hour < 24; ++hour) {
+                var hourSeconds = Math.max(0, Number(hourlySeconds[hour]) || 0)
+                points.push({
+                    "date": selectedKey,
+                    "weekday": Qt.formatDate(reference, "ddd"),
+                    "day": reference.getDate(),
+                    "hour": hour,
+                    "label": hour,
+                    "seconds": hourSeconds
+                })
+                maxSeconds = Math.max(maxSeconds, hourSeconds)
+            }
+        } else {
+            var rangeStart
+            var dayCount
+
+            if (historyPeriod === "monthly") {
+                rangeStart = new Date(reference.getFullYear(), reference.getMonth(), 1)
+                dayCount = new Date(reference.getFullYear(), reference.getMonth() + 1, 0).getDate()
+            } else {
+                // Weeks are fixed blocks within the selected month: 1–7, 8–14, etc.
+                var weekOffset = Math.floor((reference.getDate() - 1) / 7) * 7
+                var daysInMonth = new Date(
+                            reference.getFullYear(), reference.getMonth() + 1, 0).getDate()
+                rangeStart = new Date(reference.getFullYear(), reference.getMonth(), weekOffset + 1)
+                dayCount = Math.min(7, daysInMonth - weekOffset)
+            }
+
+            for (var dayIndex = 0; dayIndex < dayCount; ++dayIndex) {
+                var date = new Date(rangeStart.getTime())
+                date.setDate(rangeStart.getDate() + dayIndex)
+                var key = calendarDateKey(date)
+                var seconds = Math.max(
+                            0, Number(dailyAnalyticsService.focusedSecondsForDate(key)) || 0)
+
+                if (key === todayKey)
+                    seconds = Math.max(seconds, Number(dailyAnalyticsService.focusedSecondsToday) || 0)
+
+                points.push({
+                    "date": key,
+                    "weekday": Qt.formatDate(date, "ddd"),
+                    "day": date.getDate(),
+                    "label": historyPeriod === "weekly" ? dayIndex + 1 : date.getDate(),
+                    "seconds": seconds
+                })
+                maxSeconds = Math.max(maxSeconds, seconds)
+            }
+        }
+
+        weeklyFocusPoints = points
+        weeklyYAxisMax = Math.floor(maxSeconds / 60) === 0
+                         ? 3 : Math.ceil(maxSeconds / 3600) + 1
+        var nextHeading = historyChartTitle()
+        if (historyHeading !== nextHeading)
+            historyHeading = nextHeading
+        if (hoveredWeeklyPointIndex >= points.length)
+            hoveredWeeklyPointIndex = -1
+    }
+
+    function dailyHourlyBreakdownMissing() {
+        if (historyPeriod !== "daily"
+                || Number(dailyAnalyticsService.focusedSecondsToday) <= 0)
+            return false
+
+        for (var i = 0; i < weeklyFocusPoints.length; ++i) {
+            if (Number(weeklyFocusPoints[i].seconds) > 0)
+                return false
+        }
+        return true
+    }
+
+    function formatWeeklyDuration(seconds) {
+        var totalMinutes = Math.floor(Math.max(0, Number(seconds) || 0) / 60)
+        var hours = Math.floor(totalMinutes / 60)
+        var minutes = totalMinutes % 60
+        if (hours === 0)
+            return minutes + " min"
+        if (minutes === 0)
+            return hours + (hours === 1 ? " hour" : " hours")
+        return hours + "h " + minutes + " min"
+    }
+
+    onScrollSectionIndexChanged: {
+        calendarExpanded = scrollSectionIndex === 1
+        if (scrollSectionIndex === 2) {
+            restartHistoryReveal()
+        } else {
+            hoveredWeeklyPointIndex = -1
+            historyRevealAnimation.stop()
+            // Finish the reveal before moving the section out. This prevents a
+            // partially scaled/faded card from being carried through reverse scrolling.
+            historyCardEntranceProgress = 1
+            historyGraphEntranceProgress = 1
+            historyLineProgress = 1
+            historyAxisProgress = 1
+            historyLockHighlight = 0
         }
     }
 
@@ -422,23 +845,7 @@ Item {
         }
     }
 
-    onScrollSectionIndexChanged: {
-        calendarExpanded = scrollSectionIndex === 1
-        dailyCardExpanded = scrollSectionIndex === 2
-    }
 
-    Timer {
-        id: cardSettleTimer
-        interval: 900
-        repeat: false
-        onTriggered: {
-            if (root.dailyCardExpanded) {
-                root.dailyCardSettled = true
-                focusedTimeText.opacity = 1
-                dateFadeTimer.start()
-            }
-        }
-    }
 
     Timer {
         id: calendarSettleTimer
@@ -481,36 +888,6 @@ Item {
         }
     }
 
-    // Let the time appear first, then reveal the date a beat later.
-    Timer {
-        id: dateFadeTimer
-        interval: 115
-        repeat: false
-        onTriggered: {
-            if (root.dailyCardExpanded)
-                focusedDateText.opacity = 1
-        }
-    }
-
-    SequentialAnimation {
-        running: root.dailyCardSettled
-        loops: Animation.Infinite
-        NumberAnimation {
-            target: root
-            property: "dailyCardCloudPhase"
-            to: 1
-            duration: 3000
-            easing.type: Easing.InOutSine
-        }
-        NumberAnimation {
-            target: root
-            property: "dailyCardCloudPhase"
-            to: 0
-            duration: 3000
-            easing.type: Easing.InOutSine
-        }
-    }
-
     NumberAnimation {
         id: timerPageEntrance
         target: root
@@ -521,9 +898,87 @@ Item {
         easing.type: Easing.OutCubic
     }
 
+    Timer {
+        id: historyWheelCooldown
+        interval: 185
+        repeat: false
+    }
+
+    NumberAnimation {
+        id: historyPlotSnapBack
+        target: root
+        property: "historyPlotDragOffset"
+        to: 0
+        duration: 180
+        easing.type: Easing.OutCubic
+    }
+
+    NumberAnimation {
+        id: historyPlotOutAnimation
+        target: root
+        property: "historyPlotDragOffset"
+        to: root.historyPendingDirection > 0 ? -historyPlot.width : historyPlot.width
+        duration: root.historyNavigationFast ? 76 : 155
+        easing.type: Easing.InCubic
+        onFinished: root.completeHistoryNavigation()
+    }
+
+    NumberAnimation {
+        id: historyPlotInAnimation
+        target: root
+        property: "historyPlotDragOffset"
+        to: 0
+        duration: root.historyNavigationFast ? 125 : 235
+        easing.type: Easing.OutCubic
+        onFinished: {
+            root.historyNavigationAnimating = false
+            root.historyNavigationFast = false
+            root.historyPendingAction = ""
+        }
+    }
+
+    // Grow the card first, then reveal the complete graph as a single layer.
+    SequentialAnimation {
+        id: historyRevealAnimation
+        NumberAnimation {
+            target: root
+            property: "historyCardEntranceProgress"
+            from: 0
+            to: 1
+            duration: 340
+            easing.type: Easing.OutCubic
+        }
+        PauseAnimation { duration: 420 }
+        NumberAnimation {
+            target: root
+            property: "historyGraphEntranceProgress"
+            from: 0
+            to: 1
+            duration: 360
+            easing.type: Easing.OutCubic
+        }
+        NumberAnimation {
+            target: root
+            property: "historyLockHighlight"
+            from: 0
+            to: 1
+            duration: 55
+            easing.type: Easing.OutCubic
+        }
+        PauseAnimation { duration: 20 }
+        NumberAnimation {
+            target: root
+            property: "historyLockHighlight"
+            to: 0
+            duration: 145
+            easing.type: Easing.OutCubic
+        }
+    }
+
     Component.onCompleted: {
         dailyAnalyticsService.refreshToday()
         refreshCalendarData()
+        refreshHistoryChartData()
         loadSubjects()
         timerIntroProgress = 0
         timerPageEntrance.start()
@@ -630,10 +1085,10 @@ Item {
         id: pageContent
         anchors.fill: parent
         clip: true
-        layer.enabled: root.subjectDialogOpen
+        layer.enabled: root.subjectDialogOpen || root.deleteConfirmStage > 0
         layer.effect: MultiEffect {
-            blurEnabled: root.subjectDialogOpen
-            blur: root.subjectDialogOpen ? 0.9 : 0
+            blurEnabled: root.subjectDialogOpen || root.deleteConfirmStage > 0
+            blur: (root.subjectDialogOpen || root.deleteConfirmStage > 0) ? 0.9 : 0
             blurMax: 32
         }
 
@@ -746,14 +1201,22 @@ Item {
                         }
 
                         MouseArea {
-                            anchors.left: parent.left
-                            anchors.top: parent.top
-                            anchors.bottom: parent.bottom
-                            anchors.right: subjectTimerControl.left
-                            anchors.rightMargin: 4
+                            id: subjectBodyMouse
+                            anchors.fill: parent
+                            anchors.rightMargin: 2
+                            z: 1
+                            acceptedButtons: Qt.LeftButton | Qt.RightButton
                             hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
-                            onClicked: root.selectSubject(subjectData.id)
+                            onClicked: {
+                                if (mouse.button === Qt.RightButton) {
+                                    root.openSubjectContextMenu(
+                                                subjectData.id, subjectBodyMouse, mouse.x, mouse.y)
+                                } else {
+                                    root.subjectContextMenuOpen = false
+                                    root.selectSubject(subjectData.id)
+                                }
+                            }
                         }
 
                         Text {
@@ -798,9 +1261,18 @@ Item {
                             MouseArea {
                                 id: subjectTimerMouse
                                 anchors.fill: parent
+                                acceptedButtons: Qt.LeftButton | Qt.RightButton
                                 hoverEnabled: true
                                 cursorShape: Qt.PointingHandCursor
-                                onClicked: root.startSubjectTimer(subjectData.id)
+                                onClicked: {
+                                    if (mouse.button === Qt.RightButton) {
+                                        root.openSubjectContextMenu(
+                                                    subjectData.id, subjectTimerMouse, mouse.x, mouse.y)
+                                    } else {
+                                        root.subjectContextMenuOpen = false
+                                        root.startSubjectTimer(subjectData.id)
+                                    }
+                                }
                             }
 
                             ToolTip.visible: subjectTimerMouse.containsMouse
@@ -1574,7 +2046,7 @@ Item {
                     }
 
                     Behavior on color { ColorAnimation { duration: 180; easing.type: Easing.OutCubic } }
-                    Behavior on border.color { ColorAnimation { duration: 180; easing.type: Easing.OutCubic } }
+                    Behavior on border.color { ColorAnimation { duration: 100; easing.type: Easing.OutCubic } }
                 }
 
                 contentItem: Text {
@@ -1597,117 +2069,682 @@ Item {
         }
     }
 
-    // Only a slim strip of this independent card is visible initially.
+    // Focus history chart: daily totals, monthly totals, or hourly distribution.
     Rectangle {
-        id: dailyFocusedCard
+        id: weeklyHistoryCard
         x: (root.width - width) / 2
         anchors.verticalCenter: parent.verticalCenter
-        anchors.verticalCenterOffset: -8
-            + (root.dailyCardSettled
-               ? Math.sin(root.dailyCardCloudPhase * 2 * Math.PI) * 3 : 0)
-        width: 248
-        height: 178
-        radius: 16
-        scale: root.dailyCardExpanded ? 1.02 : 0.96
-        opacity: root.introProgress(0.32)
-        transform: [
-            Scale {
-                origin.x: dailyFocusedCard.width / 2
-                origin.y: dailyFocusedCard.height / 2
-                xScale: 0.96 + 0.04 * root.introProgress(0.32)
-                yScale: 0.96 + 0.04 * root.introProgress(0.32)
-            },
-            Translate {
-                y: (1 - root.introProgress(0.32)) * 14
-            },
-            Translate {
-                y: (2 - root.scrollSectionIndex) * root.height
-                Behavior on y {
-                    NumberAnimation { duration: 620; easing.type: Easing.InOutCubic }
-                }
-            }
-        ]
-        color: Qt.lighter(theme.surface, 1.0 + 0.11 * root.dailyCardCloudPhase)
-        border.color: Qt.lighter(theme.border, 1.0 + 0.06 * root.dailyCardCloudPhase)
+        anchors.verticalCenterOffset: -6
+        width: Math.min(1060, parent.width - 96)
+        height: Math.min(parent.height - 72, 620)
+        radius: 20
+        color: theme.surface
+        border.color: root.historyLockHighlight > 0
+                      ? Qt.rgba(theme.accent.r, theme.accent.g, theme.accent.b,
+                                root.historyLockHighlight * 0.38)
+                      : theme.border
+        Behavior on border.color { ColorAnimation { duration: 180; easing.type: Easing.OutCubic } }
         border.width: 1
+        clip: true
         z: 4
-
-        Behavior on x {
-            NumberAnimation {
-                duration: 900
-                easing.type: Easing.OutExpo
-            }
-        }
-        Behavior on scale {
-            NumberAnimation {
-                duration: 900
-                easing.type: Easing.OutExpo
+        visible: true
+        opacity: 1
+        scale: 0.78 + 0.22 * root.historyCardEntranceProgress
+        transform: Translate {
+            y: (2 - root.scrollSectionIndex) * root.height
+            Behavior on y {
+                NumberAnimation { duration: 620; easing.type: Easing.InOutCubic }
             }
         }
 
-        Column {
-            id: dailyCardContent
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.verticalCenter: parent.verticalCenter
-            anchors.leftMargin: 16
-            anchors.rightMargin: 16
-            spacing: 10
+        ColumnLayout {
+            anchors.fill: parent
+            anchors.leftMargin: 26
+            anchors.rightMargin: 26
+            anchors.topMargin: 20
+            anchors.bottomMargin: 16
+            spacing: 8
 
-            transform: Translate {
-                y: root.dailyCardSettled ? 0 : 8
-                Behavior on y {
-                    NumberAnimation {
-                        duration: 500
-                        easing.type: Easing.OutCubic
+            Item {
+                id: historyHeader
+                Layout.fillWidth: true
+                Layout.preferredHeight: 42
+
+                Text {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: Math.max(100, parent.width - historyPeriodDropdown.width - 18)
+                    elide: Text.ElideRight
+                    horizontalAlignment: Text.AlignHCenter
+                    text: root.historyHeading
+                    color: theme.accent
+                    font.pixelSize: 25
+                    font.weight: Font.DemiBold
+                }
+
+                Item {
+                    id: historyPeriodDropdown
+                    anchors.right: parent.right
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: 128
+                    height: 36
+                    z: 20
+
+                    Rectangle {
+                        anchors.fill: parent
+                        radius: 9
+                        color: historyPeriodButton.hovered ? theme.surface : theme.surfaceRaised
+                        border.color: historyPeriodButton.hovered || historyPeriodMenu.visible
+                                      ? theme.accent : theme.border
+                        border.width: 1
+
+                        Behavior on color { ColorAnimation { duration: 120 } }
+                    }
+
+                    Button {
+                        id: historyPeriodButton
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        text: root.historyPeriod === "weekly" ? "Weekly"
+                              : (root.historyPeriod === "monthly" ? "Monthly" : "Daily")
+                        background: Item {}
+                        contentItem: Row {
+                            anchors.fill: parent
+                            anchors.leftMargin: 12
+                            anchors.rightMargin: 10
+                            Text {
+                                anchors.verticalCenter: parent.verticalCenter
+                                text: historyPeriodButton.text
+                                color: theme.text
+                                font.pixelSize: 13
+                                font.weight: Font.DemiBold
+                                verticalAlignment: Text.AlignVCenter
+                            }
+                        }
+                        onClicked: root.toggleHistoryPeriodMenu()
+                    }
+
+                    Popup {
+                        id: historyPeriodMenu
+                        parent: Overlay.overlay
+                        x: root.historyMenuX
+                        y: root.historyMenuY
+                        width: historyPeriodDropdown.width
+                        padding: 4
+                        closePolicy: Popup.CloseOnPressOutside | Popup.CloseOnEscape
+                        modal: false
+                        focus: true
+                        z: 1000
+                        implicitHeight: historyPeriodMenuColumn.implicitHeight + padding * 2
+                        enter: Transition {
+                            NumberAnimation { property: "opacity"; from: 0; to: 1; duration: 120; easing.type: Easing.OutCubic }
+                        }
+                        exit: Transition {
+                            NumberAnimation { property: "opacity"; from: 1; to: 0; duration: 100; easing.type: Easing.OutCubic }
+                        }
+                        background: Rectangle {
+                            radius: 10
+                            color: theme.surfaceRaised
+                            border.color: theme.border
+                            border.width: 1
+                        }
+                        contentItem: Column {
+                            id: historyPeriodMenuColumn
+                            width: historyPeriodDropdown.width - historyPeriodMenu.padding * 2
+                            spacing: 2
+                            Repeater {
+                                model: [
+                                    { label: "Weekly", value: "weekly" },
+                                    { label: "Monthly", value: "monthly" },
+                                    { label: "Daily", value: "daily" }
+                                ]
+                                delegate: Rectangle {
+                                    required property var modelData
+                                    width: historyPeriodMenuColumn.width
+                                    height: 34
+                                    radius: 7
+                                    color: root.historyPeriod === modelData.value
+                                           ? Qt.rgba(theme.accent.r, theme.accent.g, theme.accent.b, 0.17)
+                                           : historyPeriodItemMouse.containsMouse
+                                             ? theme.surface : "transparent"
+                                    border.color: root.historyPeriod === modelData.value
+                                                   ? Qt.rgba(theme.accent.r, theme.accent.g, theme.accent.b, 0.45)
+                                                   : "transparent"
+                                    Behavior on color { ColorAnimation { duration: 100 } }
+                                    Text {
+                                        anchors.fill: parent
+                                        anchors.leftMargin: 10
+                                        text: modelData.label
+                                        color: root.historyPeriod === modelData.value ? theme.accent : theme.text
+                                        font.pixelSize: 12
+                                        font.weight: root.historyPeriod === modelData.value ? Font.DemiBold : Font.Normal
+                                        verticalAlignment: Text.AlignVCenter
+                                    }
+                                    MouseArea {
+                                        id: historyPeriodItemMouse
+                                        anchors.fill: parent
+                                        hoverEnabled: true
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: {
+                                            root.setHistoryPeriod(modelData.value)
+                                            historyPeriodMenu.close()
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
 
-            Text {
-                id: focusedTimeText
-                width: parent.width
-                height: 58
-                horizontalAlignment: Text.AlignHCenter
-                verticalAlignment: Text.AlignVCenter
-                text: root.formattedFocusedTime()
-                color: theme.text
-                font.pixelSize: 40
-                font.weight: Font.Light
-                minimumPixelSize: 28
-                fontSizeMode: Text.Fit
-                opacity: 0
-                Behavior on opacity {
-                    NumberAnimation {
-                        duration: 190
-                        easing.type: Easing.OutCubic
+            Item {
+                id: historyPlot
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                Layout.minimumHeight: 260
+                clip: true
+                opacity: root.historyGraphEntranceProgress
+                scale: 0.86 + 0.14 * root.historyGraphEntranceProgress
+
+                Canvas {
+                    id: historyCanvas
+                    anchors.fill: parent
+                    antialiasing: true
+                    transform: Translate { x: root.historyPlotDragOffset }
+
+                    readonly property real plotLeft: 66
+                    readonly property real plotTop: 14
+                    readonly property real plotRight: width - 12
+                    readonly property real plotBottom: height - 72
+                    readonly property real plotWidth: Math.max(1, plotRight - plotLeft)
+                    readonly property real plotHeight: Math.max(1, plotBottom - plotTop)
+
+                    function pointX(index) {
+                        if (root.historyPeriod === "daily")
+                            return plotLeft + ((index + 0.5) / 24) * plotWidth
+                        var pointCount = root.weeklyFocusPoints.length
+                        return plotLeft + index * plotWidth / Math.max(1, pointCount - 1)
+                    }
+
+                    function pointY(index) {
+                        var seconds = Number(root.weeklyFocusPoints[index]
+                                             ? root.weeklyFocusPoints[index].seconds : 0) || 0
+                        var hours = seconds / 3600
+                        return plotBottom - Math.min(root.weeklyYAxisMax, hours)
+                                / root.weeklyYAxisMax * plotHeight
+                    }
+
+                    onPaint: {
+                        var ctx = getContext("2d")
+                        ctx.clearRect(0, 0, width, height)
+
+                        var lineProgress = Math.max(0, Math.min(1, root.historyLineProgress))
+                        var axisProgress = Math.max(0, Math.min(1, root.historyAxisProgress))
+                        if (lineProgress <= 0 && axisProgress <= 0)
+                            return
+
+                        var left = plotLeft
+                        var right = plotRight
+                        var top = plotTop
+                        var bottom = plotBottom
+                        var graphWidth = plotWidth
+                        var graphHeight = plotHeight
+                        var visibleRight = left + graphWidth * axisProgress
+                        var visibleTop = bottom - graphHeight * axisProgress
+                        var pointCount = root.weeklyFocusPoints.length
+                        var accentR = Math.round(theme.accent.r * 255)
+                        var accentG = Math.round(theme.accent.g * 255)
+                        var accentB = Math.round(theme.accent.b * 255)
+                        var accentCss = "rgb(" + accentR + "," + accentG + "," + accentB + ")"
+                        var gridCss = String(theme.border)
+                        var labelCss = String(theme.mutedText)
+                        var baseline = String(theme.text)
+
+                        // Grid appears from the graph's origin only after the line has drawn.
+                        if (axisProgress > 0) {
+                            ctx.lineWidth = 1
+                            ctx.font = "12px Sansation"
+                            ctx.textAlign = "right"
+                            ctx.textBaseline = "middle"
+
+                            for (var tick = 0; tick <= root.weeklyYAxisMax; ++tick) {
+                                var y = bottom - tick / root.weeklyYAxisMax * graphHeight
+                                if (y < visibleTop - 1)
+                                    continue
+
+                                ctx.beginPath()
+                                ctx.strokeStyle = gridCss
+                                ctx.globalAlpha = (tick === 0 ? 0.72 : 0.42) * axisProgress
+                                for (var dashX = left; dashX < visibleRight; dashX += 12) {
+                                    ctx.moveTo(dashX, y)
+                                    ctx.lineTo(Math.min(visibleRight, dashX + 5), y)
+                                }
+                                ctx.stroke()
+                                ctx.globalAlpha = axisProgress * 0.72
+                                ctx.fillStyle = tick === 0 ? baseline : labelCss
+                                ctx.fillText(tick === 0 ? "0 min" : tick + "h", left - 12, y)
+                                ctx.globalAlpha = 1
+                            }
+
+                            // Both axes grow from the exact same bottom-left origin.
+                            ctx.beginPath()
+                            ctx.strokeStyle = baseline
+                            ctx.globalAlpha = 0.82 * axisProgress
+                            ctx.lineWidth = 1.4
+                            ctx.moveTo(left, bottom)
+                            ctx.lineTo(left, visibleTop)
+                            ctx.moveTo(left, bottom)
+                            ctx.lineTo(visibleRight, bottom)
+                            ctx.stroke()
+                            ctx.globalAlpha = 1
+                            ctx.lineWidth = 1
+
+                            // Subtle axis descriptors.
+                            ctx.save()
+                            ctx.globalAlpha = axisProgress * 0.64
+                            ctx.fillStyle = labelCss
+                            ctx.font = "11px Sansation"
+                            ctx.textAlign = "center"
+                            ctx.textBaseline = "middle"
+                            ctx.translate(15, top + graphHeight / 2)
+                            ctx.rotate(-Math.PI / 2)
+                            ctx.fillText("hours", 0, 0)
+                            ctx.restore()
+
+                            ctx.globalAlpha = axisProgress * 0.64
+                            ctx.font = "11px Sansation"
+                            ctx.textAlign = "center"
+                            ctx.textBaseline = "top"
+                            ctx.fillStyle = labelCss
+                            ctx.fillText(root.historyPeriod === "daily" ? "Time of day" : "days",
+                                         left + graphWidth / 2, bottom + 37)
+                            ctx.globalAlpha = 1
+
+                            if (root.historyPeriod === "daily") {
+                                // 24-hour scale with subtle guide marks every four hours.
+                                ctx.font = "11px Sansation"
+                                ctx.textAlign = "center"
+                                ctx.textBaseline = "top"
+                                ctx.fillStyle = labelCss
+                                for (var hourTick = 0; hourTick <= 24; hourTick += 4) {
+                                    var tickX = left + hourTick / 24 * graphWidth
+                                    if (tickX > visibleRight + 1)
+                                        continue
+                                    ctx.beginPath()
+                                    ctx.globalAlpha = 0.32 * axisProgress
+                                    for (var verticalDash = visibleTop; verticalDash < bottom; verticalDash += 12) {
+                                        ctx.moveTo(tickX, verticalDash)
+                                        ctx.lineTo(tickX, Math.min(bottom, verticalDash + 4))
+                                    }
+                                    ctx.strokeStyle = gridCss
+                                    ctx.stroke()
+                                    ctx.globalAlpha = axisProgress * 0.72
+                                    ctx.fillText(String(hourTick), tickX, bottom + 12)
+                                    ctx.globalAlpha = 1
+                                }
+                            }
+                        }
+
+                        if (pointCount > 0 && lineProgress > 0) {
+                            // The data line completes about one second before the axes begin.
+                            var travel = lineProgress * (pointCount - 1)
+                            var lastFullIndex = Math.min(pointCount - 1, Math.floor(travel))
+                            var partialFraction = travel - lastFullIndex
+                            var pathPoints = []
+                            for (var pathIndex = 0; pathIndex <= lastFullIndex; ++pathIndex)
+                                pathPoints.push({ x: pointX(pathIndex), y: pointY(pathIndex) })
+
+                            if (lastFullIndex < pointCount - 1 && partialFraction > 0) {
+                                var nextX = pointX(lastFullIndex + 1)
+                                var nextY = pointY(lastFullIndex + 1)
+                                var lastPoint = pathPoints[pathPoints.length - 1]
+                                pathPoints.push({
+                                    x: lastPoint.x + (nextX - lastPoint.x) * partialFraction,
+                                    y: lastPoint.y + (nextY - lastPoint.y) * partialFraction
+                                })
+                            }
+
+                            if (pathPoints.length > 1) {
+                                ctx.beginPath()
+                                ctx.moveTo(pathPoints[0].x, bottom)
+                                for (var fillIndex = 0; fillIndex < pathPoints.length; ++fillIndex)
+                                    ctx.lineTo(pathPoints[fillIndex].x, pathPoints[fillIndex].y)
+                                ctx.lineTo(pathPoints[pathPoints.length - 1].x, bottom)
+                                ctx.closePath()
+                                ctx.fillStyle = "rgba(" + accentR + "," + accentG + "," + accentB + ",0.11)"
+                                ctx.fill()
+                            }
+
+                            ctx.beginPath()
+                            ctx.moveTo(pathPoints[0].x, pathPoints[0].y)
+                            for (var lineIndex = 1; lineIndex < pathPoints.length; ++lineIndex)
+                                ctx.lineTo(pathPoints[lineIndex].x, pathPoints[lineIndex].y)
+                            ctx.strokeStyle = accentCss
+                            ctx.lineWidth = 3
+                            ctx.lineCap = "round"
+                            ctx.lineJoin = "round"
+                            ctx.stroke()
+
+                            for (var pointIndex = 0; pointIndex <= lastFullIndex; ++pointIndex) {
+                                ctx.beginPath()
+                                ctx.arc(pointX(pointIndex), pointY(pointIndex), 4.5, 0, Math.PI * 2)
+                                ctx.fillStyle = accentCss
+                                ctx.fill()
+                            }
+                            if (lineProgress < 1 && pathPoints.length > 1) {
+                                var tip = pathPoints[pathPoints.length - 1]
+                                ctx.beginPath()
+                                ctx.arc(tip.x, tip.y, 4, 0, Math.PI * 2)
+                                ctx.fillStyle = accentCss
+                                ctx.fill()
+                            }
+
+                            // X-axis day labels emerge with the axes, not during line drawing.
+                            if (axisProgress > 0 && root.historyPeriod !== "daily") {
+                                ctx.textAlign = "center"
+                                ctx.textBaseline = "top"
+                                ctx.fillStyle = labelCss
+                                ctx.font = root.historyPeriod === "monthly" ? "10px Sansation" : "13px Sansation"
+                                ctx.globalAlpha = axisProgress * 0.84
+                                for (var labelIndex = 0; labelIndex < pointCount; ++labelIndex) {
+                                    var dayPoint = root.weeklyFocusPoints[labelIndex]
+                                    if (pointX(labelIndex) <= visibleRight + 2)
+                                        ctx.fillText(String(dayPoint.label), pointX(labelIndex), bottom + 12)
+                                }
+                                ctx.globalAlpha = 1
+                            }
+                        }
+                    }                    Connections {
+                        target: root
+                        function onWeeklyFocusPointsChanged() { historyCanvas.requestPaint() }
+                        function onWeeklyYAxisMaxChanged() { historyCanvas.requestPaint() }
+                        function onHistoryLineProgressChanged() { historyCanvas.requestPaint() }
+                        function onHistoryAxisProgressChanged() { historyCanvas.requestPaint() }
+                    }
+                    Connections {
+                        target: theme
+                        function onAccentChanged() { historyCanvas.requestPaint() }
+                        function onBorderChanged() { historyCanvas.requestPaint() }
+                        function onMutedTextChanged() { historyCanvas.requestPaint() }
+                        function onTextChanged() { historyCanvas.requestPaint() }
+                    }
+                }
+
+                DragHandler {
+                    id: historyHorizontalSwipe
+                    target: null
+                    acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchScreen
+                                     | PointerDevice.Stylus
+                    dragThreshold: 10
+                    xAxis.enabled: true
+                    yAxis.enabled: false
+                    property real capturedSwipeX: 0
+
+                    onActiveChanged: {
+                        if (active) {
+                            capturedSwipeX = 0
+                            root.historyPlotDragOffset = 0
+                            return
+                        }
+                        var delta = capturedSwipeX
+                        capturedSwipeX = 0
+                        if (Math.abs(delta) >= historyPlot.width * 0.14) {
+                            root.requestHistoryNavigation(delta < 0 ? 1 : -1, false, false)
+                        } else {
+                            historyPlotSnapBack.restart()
+                        }
+                    }
+
+                    onActiveTranslationChanged: {
+                        if (active) {
+                            capturedSwipeX = activeTranslation.x
+                            root.historyPlotDragOffset = Math.max(
+                                        -historyPlot.width * 0.78,
+                                        Math.min(historyPlot.width * 0.78, activeTranslation.x))
+                        }
+                    }
+                }
+
+                // Horizontal two-finger trackpad scrolling produces wheel deltas rather than a drag.
+                WheelHandler {
+                    id: historyHorizontalWheel
+                    acceptedDevices: PointerDevice.TouchPad | PointerDevice.Mouse
+                    orientation: Qt.Horizontal
+                    onWheel: function(event) {
+                        var amount = event.pixelDelta.x !== 0
+                                     ? event.pixelDelta.x : event.angleDelta.x
+                        if (amount === 0)
+                            return
+                        root.historyWheelDelta += amount
+                        if (root.historyNavigationAnimating) {
+                            root.historyWheelDelta = 0
+                            event.accepted = true
+                            return
+                        }
+                        if (Math.abs(root.historyWheelDelta) >= 42
+                                && !historyWheelCooldown.running) {
+                            var direction = root.historyWheelDelta < 0 ? 1 : -1
+                            root.historyWheelDelta = 0
+                            root.requestHistoryNavigation(direction, false, false)
+                            historyWheelCooldown.start()
+                        }
+                        event.accepted = true
+                    }
+                }
+
+                Rectangle {
+                    id: historyLockHighlightOverlay
+                    anchors.fill: parent
+                    transform: Translate { x: root.historyPlotDragOffset }
+                    z: 3
+                    enabled: false
+                    radius: 8
+                    color: Qt.rgba(theme.accent.r, theme.accent.g, theme.accent.b,
+                                   root.historyLockHighlight * 0.025)
+                    border.color: Qt.rgba(theme.accent.r, theme.accent.g, theme.accent.b,
+                                          root.historyLockHighlight * 0.32)
+                    border.width: 1
+                }
+
+                MouseArea {
+                    id: historyHoverMouse
+                    anchors.fill: parent
+                    z: 5
+                    acceptedButtons: Qt.NoButton
+                    hoverEnabled: true
+                    enabled: root.historyLineProgress >= 0.999
+                             && root.historyAxisProgress >= 0.999
+                             && !root.historyNavigationAnimating
+                             && Math.abs(root.historyPlotDragOffset) < 0.5
+                    cursorShape: root.hoveredWeeklyPointIndex >= 0
+                                 ? Qt.PointingHandCursor : Qt.ArrowCursor
+
+                    function updateHoveredPoint(mouseX, mouseY) {
+                        var nearestIndex = -1
+                        var nearestDistanceSquared = 19 * 19
+                        for (var i = 0; i < root.weeklyFocusPoints.length; ++i) {
+                            var dx = mouseX - historyCanvas.pointX(i)
+                            var dy = mouseY - historyCanvas.pointY(i)
+                            var distanceSquared = dx * dx + dy * dy
+                            if (distanceSquared < nearestDistanceSquared) {
+                                nearestDistanceSquared = distanceSquared
+                                nearestIndex = i
+                            }
+                        }
+                        // Keep the tooltip just above the live cursor. This moves only
+                        // lightweight QML items; it never invalidates the Canvas.
+                        root.historyHoverX = mouseX
+                        root.historyHoverY = mouseY
+                        if (nearestIndex !== root.hoveredWeeklyPointIndex)
+                            root.hoveredWeeklyPointIndex = nearestIndex
+                    }
+
+                    onPositionChanged: function(mouse) {
+                        updateHoveredPoint(mouse.x, mouse.y)
+                    }
+                    onEntered: {
+                        updateHoveredPoint(mouseX, mouseY)
+                    }
+                    onExited: root.hoveredWeeklyPointIndex = -1
+                }
+
+                // Hover decoration is pointer-transparent and does not redraw the Canvas.
+                Rectangle {
+                    id: historyHoveredPointGlow
+                    z: 4
+                    transform: Translate { x: root.historyPlotDragOffset }
+                    enabled: false
+                    width: 30
+                    height: 30
+                    radius: 15
+                    color: Qt.rgba(theme.accent.r, theme.accent.g, theme.accent.b, 0.16)
+                    border.color: Qt.rgba(theme.accent.r, theme.accent.g, theme.accent.b, 0.42)
+                    border.width: 1
+                    visible: root.hoveredWeeklyPointIndex >= 0 && root.hoveredWeeklyPointIndex < root.weeklyFocusPoints.length
+                    x: visible ? historyCanvas.pointX(root.hoveredWeeklyPointIndex) - width / 2 : 0
+                    y: visible ? historyCanvas.pointY(root.hoveredWeeklyPointIndex) - height / 2 : 0
+                    opacity: visible ? 1 : 0
+                }
+
+                Rectangle {
+                    id: historyHoveredPointDot
+                    z: 6
+                    transform: Translate { x: root.historyPlotDragOffset }
+                    enabled: false
+                    width: 16
+                    height: 16
+                    radius: 8
+                    color: theme.accent
+                    opacity: root.hoveredWeeklyPointIndex >= 0 ? 1 : 0
+                    visible: opacity > 0.01
+                    x: visible ? historyCanvas.pointX(root.hoveredWeeklyPointIndex) - width / 2 : 0
+                    y: visible ? historyCanvas.pointY(root.hoveredWeeklyPointIndex) - height / 2 : 0
+                    Behavior on opacity { NumberAnimation { duration: 100; easing.type: Easing.OutCubic } }
+                }
+
+                Rectangle {
+                    id: historyHoverTooltip
+                    z: 8
+                    transform: Translate { x: root.historyPlotDragOffset }
+                    enabled: false
+                    visible: root.hoveredWeeklyPointIndex >= 0
+                             && root.hoveredWeeklyPointIndex < root.weeklyFocusPoints.length
+                    width: 156
+                    height: 58
+                    radius: 10
+                    color: theme.surfaceRaised
+                    border.color: theme.accent
+                    border.width: 1
+                    x: Math.max(6, Math.min(historyPlot.width - width - 6,
+                                             root.historyHoverX - width / 2))
+                    y: Math.max(4, root.historyHoverY - height - 14)
+
+                    Column {
+                        anchors.fill: parent
+                        anchors.leftMargin: 12
+                        anchors.rightMargin: 10
+                        anchors.topMargin: 9
+                        anchors.bottomMargin: 8
+                        spacing: 3
+                        Text {
+                            width: parent.width
+                            text: {
+                                if (root.hoveredWeeklyPointIndex < 0
+                                        || root.hoveredWeeklyPointIndex >= root.weeklyFocusPoints.length)
+                                    return ""
+                                var point = root.weeklyFocusPoints[root.hoveredWeeklyPointIndex]
+                                if (root.historyPeriod === "daily")
+                                    return (point.hour < 10 ? "0" : "") + point.hour
+                                            + ":00 – " + (point.hour + 1) + ":00"
+                                return point.weekday + ", " + point.day
+                            }
+                            color: theme.mutedText
+                            font.pixelSize: 11
+                        }
+                        Text {
+                            width: parent.width
+                            text: root.hoveredWeeklyPointIndex >= 0
+                                  && root.hoveredWeeklyPointIndex < root.weeklyFocusPoints.length
+                                  ? root.formatWeeklyDuration(root.weeklyFocusPoints[root.hoveredWeeklyPointIndex].seconds)
+                                  : ""
+                            color: theme.text
+                            font.pixelSize: 15
+                            font.weight: Font.DemiBold
+                        }
                     }
                 }
             }
+        }
+    }
 
-            Rectangle {
-                x: 12
-                width: parent.width - 24
-                height: 1
-                color: Qt.lighter(theme.border, 1.0 + 0.06 * root.dailyCardCloudPhase)
-                opacity: focusedTimeText.opacity
-                Behavior on opacity {
-                    NumberAnimation { duration: 190; easing.type: Easing.OutCubic }
-                }
+
+    // Navigation is outside the graph card but moves with the same page transition.
+    Item {
+        id: historyPeriodNavigation
+        x: (root.width - width) / 2
+        anchors.verticalCenter: parent.verticalCenter
+        anchors.verticalCenterOffset: weeklyHistoryCard.height / 2 + 22
+        width: 142
+        height: 40
+        z: 10
+        visible: root.scrollSectionIndex >= 1
+        opacity: root.historyCardEntranceProgress
+        transform: Translate {
+            y: (2 - root.scrollSectionIndex) * root.height
+            Behavior on y {
+                NumberAnimation { duration: 620; easing.type: Easing.InOutCubic }
             }
+        }
 
-            Text {
-                id: focusedDateText
-                width: parent.width
-                horizontalAlignment: Text.AlignHCenter
-                text: root.formattedDate()
-                color: theme.mutedText
-                font.pixelSize: 13
-                opacity: 0
-                Behavior on opacity {
-                    NumberAnimation {
-                        duration: 260
-                        easing.type: Easing.OutCubic
+        Row {
+            anchors.fill: parent
+            spacing: 7
+
+            Repeater {
+                model: [
+                    { label: "<", action: "previous" },
+                    { label: "", action: "today" },
+                    { label: ">", action: "next" }
+                ]
+
+                delegate: Rectangle {
+                    required property var modelData
+                    width: 42
+                    height: 40
+                    radius: 10
+                    color: historyNavigationMouse.containsMouse
+                           ? Qt.rgba(theme.accent.r, theme.accent.g, theme.accent.b, 0.16)
+                           : theme.surfaceRaised
+                    border.color: historyNavigationMouse.containsMouse ? theme.accent : theme.border
+                    border.width: historyNavigationMouse.containsMouse ? 1.4 : 1
+                    Behavior on color { ColorAnimation { duration: 120 } }
+                    Behavior on border.color { ColorAnimation { duration: 120 } }
+
+                    Text {
+                        anchors.centerIn: parent
+                        text: modelData.label
+                        color: historyNavigationMouse.containsMouse ? theme.accent : theme.text
+                        font.pixelSize: modelData.action === "today" ? 14 : 19
+                        font.weight: modelData.action === "today" ? Font.DemiBold : Font.Medium
+                    }
+
+                    MouseArea {
+                        id: historyNavigationMouse
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: {
+                            if (modelData.action === "previous") {
+                                root.requestHistoryNavigation(-1, true, false)
+                            } else if (modelData.action === "next") {
+                                root.requestHistoryNavigation(1, true, false)
+                            } else if (!root.historyPeriodIsCurrent()) {
+                                var reference = new Date(root.historyReferenceDate)
+                                var today = new Date()
+                                var direction = reference.getTime() < today.getTime() ? 1 : -1
+                                root.requestHistoryNavigation(direction, true, true)
+                            }
+                        }
                     }
                 }
             }
@@ -1772,19 +2809,21 @@ Item {
 
         MouseArea {
             anchors.fill: parent
+            z: -1
+            acceptedButtons: Qt.AllButtons
             onClicked: { /* Keep the form open until Add or Cancel is chosen. */ }
         }
 
         Rectangle {
             id: subjectModal
             anchors.centerIn: parent
+            z: 1
             width: Math.min(440, parent.width - 36)
             height: 426
             radius: 18
             color: theme.surfaceRaised
             border.color: theme.border
             border.width: 1
-            z: 1
 
             ColumnLayout {
                 anchors.fill: parent
@@ -1792,7 +2831,7 @@ Item {
                 spacing: 10
 
                 Text {
-                    text: "Add a subject"
+                    text: root.editingSubjectId.length > 0 ? "Edit subject" : "Add a subject"
                     color: theme.text
                     font.pixelSize: 22
                     font.weight: Font.DemiBold
@@ -1919,17 +2958,22 @@ Item {
                     Item { Layout.fillWidth: true }
 
                     Button {
+                        id: cancelSubjectEditButton
                         text: "Cancel"
                         Layout.preferredWidth: 100
                         Layout.preferredHeight: 42
+                        hoverEnabled: true
                         onClicked: root.closeSubjectDialog()
                         background: Rectangle {
                             radius: 9
-                            color: parent.hovered ? theme.border : theme.surface
-                            border.color: theme.border
+                            color: cancelSubjectEditButton.hovered ? theme.border : theme.surface
+                            border.color: cancelSubjectEditButton.hovered ? theme.accent : theme.border
+                            border.width: cancelSubjectEditButton.hovered ? 1.5 : 1
+                            Behavior on color { ColorAnimation { duration: 120 } }
+                            Behavior on border.color { ColorAnimation { duration: 120 } }
                         }
                         contentItem: Text {
-                            text: parent.text
+                            text: cancelSubjectEditButton.text
                             color: theme.text
                             font.pixelSize: 12
                             font.weight: Font.DemiBold
@@ -1939,20 +2983,242 @@ Item {
                     }
 
                     Button {
-                        text: "Add"
-                        Layout.preferredWidth: 100
+                        id: saveSubjectButton
+                        text: root.editingSubjectId.length > 0 ? "Save changes" : "Add"
+                        Layout.preferredWidth: root.editingSubjectId.length > 0 ? 124 : 100
                         Layout.preferredHeight: 42
+                        hoverEnabled: true
                         enabled: root.newSubjectName.trim().length > 0
                                  && root.newSubjectGoal.trim().length > 0
                                  && Number(root.newSubjectGoal) > 0
                         onClicked: root.addSubject()
                         background: Rectangle {
                             radius: 9
-                            color: parent.enabled ? theme.accent : theme.border
+                            color: !saveSubjectButton.enabled ? theme.border
+                                   : saveSubjectButton.hovered ? Qt.darker(theme.accent, 1.12)
+                                   : theme.accent
+                            border.color: saveSubjectButton.hovered ? theme.text : theme.accent
+                            border.width: saveSubjectButton.hovered ? 1.2 : 1
+                            Behavior on color { ColorAnimation { duration: 120 } }
+                            Behavior on border.color { ColorAnimation { duration: 120 } }
                         }
                         contentItem: Text {
-                            text: parent.text
-                            color: parent.enabled ? theme.accentText : theme.mutedText
+                            text: saveSubjectButton.text
+                            color: saveSubjectButton.enabled ? theme.accentText : theme.mutedText
+                            font.pixelSize: 12
+                            font.weight: Font.DemiBold
+                            horizontalAlignment: Text.AlignHCenter
+                            verticalAlignment: Text.AlignVCenter
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    Item {
+        id: subjectContextDismissLayer
+        anchors.fill: parent
+        z: 119
+        opacity: root.subjectContextMenuOpen ? 1 : 0
+        visible: root.subjectContextMenuOpen || opacity > 0.01
+        enabled: root.subjectContextMenuOpen
+        Behavior on opacity { NumberAnimation { duration: 130; easing.type: Easing.OutCubic } }
+        MouseArea {
+            anchors.fill: parent
+            acceptedButtons: Qt.AllButtons
+            onClicked: root.subjectContextMenuOpen = false
+        }
+    }
+
+    Rectangle {
+        id: subjectContextMenu
+        x: root.subjectContextMenuX
+        y: root.subjectContextMenuY
+        width: 168
+        height: 96
+        radius: 12
+        color: theme.surfaceRaised
+        border.color: theme.border
+        border.width: 1
+        z: 120
+        transformOrigin: Item.TopLeft
+        scale: root.subjectContextMenuOpen ? 1 : 0.92
+        opacity: root.subjectContextMenuOpen ? 1 : 0
+        visible: root.subjectContextMenuOpen || opacity > 0.01
+        Behavior on scale { NumberAnimation { duration: 170; easing.type: Easing.OutBack } }
+        Behavior on opacity { NumberAnimation { duration: 130; easing.type: Easing.OutCubic } }
+
+        Column {
+            anchors.fill: parent
+            anchors.margins: 6
+            spacing: 4
+            z: 1
+            Repeater {
+                model: [
+                    { label: "Edit", action: "edit" },
+                    { label: "Delete", action: "delete" }
+                ]
+                delegate: Rectangle {
+                    required property var modelData
+                    width: parent.width
+                    height: 37
+                    radius: 7
+                    color: contextActionMouse.containsMouse
+                           ? (modelData.action === "delete"
+                              ? Qt.rgba(0.82, 0.20, 0.20, 0.16)
+                              : Qt.rgba(theme.accent.r, theme.accent.g, theme.accent.b, 0.16))
+                           : "transparent"
+                    z: 1
+                    Text {
+                        anchors.left: parent.left
+                        anchors.leftMargin: 11
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: modelData.label
+                        color: modelData.action === "delete" ? "#E06C6C" : theme.text
+                        font.pixelSize: 13
+                        font.weight: Font.Medium
+                    }
+                    MouseArea {
+                        id: contextActionMouse
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: {
+                            var targetId = root.contextMenuSubjectId
+                            root.subjectContextMenuOpen = false
+                            if (modelData.action === "edit") {
+                                root.openEditSubjectDialog(targetId)
+                            } else {
+                                root.requestSubjectDelete()
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    Timer {
+        id: deleteConfirmReopenTimer
+        interval: 190
+        repeat: false
+        onTriggered: {
+            if (root.secondDeleteConfirmationPending) {
+                root.secondDeleteConfirmationPending = false
+                root.deleteConfirmStage = 2
+            }
+        }
+    }
+
+    Rectangle {
+        id: deleteConfirmOverlay
+        anchors.fill: parent
+        z: 130
+        color: "#99000000"
+        opacity: root.deleteConfirmStage > 0 ? 1 : 0
+        visible: root.deleteConfirmStage > 0 || opacity > 0.01
+        enabled: root.deleteConfirmStage > 0 || root.secondDeleteConfirmationPending
+        Behavior on opacity { NumberAnimation { duration: 170; easing.type: Easing.OutCubic } }
+
+        MouseArea {
+            anchors.fill: parent
+            z: -1
+            acceptedButtons: Qt.AllButtons
+            onClicked: { /* Confirmation remains open until an explicit choice is made. */ }
+        }
+
+        Rectangle {
+            id: deleteConfirmCard
+            anchors.centerIn: parent
+            z: 1
+            width: Math.min(410, parent.width - 36)
+            height: deleteConfirmText.implicitHeight + (root.subjectDeleteError.length > 0 ? 160 : 130)
+            radius: 17
+            color: theme.surfaceRaised
+            border.color: theme.border
+            border.width: 1
+            scale: root.deleteConfirmStage > 0 ? 1 : 0.94
+            Behavior on scale { NumberAnimation { duration: 200; easing.type: Easing.OutBack } }
+
+            ColumnLayout {
+                id: deleteConfirmText
+                anchors.fill: parent
+                anchors.margins: 24
+                spacing: 11
+
+                Text {
+                    Layout.fillWidth: true
+                    text: root.deleteConfirmStage === 2 ? "ARE YOU SURE??" : "Are you sure?"
+                    color: root.deleteConfirmStage === 2 ? "#F06A6A" : theme.text
+                    font.pixelSize: root.deleteConfirmStage === 2 ? 22 : 20
+                    font.weight: Font.Bold
+                    wrapMode: Text.WordWrap
+                }
+                Text {
+                    Layout.fillWidth: true
+                    text: root.deleteConfirmStage === 2
+                          ? "This will permanently delete this subject and cannot be undone."
+                          : "Do you really want to delete this subject?"
+                    color: theme.mutedText
+                    font.pixelSize: 13
+                    wrapMode: Text.WordWrap
+                }
+                Text {
+                    Layout.fillWidth: true
+                    visible: root.subjectDeleteError.length > 0
+                    text: root.subjectDeleteError
+                    color: "#F19A9A"
+                    font.pixelSize: 11
+                    wrapMode: Text.WordWrap
+                }
+                Item { Layout.fillHeight: true; Layout.minimumHeight: 0 }
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 9
+                    Item { Layout.fillWidth: true }
+                    Button {
+                        id: cancelDeleteButton
+                        text: "Cancel"
+                        Layout.preferredWidth: 94
+                        Layout.preferredHeight: 40
+                        hoverEnabled: true
+                        onClicked: root.cancelSubjectDelete()
+                        background: Rectangle {
+                            radius: 9
+                            color: cancelDeleteButton.hovered ? theme.border : theme.surface
+                            border.color: cancelDeleteButton.hovered ? theme.accent : theme.border
+                            border.width: cancelDeleteButton.hovered ? 1.5 : 1
+                            Behavior on color { ColorAnimation { duration: 120 } }
+                            Behavior on border.color { ColorAnimation { duration: 120 } }
+                        }
+                        contentItem: Text {
+                            text: cancelDeleteButton.text
+                            color: theme.text
+                            font.pixelSize: 12
+                            font.weight: Font.Medium
+                            horizontalAlignment: Text.AlignHCenter
+                            verticalAlignment: Text.AlignVCenter
+                        }
+                    }
+                    Button {
+                        id: confirmDeleteButton
+                        text: root.deleteConfirmStage === 2 ? "Delete forever" : "Yes, continue"
+                        Layout.preferredWidth: root.deleteConfirmStage === 2 ? 132 : 116
+                        Layout.preferredHeight: 40
+                        hoverEnabled: true
+                        onClicked: root.confirmSubjectDelete()
+                        background: Rectangle {
+                            radius: 9
+                            color: confirmDeleteButton.hovered ? "#B93636" : "#C74747"
+                            border.color: confirmDeleteButton.hovered ? "#FF8585" : "#C74747"
+                            border.width: confirmDeleteButton.hovered ? 1.5 : 1
+                            Behavior on color { ColorAnimation { duration: 120 } }
+                            Behavior on border.color { ColorAnimation { duration: 120 } }
+                        }
+                        contentItem: Text {
+                            text: confirmDeleteButton.text
+                            color: "#FFFFFF"
                             font.pixelSize: 12
                             font.weight: Font.DemiBold
                             horizontalAlignment: Text.AlignHCenter

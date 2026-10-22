@@ -12,7 +12,13 @@ Item {
     signal settingsRequested()
     signal fullscreenRequested()
     property bool bannerOpen: false
-    Theme { id: theme }
+    property bool lightMode: false
+    property string accentColor: "#8CBFFF"
+    Theme {
+        id: theme
+        lightMode: root.lightMode
+        accent: root.accentColor
+    }
 
     Layout.fillWidth: true
     Layout.preferredHeight: 0
@@ -203,7 +209,7 @@ Item {
                 layer.effect: MultiEffect {
                     brightness: 1.0
                     colorization: 1.0
-                    colorizationColor: "white"
+                    colorizationColor: theme.text
                 }
             }
 

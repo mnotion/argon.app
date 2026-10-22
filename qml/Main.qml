@@ -18,7 +18,17 @@ ApplicationWindow {
     flags: Qt.Window | Qt.FramelessWindowHint
     color: "transparent"
 
-    Theme { id: theme }
+    // Rounded corners are used only while windowed. Maximized and fullscreen
+    // states must fill the monitor with square corners and no inset border.
+    readonly property bool squareWindowCorners:
+        window.visibility === Window.Maximized || window.visibility === Window.FullScreen
+    readonly property real windowCornerRadius: squareWindowCorners ? 0 : 16
+
+    Theme {
+        id: theme
+        lightMode: window.lightMode
+        accent: window.accentColor
+    }
     TimerController { id: timerControllerInstance }
     property string activePage: "Search"
     property bool settingsOpen: false
@@ -31,6 +41,11 @@ ApplicationWindow {
     property string demoUsername: ""
     property string profileMessage: ""
     property bool lightMode: false
+    property string accentColor: "#8CBFFF"
+    readonly property var accentPalette: [
+        "#8CBFFF", "#58A6FF", "#9B8AFB", "#D98CEB", "#F18AAB",
+        "#F28C6B", "#F2C14E", "#8CCF7E", "#4CC9B0", "#8A99A8"
+    ]
     property bool searchCaseSensitive: false
     property bool searchIncludeHidden: false
     property bool timerSoundEnabled: true
@@ -54,6 +69,9 @@ ApplicationWindow {
         window.settingsLoaded = false
 
         window.lightMode = appSettingsService.value("preferences.lightMode", false)
+        var storedAccent = String(appSettingsService.value("preferences.accentColor", "#8CBFFF"))
+        window.accentColor = window.accentPalette.indexOf(storedAccent) >= 0
+                ? storedAccent : "#8CBFFF"
         window.searchCaseSensitive = appSettingsService.value("preferences.searchCaseSensitive", false)
         window.searchIncludeHidden = appSettingsService.value("preferences.searchIncludeHidden", false)
         window.timerSoundEnabled = appSettingsService.value("preferences.timerSoundEnabled", true)
@@ -72,6 +90,7 @@ ApplicationWindow {
             return
 
         appSettingsService.setValue("preferences.lightMode", window.lightMode)
+        appSettingsService.setValue("preferences.accentColor", String(window.accentColor))
         appSettingsService.setValue("preferences.searchCaseSensitive", window.searchCaseSensitive)
         appSettingsService.setValue("preferences.searchIncludeHidden", window.searchIncludeHidden)
         appSettingsService.setValue("preferences.timerSoundEnabled", window.timerSoundEnabled)
@@ -130,6 +149,7 @@ ApplicationWindow {
         }
     }
     onLightModeChanged: window.persistSetting("preferences.lightMode", window.lightMode)
+    onAccentColorChanged: window.persistSetting("preferences.accentColor", String(window.accentColor))
     onSearchCaseSensitiveChanged: window.persistSetting("preferences.searchCaseSensitive", window.searchCaseSensitive)
     onSearchIncludeHiddenChanged: window.persistSetting("preferences.searchIncludeHidden", window.searchIncludeHidden)
     onTimerSoundEnabledChanged: window.persistSetting("preferences.timerSoundEnabled", window.timerSoundEnabled)
@@ -179,10 +199,10 @@ ApplicationWindow {
     Rectangle {
         id: windowSurface
         anchors.fill: parent
-        radius: window.visibility === Window.FullScreen ? 0 : 16
+        radius: window.windowCornerRadius
         color: theme.window
-        border.color: window.visibility === Window.FullScreen ? "transparent" : theme.border
-        border.width: window.visibility === Window.FullScreen ? 0 : 1
+        border.color: window.squareWindowCorners ? "transparent" : theme.border
+        border.width: window.squareWindowCorners ? 0 : 1
         antialiasing: true
         z: -2
     }
@@ -210,7 +230,7 @@ ApplicationWindow {
         z: 150
         radius: 14
         visible: window.settingsOpen || x < window.width
-        color: Qt.rgba(0.12, 0.12, 0.12, 0.48)
+        color: Qt.rgba(theme.surfaceRaised.r, theme.surfaceRaised.g, theme.surfaceRaised.b, 0.97)
         border.color: theme.border
         border.width: 1
         clip: false
@@ -269,8 +289,41 @@ ApplicationWindow {
             Rectangle { Layout.fillWidth: true; height: 1; color: theme.border }
             RowLayout {
                 Layout.fillWidth: true
-                Text { Layout.fillWidth: true; text: "Light theme"; color: theme.text; font.pixelSize: 13 }
+                Text { Layout.fillWidth: true; text: "Light mode"; color: theme.text; font.pixelSize: 13 }
                 Switch { checked: window.lightMode; onToggled: window.lightMode = checked }
+            }
+            Text {
+                Layout.fillWidth: true
+                text: "Accent colour"
+                color: theme.text
+                font.pixelSize: 12
+                font.weight: Font.DemiBold
+            }
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 6
+                Repeater {
+                    model: window.accentPalette
+                    delegate: Rectangle {
+                        required property string modelData
+                        Layout.preferredWidth: 19
+                        Layout.preferredHeight: 19
+                        radius: 10
+                        color: modelData
+                        border.width: window.accentColor.toLowerCase() === modelData.toLowerCase() ? 3 : 1
+                        border.color: window.accentColor.toLowerCase() === modelData.toLowerCase()
+                                      ? theme.text : Qt.rgba(theme.text.r, theme.text.g, theme.text.b, 0.28)
+                        scale: accentSwatchMouse.containsMouse ? 1.12 : 1
+                        Behavior on scale { NumberAnimation { duration: 130; easing.type: Easing.OutCubic } }
+                        MouseArea {
+                            id: accentSwatchMouse
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: window.accentColor = modelData
+                        }
+                    }
+                }
             }
             Text { Layout.fillWidth: true; visible: window.activePage === "Search"; text: "Search options"; color: theme.accent; font.pixelSize: 12; font.weight: Font.DemiBold }
             RowLayout {
@@ -347,7 +400,7 @@ ApplicationWindow {
         z: 150
         radius: 14
         visible: window.profileOpen || x > -width
-        color: Qt.rgba(0.12, 0.12, 0.12, 0.48)
+        color: Qt.rgba(theme.surfaceRaised.r, theme.surfaceRaised.g, theme.surfaceRaised.b, 0.97)
         border.color: theme.border
         border.width: 1
         clip: true
@@ -710,10 +763,10 @@ ApplicationWindow {
     Rectangle {
         id: windowEdge
         anchors.fill: parent
-        radius: window.visibility === Window.FullScreen ? 0 : 16
+        radius: window.windowCornerRadius
         color: "transparent"
-        border.color: window.visibility === Window.FullScreen ? "transparent" : theme.border
-        border.width: window.visibility === Window.FullScreen ? 0 : 1
+        border.color: window.squareWindowCorners ? "transparent" : theme.border
+        border.width: window.squareWindowCorners ? 0 : 1
         antialiasing: true
         z: 100
         // Keep the border visible without intercepting window interaction.
@@ -723,11 +776,11 @@ ApplicationWindow {
     ColumnLayout {
         id: appContentLayout
         anchors.fill: parent
-        anchors.margins: window.visibility === Window.FullScreen ? 0 : 1
+        anchors.margins: window.squareWindowCorners ? 0 : 1
         spacing: 0
 
-        // Blur the app surface behind Explorer and file-action dialogs.
-        // Both popups are siblings of this layout, so their contents stay sharp.
+        // Keep the existing blur effect isolated to the app content. Do not
+        // mask this layer: an invalid/transparent effect mask blanks the UI.
         layer.effect: MultiEffect {
             blurMax: 48
             Behavior on blur {
@@ -745,8 +798,8 @@ ApplicationWindow {
             visible: window.visibility !== Window.FullScreen
             z: 40
             radius: 0
-            topLeftRadius: window.visibility === Window.FullScreen ? 0 : 16
-            topRightRadius: window.visibility === Window.FullScreen ? 0 : 16
+            topLeftRadius: window.windowCornerRadius
+            topRightRadius: window.windowCornerRadius
             bottomLeftRadius: 0
             bottomRightRadius: 0
             clip: true
@@ -754,13 +807,185 @@ ApplicationWindow {
             border.color: "transparent"
             border.width: 0
 
-            // Drag only the empty title-bar area; keep the controls independent.
-            MouseArea {
+            // Native system move is used after DragHandler recognizes a gesture,
+            // so mouse, touch and stylus can all move the frameless window.
+            property bool titleDragActive: false
+            property bool snapChoicesVisible: false
+
+            function beginTitleBarMove() {
+                titleDragActive = true
+                window.startSystemMove()
+            }
+
+            function finishTitleBarMove() {
+                titleDragActive = false
+                snapChoicesVisible = false
+                var screenTop = window.screen ? window.screen.availableGeometry.y : 0
+                if (window.visibility !== Window.Maximized && window.y <= screenTop + 2)
+                    window.showMaximized()
+            }
+
+            function toggleTitleBarMaximize() {
+                if (window.visibility === Window.Maximized)
+                    window.showNormal()
+                else
+                    window.showMaximized()
+            }
+
+            Item {
+                id: titleBarGestureArea
                 anchors.fill: parent
                 anchors.rightMargin: 126
                 z: 1
-                onPressed: window.startSystemMove()
-                onDoubleClicked: window.visibility === Window.Maximized ? window.showNormal() : window.showMaximized()
+
+                // Mouse and finger use the standard left-button gesture.
+                DragHandler {
+                    id: titleBarDrag
+                    target: null
+                    acceptedButtons: Qt.LeftButton
+                    acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchScreen
+                    acceptedPointerTypes: PointerDevice.Generic | PointerDevice.Finger
+                    dragThreshold: 8
+                    onActiveChanged: {
+                        if (active)
+                            titleBar.beginTitleBarMove()
+                        else
+                            titleBar.finishTitleBarMove()
+                    }
+                }
+
+                // Windows can synthesize mouse events from a pen. A left-button
+                // filter can then cancel the authentic pen point; Qt recommends
+                // NoButton for non-mouse pointer handlers to avoid that conflict.
+                DragHandler {
+                    id: titleBarStylusDrag
+                    target: null
+                    acceptedButtons: Qt.NoButton
+                    acceptedDevices: PointerDevice.AllDevices
+                    acceptedPointerTypes: PointerDevice.Pen
+                    dragThreshold: 8
+                    onActiveChanged: {
+                        if (active)
+                            titleBar.beginTitleBarMove()
+                        else
+                            titleBar.finishTitleBarMove()
+                    }
+                }
+
+                TapHandler {
+                    id: titleBarTap
+                    acceptedButtons: Qt.LeftButton
+                    acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchScreen
+                    acceptedPointerTypes: PointerDevice.Generic | PointerDevice.Finger
+                    gesturePolicy: TapHandler.DragThreshold
+                    onDoubleTapped: titleBar.toggleTitleBarMaximize()
+                }
+
+                // Separate pen double-tap handler avoids synthetic-mouse interference.
+                TapHandler {
+                    id: titleBarStylusTap
+                    acceptedButtons: Qt.NoButton
+                    acceptedDevices: PointerDevice.AllDevices
+                    acceptedPointerTypes: PointerDevice.Pen
+                    gesturePolicy: TapHandler.DragThreshold
+                    onDoubleTapped: titleBar.toggleTitleBarMaximize()
+                }
+            }
+
+            Timer {
+                interval: 40
+                repeat: true
+                running: titleBar.titleDragActive && window.visibility !== Window.Maximized
+                onTriggered: {
+                    var screenTop = window.screen ? window.screen.availableGeometry.y : 0
+                    titleBar.snapChoicesVisible = window.y <= screenTop + 14
+                }
+            }
+
+            // Snap layout chooser appears while the dragged window reaches the top edge.
+            Rectangle {
+                id: snapLayoutChooser
+                visible: titleBar.snapChoicesVisible && titleBar.titleDragActive
+                z: 20
+                width: 300
+                height: 116
+                radius: 12
+                x: Math.max(8, Math.min(titleBar.width - width - 8, titleBarDrag.centroid.position.x - width / 2))
+                y: titleBar.height + 8
+                color: theme.surfaceRaised
+                border.color: theme.border
+                Row {
+                    anchors.fill: parent
+                    anchors.margins: 10
+                    spacing: 8
+                    Repeater {
+                        model: [
+                            { kind: "halves", label: "½ | ½" },
+                            { kind: "thirds", label: "⅓ | ⅔" },
+                            { kind: "quarters", label: "¼ grid" }
+                        ]
+                        delegate: Rectangle {
+                            required property var modelData
+                            width: (snapLayoutChooser.width - 36) / 3
+                            height: snapLayoutChooser.height - 20
+                            radius: 8
+                            color: snapLayoutMouse.containsMouse ? theme.accent : theme.surface
+                            border.color: snapLayoutMouse.containsMouse ? theme.accent : theme.border
+                            Column {
+                                anchors.centerIn: parent
+                                spacing: 8
+                                Row {
+                                    spacing: 3
+                                    Repeater {
+                                        model: modelData.kind === "quarters" ? 2 : 2
+                                        delegate: Rectangle {
+                                            required property int index
+                                            width: modelData.kind === "thirds" ? (index === 0 ? 18 : 30)
+                                                 : modelData.kind === "quarters" ? 20 : 24
+                                            height: 24
+                                            radius: 2
+                                            color: Qt.rgba(theme.accent.r, theme.accent.g, theme.accent.b, 0.35)
+                                            border.color: theme.border
+                                        }
+                                    }
+                                }
+                                Text {
+                                    anchors.horizontalCenter: parent.horizontalCenter
+                                    text: modelData.label
+                                    color: snapLayoutMouse.containsMouse ? theme.accentText : theme.text
+                                    font.pixelSize: 11
+                                }
+                            }
+                            MouseArea {
+                                id: snapLayoutMouse
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: {
+                                    var area = window.screen ? window.screen.availableGeometry : Qt.rect(0, 0, window.width, window.height)
+                                    if (modelData.kind === "halves") {
+                                        window.width = area.width / 2
+                                        window.height = area.height
+                                        window.x = area.x
+                                        window.y = area.y
+                                    } else if (modelData.kind === "thirds") {
+                                        window.width = area.width * 2 / 3
+                                        window.height = area.height
+                                        window.x = area.x
+                                        window.y = area.y
+                                    } else {
+                                        window.width = area.width / 2
+                                        window.height = area.height / 2
+                                        window.x = area.x
+                                        window.y = area.y
+                                    }
+                                    titleBar.snapChoicesVisible = false
+                                    titleBar.titleDragActive = false
+                                }
+                            }
+                        }
+                    }
+                }
             }
 
             Row {
@@ -805,7 +1030,7 @@ ApplicationWindow {
                     width: 46
                     height: titleBar.height
                     radius: 0
-                    topRightRadius: closeArea.containsMouse && window.visibility !== Window.FullScreen ? 16 : 0
+                    topRightRadius: closeArea.containsMouse && !window.squareWindowCorners ? 16 : 0
                     bottomRightRadius: 0
                     color: closeArea.containsMouse ? "#b94a4a" : "transparent"
                     MouseArea {
@@ -824,6 +1049,8 @@ ApplicationWindow {
             z: 30
             Layout.fillWidth: true
             activePage: window.activePage
+            lightMode: window.lightMode
+            accentColor: window.accentColor
             onPageSelected: function(pageName) {
                 window.activePage = pageName
                 window.settingsOpen = false
@@ -910,8 +1137,8 @@ ApplicationWindow {
         Rectangle {
             anchors.fill: parent
             radius: 13
-            color: Qt.rgba(0.10, 0.10, 0.10, 0.16)
-            border.color: Qt.rgba(1, 1, 1, 0.12)
+            color: Qt.rgba(theme.surfaceRaised.r, theme.surfaceRaised.g, theme.surfaceRaised.b, 0.96)
+            border.color: theme.border
             border.width: 1
 
             RowLayout {
@@ -944,8 +1171,8 @@ ApplicationWindow {
 
                     background: Rectangle {
                         radius: 10
-                        color: parent.hovered ? Qt.rgba(1, 1, 1, 0.10) : "transparent"
-                        border.color: parent.hovered ? Qt.rgba(1, 1, 1, 0.14) : "transparent"
+                        color: parent.hovered ? theme.surface : "transparent"
+                        border.color: parent.hovered ? theme.border : "transparent"
                     }
 
                     contentItem: Text {
@@ -984,7 +1211,7 @@ ApplicationWindow {
 
         Rectangle {
             anchors.fill: parent
-            color: "#24000000"
+            color: Qt.rgba(0, 0, 0, theme.lightMode ? 0.16 : 0.38)
             z: 0
 
             MouseArea {
@@ -1039,7 +1266,7 @@ ApplicationWindow {
                     Layout.fillWidth: true
                     Layout.fillHeight: true
                     radius: 9
-                    color: Qt.rgba(0, 0, 0, 0.08)
+                    color: theme.window
                     clip: true
 
                     ListView {
@@ -1054,7 +1281,7 @@ ApplicationWindow {
                             required property var modelData
                             width: argonExplorerEntriesList.width
                             height: 40
-                            opacity: modelData.isFolder ? 1.0 : 0.18
+                            opacity: modelData.isFolder ? 1.0 : 0.86
 
                             Row {
                                 anchors.fill: parent
@@ -1155,7 +1382,7 @@ ApplicationWindow {
                 radius: argonExplorerPanel.radius
                 clip: true
                 visible: searchService.importInProgress
-                color: Qt.rgba(0.06, 0.06, 0.06, 0.84)
+                color: Qt.rgba(theme.window.r, theme.window.g, theme.window.b, 0.94)
                 z: 10
 
                 MouseArea {
@@ -1266,7 +1493,11 @@ ApplicationWindow {
 
         Item {
             id: searchPlaceholder
-            Theme { id: searchTheme }
+            Theme {
+                id: searchTheme
+                lightMode: window.lightMode
+                accent: window.accentColor
+            }
 
             property string query: ""
             property var results: []
@@ -1341,9 +1572,9 @@ ApplicationWindow {
                         width: parent.width - 64
                         height: 60
                         radius: 15
-                        color: "#A6292929"
+                        color: Qt.rgba(searchTheme.surface.r, searchTheme.surface.g, searchTheme.surface.b, 0.92)
                         border.width: 1
-                        border.color: searchInput.activeFocus ? searchTheme.accent : "#55FFFFFF"
+                        border.color: searchInput.activeFocus ? searchTheme.accent : searchTheme.border
 
                         Text {
                             x: 19
@@ -1363,7 +1594,7 @@ ApplicationWindow {
                             anchors.bottom: parent.bottom
                             placeholderText: "Search anything..."
                             color: searchTheme.text
-                            placeholderTextColor: "#898989"
+                            placeholderTextColor: searchTheme.mutedText
                             font.pixelSize: 16
                             selectByMouse: true
                             verticalAlignment: TextInput.AlignVCenter
@@ -1429,7 +1660,7 @@ ApplicationWindow {
                         radius: 13
                         color: "transparent"
                         border.width: 1
-                        border.color: "#33FFFFFF"
+                        border.color: searchTheme.border
 
                         Item {
                             anchors.centerIn: parent
@@ -1490,8 +1721,8 @@ ApplicationWindow {
                         Behavior on width {
                             NumberAnimation { duration: 220; easing.type: Easing.OutCubic }
                         }
-                    color: "#12FFFFFF"
-                    border.color: "#42FFFFFF"
+                    color: searchTheme.surfaceRaised
+                    border.color: searchTheme.border
                     border.width: 1
                     clip: true
 
@@ -1538,8 +1769,10 @@ ApplicationWindow {
                             height: 56
                             radius: 10
                             opacity: 1
-                            color: resultHover.containsMouse ? "#1AFFFFFF" : "#0CFFFFFF"
-                            border.color: resultHover.containsMouse ? "#72FFFFFF" : "#42FFFFFF"
+                            color: resultHover.containsMouse
+                                   ? Qt.rgba(searchTheme.accent.r, searchTheme.accent.g, searchTheme.accent.b, 0.14)
+                                   : searchTheme.surface
+                            border.color: resultHover.containsMouse ? searchTheme.accent : searchTheme.border
                             border.width: 1
                             antialiasing: true
 
@@ -1578,7 +1811,7 @@ ApplicationWindow {
                                          || fileExtension === "doc"
                                          || fileExtension === "docx"
                                 text: fileExtension.toUpperCase()
-                                color: fileExtension === "pdf" ? "#E7A0A0" : "#8CBFFF"
+                                color: fileExtension === "pdf" ? "#C64B4B" : searchTheme.accent
                                 font.pixelSize: 11
                                 font.weight: Font.DemiBold
                             }
@@ -1705,6 +1938,8 @@ ApplicationWindow {
         id: timerPage
         TimerPage {
             controller: timerControllerInstance
+            lightMode: window.lightMode
+            accentColor: window.accentColor
             onPageSelected: function(pageName) {
                 window.activePage = pageName
                 sideBar.bannerOpen = false
@@ -1792,7 +2027,7 @@ ApplicationWindow {
                         Layout.preferredWidth: 54
                         Layout.preferredHeight: 54
                         radius: 16
-                        color: "#24FFFFFF"
+                        color: Qt.rgba(theme.accent.r, theme.accent.g, theme.accent.b, 0.10)
                         border.color: theme.accent
                         Text {
                             anchors.centerIn: parent

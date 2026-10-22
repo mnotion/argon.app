@@ -4,6 +4,7 @@
 #include <QString>
 #include <QtGlobal>
 #include <QJsonObject>
+#include <QJsonArray>
 #include <QVariantList>
 
 class QDate;
@@ -30,6 +31,7 @@ public:
     Q_INVOKABLE void recordFocusSessionCompleted();
     Q_INVOKABLE void refreshToday();
     Q_INVOKABLE qint64 focusedSecondsForDate(const QString &isoDate) const;
+    Q_INVOKABLE QVariantList focusedSecondsByHourForDate(const QString &isoDate) const;
     Q_INVOKABLE QVariantList subjectFocusForDate(const QString &isoDate) const;
 
 signals:
@@ -45,4 +47,5 @@ private:
     qint64 m_focusedSecondsToday = 0;
     int m_completedFocusSessionsToday = 0;
     QJsonObject m_subjectFocusToday;
+    QJsonArray m_hourlyFocusSecondsToday;
 };
