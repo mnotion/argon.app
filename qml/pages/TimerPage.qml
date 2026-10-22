@@ -2428,7 +2428,6 @@ Item {
                     target: null
                     acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchScreen
                                      | PointerDevice.Stylus
-                    acceptedPointerTypes: PointerDevice.Finger | PointerDevice.Pen
                     dragThreshold: 10
                     xAxis.enabled: true
                     yAxis.enabled: false
