@@ -30,6 +30,7 @@ Item {
     property string historyPeriod: "weekly"
     property int historyChartYear: new Date().getFullYear()
     property int historyChartMonth: new Date().getMonth()
+    property string historyHeading: ""
     property real historyRevealProgress: 0
     property int hoveredWeeklyPointIndex: -1
     property real historyHoverX: 0
@@ -646,6 +647,9 @@ Item {
         weeklyFocusPoints = points
         // Leave three full hours above the busiest plotted day/hour; empty charts start at 3h.
         weeklyYAxisMax = Math.max(3, Math.ceil(maxSeconds / 3600) + 3)
+        var nextHeading = historyChartTitle()
+        if (historyHeading !== nextHeading)
+            historyHeading = nextHeading
         if (hoveredWeeklyPointIndex >= points.length)
             hoveredWeeklyPointIndex = -1
     }
@@ -1893,7 +1897,7 @@ Item {
                 spacing: 12
 
                 Text {
-                    text: root.historyChartTitle()
+                    text: root.historyHeading
                     color: theme.accent
                     font.pixelSize: 25
                     font.weight: Font.DemiBold
