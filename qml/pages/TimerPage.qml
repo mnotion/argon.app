@@ -16,9 +16,6 @@ Item {
     signal pageSelected(string pageName)
 
     property var controller: null
-    property bool dailyCardExpanded: false
-    property bool dailyCardSettled: false
-    property real dailyCardCloudPhase: 0
     property bool calendarExpanded: false
     property bool calendarSettled: false
     property bool calendarWaveVisible: false
@@ -590,41 +587,6 @@ Item {
         return hours + "h " + minutes + " min"
     }
 
-    function formattedFocusedTime() {
-        var totalMinutes = Math.floor(dailyAnalyticsService.focusedSecondsToday / 60)
-        if (totalMinutes < 60)
-            return totalMinutes + " min"
-        return Math.floor(totalMinutes / 60) + " h " + (totalMinutes % 60) + " min"
-    }
-
-    function formattedDate() {
-        var date = new Date()
-        var day = date.getDate()
-        var suffix = "th"
-        if (day % 100 < 11 || day % 100 > 13) {
-            if (day % 10 === 1) suffix = "st"
-            else if (day % 10 === 2) suffix = "nd"
-            else if (day % 10 === 3) suffix = "rd"
-        }
-        return Qt.formatDate(date, "MMMM ") + day + suffix
-    }
-
-    onDailyCardExpandedChanged: {
-        cardSettleTimer.stop()
-        dateFadeTimer.stop()
-
-        if (dailyCardExpanded) {
-            focusedTimeText.opacity = 0
-            focusedDateText.opacity = 0
-            cardSettleTimer.start()
-        } else {
-            dailyCardSettled = false
-            dailyCardCloudPhase = 0
-            focusedTimeText.opacity = 0
-            focusedDateText.opacity = 0
-        }
-    }
-
     onCalendarExpandedChanged: {
         calendarSettleTimer.stop()
         calendarWaveRevealTimer.stop()
@@ -639,23 +601,7 @@ Item {
         }
     }
 
-    onScrollSectionIndexChanged: {
-        calendarExpanded = scrollSectionIndex === 1
-        dailyCardExpanded = scrollSectionIndex === 2
-    }
 
-    Timer {
-        id: cardSettleTimer
-        interval: 900
-        repeat: false
-        onTriggered: {
-            if (root.dailyCardExpanded) {
-                root.dailyCardSettled = true
-                focusedTimeText.opacity = 1
-                dateFadeTimer.start()
-            }
-        }
-    }
 
     Timer {
         id: calendarSettleTimer
@@ -692,36 +638,6 @@ Item {
         NumberAnimation {
             target: root
             property: "calendarCloudPhase"
-            to: 0
-            duration: 3000
-            easing.type: Easing.InOutSine
-        }
-    }
-
-    // Let the time appear first, then reveal the date a beat later.
-    Timer {
-        id: dateFadeTimer
-        interval: 115
-        repeat: false
-        onTriggered: {
-            if (root.dailyCardExpanded)
-                focusedDateText.opacity = 1
-        }
-    }
-
-    SequentialAnimation {
-        running: root.dailyCardSettled
-        loops: Animation.Infinite
-        NumberAnimation {
-            target: root
-            property: "dailyCardCloudPhase"
-            to: 1
-            duration: 3000
-            easing.type: Easing.InOutSine
-        }
-        NumberAnimation {
-            target: root
-            property: "dailyCardCloudPhase"
             to: 0
             duration: 3000
             easing.type: Easing.InOutSine
@@ -2114,7 +2030,8 @@ Item {
                         anchors.fill: parent
                         anchors.leftMargin: 12
                         anchors.rightMargin: 10
-                        anchors.verticalCenter: parent.verticalCenter
+                        anchors.topMargin: 9
+                        anchors.bottomMargin: 8
                         spacing: 3
                         Text {
                             width: parent.width
