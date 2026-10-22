@@ -806,53 +806,83 @@ ApplicationWindow {
             property bool titleDragActive: false
             property bool snapChoicesVisible: false
 
+            function beginTitleBarMove() {
+                titleDragActive = true
+                window.startSystemMove()
+            }
+
+            function finishTitleBarMove() {
+                titleDragActive = false
+                snapChoicesVisible = false
+                var screenTop = window.screen ? window.screen.availableGeometry.y : 0
+                if (window.visibility !== Window.Maximized && window.y <= screenTop + 2)
+                    window.showMaximized()
+            }
+
+            function toggleTitleBarMaximize() {
+                if (window.visibility === Window.Maximized)
+                    window.showNormal()
+                else
+                    window.showMaximized()
+            }
+
             Item {
                 id: titleBarGestureArea
                 anchors.fill: parent
                 anchors.rightMargin: 126
                 z: 1
 
+                // Mouse and finger use the standard left-button gesture.
                 DragHandler {
-                id: titleBarDrag
-                target: null
-                acceptedButtons: Qt.LeftButton
-                // Windows pens may be reported as a touchscreen device with Pen pointer type,
-                // or as a separate stylus device. Accept every device/type and filter nothing out.
-                acceptedDevices: PointerDevice.AllDevices
-                acceptedPointerTypes: PointerDevice.AllPointerTypes
-                dragThreshold: 8
-
-                onActiveChanged: {
-                    if (active) {
-                        titleBar.titleDragActive = true
-                        window.startSystemMove()
-                    } else {
-                        titleBar.titleDragActive = false
-                        if (titleBar.snapChoicesVisible) {
-                            titleBar.snapChoicesVisible = false
-                        }
-                        var screenTop = window.screen ? window.screen.availableGeometry.y : 0
-                        if (window.visibility !== Window.Maximized
-                                && window.y <= screenTop + 2) {
-                            window.showMaximized()
-                        }
+                    id: titleBarDrag
+                    target: null
+                    acceptedButtons: Qt.LeftButton
+                    acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchScreen
+                    acceptedPointerTypes: PointerDevice.Generic | PointerDevice.Finger
+                    dragThreshold: 8
+                    onActiveChanged: {
+                        if (active)
+                            titleBar.beginTitleBarMove()
+                        else
+                            titleBar.finishTitleBarMove()
                     }
                 }
-            }
+
+                // Windows can synthesize mouse events from a pen. A left-button
+                // filter can then cancel the authentic pen point; Qt recommends
+                // NoButton for non-mouse pointer handlers to avoid that conflict.
+                DragHandler {
+                    id: titleBarStylusDrag
+                    target: null
+                    acceptedButtons: Qt.NoButton
+                    acceptedDevices: PointerDevice.AllDevices
+                    acceptedPointerTypes: PointerDevice.Pen
+                    dragThreshold: 8
+                    onActiveChanged: {
+                        if (active)
+                            titleBar.beginTitleBarMove()
+                        else
+                            titleBar.finishTitleBarMove()
+                    }
+                }
 
                 TapHandler {
-                id: titleBarTap
-                acceptedButtons: Qt.LeftButton
-                // Match the drag handler so stylus double-tap works across Windows pen drivers.
-                acceptedDevices: PointerDevice.AllDevices
-                acceptedPointerTypes: PointerDevice.AllPointerTypes
-                gesturePolicy: TapHandler.DragThreshold
-                onDoubleTapped: {
-                    if (window.visibility === Window.Maximized)
-                        window.showNormal()
-                    else
-                        window.showMaximized()
+                    id: titleBarTap
+                    acceptedButtons: Qt.LeftButton
+                    acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchScreen
+                    acceptedPointerTypes: PointerDevice.Generic | PointerDevice.Finger
+                    gesturePolicy: TapHandler.DragThreshold
+                    onDoubleTapped: titleBar.toggleTitleBarMaximize()
                 }
+
+                // Separate pen double-tap handler avoids synthetic-mouse interference.
+                TapHandler {
+                    id: titleBarStylusTap
+                    acceptedButtons: Qt.NoButton
+                    acceptedDevices: PointerDevice.AllDevices
+                    acceptedPointerTypes: PointerDevice.Pen
+                    gesturePolicy: TapHandler.DragThreshold
+                    onDoubleTapped: titleBar.toggleTitleBarMaximize()
                 }
             }
 
