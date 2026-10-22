@@ -779,18 +779,18 @@ ApplicationWindow {
         anchors.margins: window.squareWindowCorners ? 0 : 1
         spacing: 0
 
-        // Blur the app surface behind Explorer and file-action dialogs.
-        // Both popups are siblings of this layout, so their contents stay sharp.
+        // Enable the effect layer so the mask actually clips the rendered app
+        // surface. The layout is inset by one pixel in windowed mode, so reduce
+        // the mask radius by the same amount to align it with windowSurface.
+        layer.enabled: true
+        layer.smooth: true
         layer.effect: MultiEffect {
             blurMax: 48
-            // Clip the main app surface to the native window outline. Do this on
-            // the content layout only; masking ApplicationWindow.contentItem
-            // interferes with normal window composition and task switching.
             maskEnabled: true
             maskSource: Rectangle {
                 width: appContentLayout.width
                 height: appContentLayout.height
-                radius: window.windowCornerRadius
+                radius: Math.max(0, window.windowCornerRadius - (window.squareWindowCorners ? 0 : 1))
                 color: "white"
                 antialiasing: true
                 layer.enabled: true
