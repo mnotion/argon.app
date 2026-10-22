@@ -1917,108 +1917,130 @@ Item {
 
                 Item { Layout.fillWidth: true }
 
-                RowLayout {
-                    spacing: 6
+                Item {
+                    id: historyPeriodDropdown
+                    Layout.preferredWidth: 128
+                    Layout.preferredHeight: 36
+                    z: 20
 
-                    Button {
-                        id: weeklyHistoryButton
-                        text: "Weekly"
-                        hoverEnabled: true
-                        checked: root.historyPeriod === "weekly"
-                        onClicked: root.setHistoryPeriod("weekly")
-                        Layout.preferredHeight: 34
-                        Layout.preferredWidth: 82
-                        background: Rectangle {
-                            radius: 9
-                            color: weeklyHistoryButton.checked
-                                   ? Qt.rgba(theme.accent.r, theme.accent.g, theme.accent.b, 0.20)
-                                   : (weeklyHistoryButton.hovered ? theme.surface : theme.surfaceRaised)
-                            border.color: weeklyHistoryButton.checked || weeklyHistoryButton.hovered
-                                          ? theme.accent : theme.border
-                            border.width: weeklyHistoryButton.checked ? 1.4 : 1
-                            Behavior on color { ColorAnimation { duration: 120 } }
-                        }
-                        contentItem: Text {
-                            text: weeklyHistoryButton.text
-                            color: weeklyHistoryButton.checked ? theme.accent : theme.text
-                            font.pixelSize: 12
-                            font.weight: Font.DemiBold
-                            horizontalAlignment: Text.AlignHCenter
-                            verticalAlignment: Text.AlignVCenter
-                        }
+                    Rectangle {
+                        anchors.fill: parent
+                        radius: 9
+                        color: historyPeriodButton.hovered ? theme.surface : theme.surfaceRaised
+                        border.color: historyPeriodButton.hovered || historyPeriodMenu.visible
+                                      ? theme.accent : theme.border
+                        border.width: 1
+
+                        Behavior on color { ColorAnimation { duration: 120 } }
                     }
 
                     Button {
-                        id: monthlyHistoryButton
-                        text: "Monthly"
+                        id: historyPeriodButton
+                        anchors.fill: parent
                         hoverEnabled: true
-                        checked: root.historyPeriod === "monthly"
-                        onClicked: root.setHistoryPeriod("monthly")
-                        Layout.preferredHeight: 34
-                        Layout.preferredWidth: 86
-                        background: Rectangle {
-                            radius: 9
-                            color: monthlyHistoryButton.checked
-                                   ? Qt.rgba(theme.accent.r, theme.accent.g, theme.accent.b, 0.20)
-                                   : (monthlyHistoryButton.hovered ? theme.surface : theme.surfaceRaised)
-                            border.color: monthlyHistoryButton.checked || monthlyHistoryButton.hovered
-                                          ? theme.accent : theme.border
-                            border.width: monthlyHistoryButton.checked ? 1.4 : 1
-                            Behavior on color { ColorAnimation { duration: 120 } }
+                        text: root.historyPeriod === "weekly" ? "Weekly"
+                              : (root.historyPeriod === "monthly" ? "Monthly" : "Daily")
+                        background: Item {}
+                        contentItem: Row {
+                            anchors.fill: parent
+                            anchors.leftMargin: 12
+                            anchors.rightMargin: 10
+                            spacing: 8
+
+                            Text {
+                                width: parent.width - 24
+                                anchors.verticalCenter: parent.verticalCenter
+                                text: historyPeriodButton.text
+                                color: theme.text
+                                font.pixelSize: 13
+                                font.weight: Font.DemiBold
+                                verticalAlignment: Text.AlignVCenter
+                            }
+
+                            Text {
+                                anchors.verticalCenter: parent.verticalCenter
+                                text: historyPeriodMenu.visible ? "⌃" : "⌄"
+                                color: theme.mutedText
+                                font.pixelSize: 16
+                            }
                         }
-                        contentItem: Text {
-                            text: monthlyHistoryButton.text
-                            color: monthlyHistoryButton.checked ? theme.accent : theme.text
-                            font.pixelSize: 12
-                            font.weight: Font.DemiBold
-                            horizontalAlignment: Text.AlignHCenter
-                            verticalAlignment: Text.AlignVCenter
+                        onClicked: historyPeriodMenu.visible = !historyPeriodMenu.visible
+                    }
+
+                    Rectangle {
+                        id: historyPeriodMenu
+                        visible: false
+                        x: 0
+                        y: height + 6
+                        width: parent.width
+                        height: historyPeriodMenuColumn.implicitHeight + 8
+                        radius: 10
+                        color: theme.surfaceRaised
+                        border.color: theme.border
+                        border.width: 1
+                        z: 30
+                        opacity: visible ? 1 : 0
+                        scale: visible ? 1 : 0.96
+                        Behavior on opacity { NumberAnimation { duration: 130; easing.type: Easing.OutCubic } }
+                        Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
+
+                        Column {
+                            id: historyPeriodMenuColumn
+                            anchors.fill: parent
+                            anchors.margins: 4
+                            spacing: 2
+
+                            Repeater {
+                                model: [
+                                    { label: "Weekly", value: "weekly" },
+                                    { label: "Monthly", value: "monthly" },
+                                    { label: "Daily", value: "daily" }
+                                ]
+
+                                delegate: Rectangle {
+                                    required property var modelData
+                                    width: historyPeriodMenuColumn.width
+                                    height: 34
+                                    radius: 7
+                                    color: root.historyPeriod === modelData.value
+                                           ? Qt.rgba(theme.accent.r, theme.accent.g, theme.accent.b, 0.17)
+                                           : historyPeriodItemMouse.containsMouse
+                                             ? theme.surface : "transparent"
+                                    border.color: root.historyPeriod === modelData.value
+                                                   ? Qt.rgba(theme.accent.r, theme.accent.g, theme.accent.b, 0.45)
+                                                   : "transparent"
+
+                                    Text {
+                                        anchors.fill: parent
+                                        anchors.leftMargin: 10
+                                        text: modelData.label
+                                        color: root.historyPeriod === modelData.value ? theme.accent : theme.text
+                                        font.pixelSize: 12
+                                        font.weight: root.historyPeriod === modelData.value ? Font.DemiBold : Font.Normal
+                                        verticalAlignment: Text.AlignVCenter
+                                    }
+
+                                    MouseArea {
+                                        id: historyPeriodItemMouse
+                                        anchors.fill: parent
+                                        hoverEnabled: true
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: {
+                                            root.setHistoryPeriod(modelData.value)
+                                            historyPeriodMenu.visible = false
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
 
-                    Button {
-                        id: dailyHistoryButton
-                        text: "Daily"
-                        hoverEnabled: true
-                        checked: root.historyPeriod === "daily"
-                        onClicked: root.setHistoryPeriod("daily")
-                        Layout.preferredHeight: 34
-                        Layout.preferredWidth: 72
-                        background: Rectangle {
-                            radius: 9
-                            color: dailyHistoryButton.checked
-                                   ? Qt.rgba(theme.accent.r, theme.accent.g, theme.accent.b, 0.20)
-                                   : (dailyHistoryButton.hovered ? theme.surface : theme.surfaceRaised)
-                            border.color: dailyHistoryButton.checked || dailyHistoryButton.hovered
-                                          ? theme.accent : theme.border
-                            border.width: dailyHistoryButton.checked ? 1.4 : 1
-                            Behavior on color { ColorAnimation { duration: 120 } }
-                        }
-                        contentItem: Text {
-                            text: dailyHistoryButton.text
-                            color: dailyHistoryButton.checked ? theme.accent : theme.text
-                            font.pixelSize: 12
-                            font.weight: Font.DemiBold
-                            horizontalAlignment: Text.AlignHCenter
-                            verticalAlignment: Text.AlignVCenter
-                        }
+                    MouseArea {
+                        anchors.fill: parent
+                        z: -1
+                        onClicked: historyPeriodMenu.visible = false
                     }
                 }
-            }
-
-            Text {
-                Layout.fillWidth: true
-                text: root.historyPeriod === "daily"
-                      ? (root.dailyHourlyBreakdownMissing()
-                         ? "Earlier focus totals were not recorded by hour; tracking starts with this version."
-                         : "Focus distribution across the 24-hour day")
-                      : (root.historyPeriod === "monthly"
-                         ? "Daily focus time this month" : "Daily focus time this week")
-                color: theme.mutedText
-                font.pixelSize: 12
-                elide: Text.ElideRight
-            }
-
             Item {
                 id: historyPlot
                 Layout.fillWidth: true
