@@ -2198,16 +2198,11 @@ Item {
         Behavior on scale { NumberAnimation { duration: 170; easing.type: Easing.OutBack } }
         Behavior on opacity { NumberAnimation { duration: 130; easing.type: Easing.OutCubic } }
 
-        MouseArea {
-            anchors.fill: parent
-            acceptedButtons: Qt.AllButtons
-            z: 0
-        }
-
         Column {
             anchors.fill: parent
             anchors.margins: 6
             spacing: 4
+            z: 1
             Repeater {
                 model: [
                     { label: "Edit", action: "edit" },
