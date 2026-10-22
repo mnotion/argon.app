@@ -28,10 +28,11 @@ Item {
     property var weeklyFocusPoints: []
     property int weeklyYAxisMax: 3
     property string historyPeriod: "weekly"
-    property int historyChartYear: new Date().getFullYear()
-    property int historyChartMonth: new Date().getMonth()
+    property var historyReferenceDate: new Date()
     property string historyHeading: ""
-    property real historyRevealProgress: 0
+    property real historyLineProgress: 0
+    property real historyAxisProgress: 0
+    property real historyLockHighlight: 0
     property int hoveredWeeklyPointIndex: -1
     property real historyHoverX: 0
     property real historyHoverY: 0
@@ -554,37 +555,77 @@ Item {
             return
 
         historyPeriod = period
-        if (period === "monthly") {
-            var today = new Date()
-            historyChartYear = today.getFullYear()
-            historyChartMonth = today.getMonth()
-        }
+        historyReferenceDate = new Date()
+        restartHistoryReveal()
+    }
 
-        hoveredWeeklyPointIndex = -1
+    function historyChartTitle() {
+        var reference = new Date(historyReferenceDate)
+        if (historyPeriod === "monthly")
+            return Qt.formatDate(new Date(reference.getFullYear(), reference.getMonth(), 1), "MMMM yyyy")
+        if (historyPeriod === "daily")
+            return Qt.formatDate(reference, "dddd d MMMM yyyy")
+
+        var weekNumber = Math.floor((reference.getDate() - 1) / 7) + 1
+        return "Week " + weekNumber + " " + Qt.formatDate(reference, "MMMM yyyy")
+    }
+
+    function restartHistoryReveal() {
         historyRevealAnimation.stop()
-        historyRevealProgress = 0
+        historyLineProgress = 0
+        historyAxisProgress = 0
+        historyLockHighlight = 0
+        hoveredWeeklyPointIndex = -1
         refreshHistoryChartData()
         if (scrollSectionIndex === 2)
             historyRevealAnimation.start()
     }
 
-    function historyChartTitle() {
+    function shiftHistoryPeriod(direction) {
+        var reference = new Date(historyReferenceDate)
         if (historyPeriod === "monthly") {
-            return Qt.formatDate(
-                        new Date(historyChartYear, historyChartMonth, 1),
-                        "MMMM yyyy")
+            historyReferenceDate = new Date(reference.getFullYear(),
+                                             reference.getMonth() + direction, 1)
+        } else if (historyPeriod === "daily") {
+            reference.setDate(reference.getDate() + direction)
+            historyReferenceDate = reference
+        } else {
+            var currentWeekIndex = Math.floor((reference.getDate() - 1) / 7)
+            var currentMonthStart = new Date(reference.getFullYear(), reference.getMonth(), 1)
+            var currentMonthWeeks = Math.ceil(
+                        new Date(reference.getFullYear(), reference.getMonth() + 1, 0).getDate() / 7)
+            var targetWeekIndex = currentWeekIndex + direction
+            var targetMonthStart = currentMonthStart
+
+            if (targetWeekIndex < 0) {
+                targetMonthStart = new Date(reference.getFullYear(), reference.getMonth() - 1, 1)
+                var previousMonthDays = new Date(
+                            targetMonthStart.getFullYear(), targetMonthStart.getMonth() + 1, 0).getDate()
+                targetWeekIndex = Math.ceil(previousMonthDays / 7) - 1
+            } else if (targetWeekIndex >= currentMonthWeeks) {
+                targetMonthStart = new Date(reference.getFullYear(), reference.getMonth() + 1, 1)
+                targetWeekIndex = 0
+            }
+
+            historyReferenceDate = new Date(targetMonthStart.getFullYear(),
+                                            targetMonthStart.getMonth(),
+                                            targetWeekIndex * 7 + 1)
         }
+        restartHistoryReveal()
+    }
 
-        var today = new Date()
-        if (historyPeriod === "daily")
-            return Qt.formatDate(today, "dddd d MMMM yyyy")
+    function resetHistoryPeriodToToday() {
+        historyReferenceDate = new Date()
+        restartHistoryReveal()
+    }
 
-        // Weeks are fixed blocks within each month: 1–7, 8–14, 15–21, 22–28, 29–31.
-        var weekNumber = Math.floor((today.getDate() - 1) / 7) + 1
-        return "Week " + weekNumber + " " + Qt.formatDate(today, "MMMM yyyy")
+    function historyPlotPointCount() {
+        return weeklyFocusPoints.length
     }
 
     function refreshHistoryChartData() {
+        var reference = new Date(historyReferenceDate)
+        reference.setHours(0, 0, 0, 0)
         var today = new Date()
         today.setHours(0, 0, 0, 0)
         var todayKey = calendarDateKey(today)
@@ -592,13 +633,14 @@ Item {
         var maxSeconds = 0
 
         if (historyPeriod === "daily") {
-            var hourlySeconds = dailyAnalyticsService.focusedSecondsByHourForDate(todayKey)
+            var selectedKey = calendarDateKey(reference)
+            var hourlySeconds = dailyAnalyticsService.focusedSecondsByHourForDate(selectedKey)
             for (var hour = 0; hour < 24; ++hour) {
                 var hourSeconds = Math.max(0, Number(hourlySeconds[hour]) || 0)
                 points.push({
-                    "date": todayKey,
-                    "weekday": Qt.formatDate(today, "ddd"),
-                    "day": today.getDate(),
+                    "date": selectedKey,
+                    "weekday": Qt.formatDate(reference, "ddd"),
+                    "day": reference.getDate(),
                     "hour": hour,
                     "label": hour,
                     "seconds": hourSeconds
@@ -610,15 +652,15 @@ Item {
             var dayCount
 
             if (historyPeriod === "monthly") {
-                rangeStart = new Date(historyChartYear, historyChartMonth, 1)
-                dayCount = new Date(historyChartYear, historyChartMonth + 1, 0).getDate()
+                rangeStart = new Date(reference.getFullYear(), reference.getMonth(), 1)
+                dayCount = new Date(reference.getFullYear(), reference.getMonth() + 1, 0).getDate()
             } else {
-                // Use the month-relative seven-day blocks instead of Monday–Sunday.
-                var weekOffset = Math.floor((today.getDate() - 1) / 7) * 7
-                var daysInCurrentMonth = new Date(
-                            today.getFullYear(), today.getMonth() + 1, 0).getDate()
-                rangeStart = new Date(today.getFullYear(), today.getMonth(), weekOffset + 1)
-                dayCount = Math.min(7, daysInCurrentMonth - weekOffset)
+                // Weeks are fixed blocks within the selected month: 1–7, 8–14, etc.
+                var weekOffset = Math.floor((reference.getDate() - 1) / 7) * 7
+                var daysInMonth = new Date(
+                            reference.getFullYear(), reference.getMonth() + 1, 0).getDate()
+                rangeStart = new Date(reference.getFullYear(), reference.getMonth(), weekOffset + 1)
+                dayCount = Math.min(7, daysInMonth - weekOffset)
             }
 
             for (var dayIndex = 0; dayIndex < dayCount; ++dayIndex) {
@@ -628,10 +670,8 @@ Item {
                 var seconds = Math.max(
                             0, Number(dailyAnalyticsService.focusedSecondsForDate(key)) || 0)
 
-                if (key === todayKey) {
-                    seconds = Math.max(
-                                seconds, Number(dailyAnalyticsService.focusedSecondsToday) || 0)
-                }
+                if (key === todayKey)
+                    seconds = Math.max(seconds, Number(dailyAnalyticsService.focusedSecondsToday) || 0)
 
                 points.push({
                     "date": key,
@@ -645,8 +685,8 @@ Item {
         }
 
         weeklyFocusPoints = points
-        // Leave three full hours above the busiest plotted day/hour; empty charts start at 3h.
-        weeklyYAxisMax = Math.max(3, Math.ceil(maxSeconds / 3600) + 3)
+        weeklyYAxisMax = historyPeriod === "daily"
+                         ? 24 : Math.max(3, Math.ceil(maxSeconds / 3600) + 3)
         var nextHeading = historyChartTitle()
         if (historyHeading !== nextHeading)
             historyHeading = nextHeading
@@ -678,19 +718,11 @@ Item {
     }
 
     onScrollSectionIndexChanged: {
-        // The calendar reveal remains tied to the same section state as before.
         calendarExpanded = scrollSectionIndex === 1
-        if (scrollSectionIndex === 2) {
+        if (scrollSectionIndex === 2)
+            restartHistoryReveal()
+        else
             hoveredWeeklyPointIndex = -1
-            historyRevealAnimation.stop()
-            historyRevealProgress = 0
-            historyRevealAnimation.start()
-        } else {
-            hoveredWeeklyPointIndex = -1
-            historyRevealAnimation.stop()
-            // Keep the finished chart drawn while it scrolls out of view.
-            // Its next entry resets the progress and replays the drawing animation.
-        }
     }
 
     onCalendarExpandedChanged: {
@@ -760,15 +792,41 @@ Item {
         easing.type: Easing.OutCubic
     }
 
-    // Animate only the graph's internals; the card itself scrolls like every other page.
-    NumberAnimation {
+    // The line draws first; one second later the axes grow from their shared origin.
+    SequentialAnimation {
         id: historyRevealAnimation
-        target: root
-        property: "historyRevealProgress"
-        from: 0
-        to: 1
-        duration: 1150
-        easing.type: Easing.OutCubic
+        NumberAnimation {
+            target: root
+            property: "historyLineProgress"
+            from: 0
+            to: 1
+            duration: 1000
+            easing.type: Easing.OutCubic
+        }
+        NumberAnimation {
+            target: root
+            property: "historyAxisProgress"
+            from: 0
+            to: 1
+            duration: 620
+            easing.type: Easing.OutCubic
+        }
+        NumberAnimation {
+            target: root
+            property: "historyLockHighlight"
+            from: 0
+            to: 1
+            duration: 110
+            easing.type: Easing.OutCubic
+        }
+        PauseAnimation { duration: 120 }
+        NumberAnimation {
+            target: root
+            property: "historyLockHighlight"
+            to: 0
+            duration: 520
+            easing.type: Easing.OutCubic
+        }
     }
 
     Component.onCompleted: {
@@ -1903,24 +1961,26 @@ Item {
             anchors.bottomMargin: 16
             spacing: 8
 
-            RowLayout {
+            Item {
+                id: historyHeader
                 Layout.fillWidth: true
                 Layout.preferredHeight: 42
-                spacing: 12
 
                 Text {
+                    anchors.centerIn: parent
                     text: root.historyHeading
                     color: theme.accent
                     font.pixelSize: 25
                     font.weight: Font.DemiBold
+                    horizontalAlignment: Text.AlignHCenter
                 }
-
-                Item { Layout.fillWidth: true }
 
                 Item {
                     id: historyPeriodDropdown
-                    Layout.preferredWidth: 128
-                    Layout.preferredHeight: 36
+                    anchors.right: parent.right
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: 128
+                    height: 36
                     z: 20
 
                     Rectangle {
@@ -1945,23 +2005,13 @@ Item {
                             anchors.fill: parent
                             anchors.leftMargin: 12
                             anchors.rightMargin: 10
-                            spacing: 8
-
                             Text {
-                                width: parent.width - 24
                                 anchors.verticalCenter: parent.verticalCenter
                                 text: historyPeriodButton.text
                                 color: theme.text
                                 font.pixelSize: 13
                                 font.weight: Font.DemiBold
                                 verticalAlignment: Text.AlignVCenter
-                            }
-
-                            Text {
-                                anchors.verticalCenter: parent.verticalCenter
-                                text: historyPeriodMenu.visible ? "⌃" : "⌄"
-                                color: theme.mutedText
-                                font.pixelSize: 16
                             }
                         }
                         onClicked: historyPeriodMenu.visible = !historyPeriodMenu.visible
@@ -1971,7 +2021,7 @@ Item {
                         id: historyPeriodMenu
                         visible: false
                         x: 0
-                        y: height + 6
+                        y: -height - 6
                         width: parent.width
                         height: historyPeriodMenuColumn.implicitHeight + 8
                         radius: 10
@@ -1979,6 +2029,7 @@ Item {
                         border.color: theme.border
                         border.width: 1
                         z: 30
+                        transformOrigin: Item.Bottom
                         opacity: visible ? 1 : 0
                         scale: visible ? 1 : 0.96
                         Behavior on opacity { NumberAnimation { duration: 130; easing.type: Easing.OutCubic } }
@@ -2057,7 +2108,7 @@ Item {
                     readonly property real plotLeft: 66
                     readonly property real plotTop: 14
                     readonly property real plotRight: width - 12
-                    readonly property real plotBottom: height - 42
+                    readonly property real plotBottom: height - 72
                     readonly property real plotWidth: Math.max(1, plotRight - plotLeft)
                     readonly property real plotHeight: Math.max(1, plotBottom - plotTop)
 
@@ -2251,6 +2302,33 @@ Item {
                     }
                 }
 
+                DragHandler {
+                    id: historyHorizontalSwipe
+                    target: null
+                    acceptedDevices: PointerDevice.TouchScreen | PointerDevice.Stylus | PointerDevice.TouchPad
+                    acceptedPointerTypes: PointerDevice.Finger | PointerDevice.Pen
+                    dragThreshold: 18
+                    xAxis.enabled: true
+                    yAxis.enabled: false
+                    property real capturedSwipeX: 0
+
+                    onActiveChanged: {
+                        if (active) {
+                            capturedSwipeX = 0
+                            return
+                        }
+                        var delta = capturedSwipeX
+                        capturedSwipeX = 0
+                        if (Math.abs(delta) >= 64)
+                            root.shiftHistoryPeriod(delta < 0 ? 1 : -1)
+                    }
+
+                    onActiveTranslationChanged: {
+                        if (active)
+                            capturedSwipeX = activeTranslation.x
+                    }
+                }
+
                 MouseArea {
                     id: historyHoverMouse
                     anchors.fill: parent
@@ -2369,6 +2447,74 @@ Item {
                             color: theme.text
                             font.pixelSize: 15
                             font.weight: Font.DemiBold
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+
+    // Navigation is outside the graph card but moves with the same page transition.
+    Item {
+        id: historyPeriodNavigation
+        x: (root.width - width) / 2
+        anchors.verticalCenter: parent.verticalCenter
+        anchors.verticalCenterOffset: weeklyHistoryCard.height / 2 + 22
+        width: 142
+        height: 40
+        z: 10
+        transform: Translate {
+            y: (2 - root.scrollSectionIndex) * root.height
+            Behavior on y {
+                NumberAnimation { duration: 620; easing.type: Easing.InOutCubic }
+            }
+        }
+
+        Row {
+            anchors.fill: parent
+            spacing: 7
+
+            Repeater {
+                model: [
+                    { label: "<", action: "previous" },
+                    { label: Qt.formatDate(new Date(), "d"), action: "today" },
+                    { label: ">", action: "next" }
+                ]
+
+                delegate: Rectangle {
+                    required property var modelData
+                    width: 42
+                    height: 40
+                    radius: 10
+                    color: historyNavigationMouse.containsMouse
+                           ? Qt.rgba(theme.accent.r, theme.accent.g, theme.accent.b, 0.16)
+                           : theme.surfaceRaised
+                    border.color: historyNavigationMouse.containsMouse ? theme.accent : theme.border
+                    border.width: historyNavigationMouse.containsMouse ? 1.4 : 1
+                    Behavior on color { ColorAnimation { duration: 120 } }
+                    Behavior on border.color { ColorAnimation { duration: 120 } }
+
+                    Text {
+                        anchors.centerIn: parent
+                        text: modelData.label
+                        color: historyNavigationMouse.containsMouse ? theme.accent : theme.text
+                        font.pixelSize: modelData.action === "today" ? 14 : 19
+                        font.weight: modelData.action === "today" ? Font.DemiBold : Font.Medium
+                    }
+
+                    MouseArea {
+                        id: historyNavigationMouse
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: {
+                            if (modelData.action === "previous")
+                                root.shiftHistoryPeriod(-1)
+                            else if (modelData.action === "next")
+                                root.shiftHistoryPeriod(1)
+                            else
+                                root.resetHistoryPeriodToToday()
                         }
                     }
                 }
