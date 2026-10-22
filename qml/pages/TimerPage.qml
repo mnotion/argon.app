@@ -666,6 +666,7 @@ Item {
         historyPendingAction = resetToToday ? "today" : "shift"
         historyNavigationFast = fast
         historyNavigationAnimating = true
+        historyPlotSnapBack.stop()
 
         historyPlotOutAnimation.to = direction > 0 ? -historyPlot.width : historyPlot.width
         historyPlotOutAnimation.restart()
@@ -2159,6 +2160,7 @@ Item {
                         }
                         contentItem: Column {
                             id: historyPeriodMenuColumn
+                            width: historyPeriodDropdown.width - historyPeriodMenu.padding * 2
                             spacing: 2
                             Repeater {
                                 model: [
