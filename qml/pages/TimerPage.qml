@@ -2029,6 +2029,21 @@ Item {
                 }
 
                 Rectangle {
+                    id: historyHoveredPointDot
+                    z: 6
+                    enabled: false
+                    width: 16
+                    height: 16
+                    radius: 8
+                    color: theme.accent
+                    opacity: root.hoveredWeeklyPointIndex >= 0 ? 1 : 0
+                    visible: opacity > 0.01
+                    x: visible ? historyCanvas.pointX(root.hoveredWeeklyPointIndex) - width / 2 : 0
+                    y: visible ? historyCanvas.pointY(root.hoveredWeeklyPointIndex) - height / 2 : 0
+                    Behavior on opacity { NumberAnimation { duration: 100; easing.type: Easing.OutCubic } }
+                }
+
+                Rectangle {
                     id: historyHoverTooltip
                     z: 8
                     enabled: false
