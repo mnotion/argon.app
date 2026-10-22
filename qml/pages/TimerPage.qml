@@ -685,8 +685,7 @@ Item {
         }
 
         weeklyFocusPoints = points
-        weeklyYAxisMax = historyPeriod === "daily"
-                         ? 24 : Math.max(3, Math.ceil(maxSeconds / 3600) + 3)
+        weeklyYAxisMax = Math.max(3, Math.ceil(maxSeconds / 3600) + 3)
         var nextHeading = historyChartTitle()
         if (historyHeading !== nextHeading)
             historyHeading = nextHeading
@@ -1933,7 +1932,11 @@ Item {
         height: Math.min(parent.height - 72, 620)
         radius: 20
         color: theme.surface
-        border.color: theme.border
+        border.color: root.historyLockHighlight > 0
+                      ? Qt.rgba(theme.accent.r, theme.accent.g, theme.accent.b,
+                                root.historyLockHighlight * 0.72)
+                      : theme.border
+        Behavior on border.color { ColorAnimation { duration: 180; easing.type: Easing.OutCubic } }
         border.width: 1
         z: 4
         opacity: root.introProgress(0.32)
