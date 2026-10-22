@@ -61,6 +61,7 @@ Item {
     property real subjectContextMenuX: 0
     property real subjectContextMenuY: 0
     property int deleteConfirmStage: 0
+    property bool secondDeleteConfirmationPending: false
     property string deleteSubjectId: ""
     property string subjectDeleteError: ""
     property var subjectColourPalette: [
@@ -137,7 +138,10 @@ Item {
     function confirmSubjectDelete() {
         if (deleteConfirmStage === 1) {
             subjectDeleteError = ""
-            deleteConfirmStage = 2
+            // Fade out the first warning before reopening with the final wording.
+            deleteConfirmStage = 0
+            secondDeleteConfirmationPending = true
+            deleteConfirmReopenTimer.restart()
             return
         }
         if (deleteConfirmStage === 2)
@@ -145,6 +149,8 @@ Item {
     }
 
     function cancelSubjectDelete() {
+        deleteConfirmReopenTimer.stop()
+        secondDeleteConfirmationPending = false
         deleteConfirmStage = 0
         deleteSubjectId = ""
         subjectDeleteError = ""
@@ -2195,6 +2201,18 @@ Item {
         }
     }
 
+    Timer {
+        id: deleteConfirmReopenTimer
+        interval: 190
+        repeat: false
+        onTriggered: {
+            if (root.secondDeleteConfirmationPending) {
+                root.secondDeleteConfirmationPending = false
+                root.deleteConfirmStage = 2
+            }
+        }
+    }
+
     Rectangle {
         id: deleteConfirmOverlay
         anchors.fill: parent
@@ -2202,7 +2220,7 @@ Item {
         color: "#99000000"
         opacity: root.deleteConfirmStage > 0 ? 1 : 0
         visible: root.deleteConfirmStage > 0 || opacity > 0.01
-        enabled: root.deleteConfirmStage > 0
+        enabled: root.deleteConfirmStage > 0 || root.secondDeleteConfirmationPending
         Behavior on opacity { NumberAnimation { duration: 170; easing.type: Easing.OutCubic } }
 
         MouseArea {
