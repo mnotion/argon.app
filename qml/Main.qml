@@ -35,6 +35,10 @@ ApplicationWindow {
             radius: window.windowCornerRadius
             color: "white"
             antialiasing: true
+            // MultiEffect samples maskSource as a texture; keep the rounded
+            // alpha channel antialiased so it removes the square bleed cleanly.
+            layer.enabled: true
+            layer.smooth: true
         }
     }
 
