@@ -801,13 +801,149 @@ ApplicationWindow {
             border.color: "transparent"
             border.width: 0
 
-            // Drag only the empty title-bar area; keep the controls independent.
-            MouseArea {
+            // Native system move is used after DragHandler recognizes a gesture,
+            // so mouse, touch and stylus can all move the frameless window.
+            property bool titleDragActive: false
+            property bool snapChoicesVisible: false
+
+            DragHandler {
+                id: titleBarDrag
                 anchors.fill: parent
                 anchors.rightMargin: 126
                 z: 1
-                onPressed: window.startSystemMove()
-                onDoubleClicked: window.visibility === Window.Maximized ? window.showNormal() : window.showMaximized()
+                target: null
+                acceptedButtons: Qt.LeftButton
+                acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchScreen | PointerDevice.Stylus
+                dragThreshold: 8
+
+                onActiveChanged: {
+                    if (active) {
+                        titleBar.titleDragActive = true
+                        window.startSystemMove()
+                    } else {
+                        titleBar.titleDragActive = false
+                        if (titleBar.snapChoicesVisible) {
+                            titleBar.snapChoicesVisible = false
+                        }
+                        var screenTop = window.screen ? window.screen.availableGeometry.y : 0
+                        if (window.visibility !== Window.Maximized
+                                && window.y <= screenTop + 2) {
+                            window.showMaximized()
+                        }
+                    }
+                }
+            }
+
+            TapHandler {
+                id: titleBarTap
+                anchors.fill: parent
+                anchors.rightMargin: 126
+                z: 1
+                acceptedButtons: Qt.LeftButton
+                acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchScreen | PointerDevice.Stylus
+                gesturePolicy: TapHandler.DragThreshold
+                onDoubleTapped: {
+                    if (window.visibility === Window.Maximized)
+                        window.showNormal()
+                    else
+                        window.showMaximized()
+                }
+            }
+
+            Timer {
+                interval: 40
+                repeat: true
+                running: titleBar.titleDragActive && window.visibility !== Window.Maximized
+                onTriggered: {
+                    var screenTop = window.screen ? window.screen.availableGeometry.y : 0
+                    titleBar.snapChoicesVisible = window.y <= screenTop + 14
+                }
+            }
+
+            // Snap layout chooser appears while the dragged window reaches the top edge.
+            Rectangle {
+                id: snapLayoutChooser
+                visible: titleBar.snapChoicesVisible && titleBar.titleDragActive
+                z: 20
+                width: 300
+                height: 116
+                radius: 12
+                x: Math.max(8, Math.min(titleBar.width - width - 8, titleBarDrag.centroid.position.x - width / 2))
+                y: titleBar.height + 8
+                color: theme.surfaceRaised
+                border.color: theme.border
+                Row {
+                    anchors.fill: parent
+                    anchors.margins: 10
+                    spacing: 8
+                    Repeater {
+                        model: [
+                            { kind: "halves", label: "½ | ½" },
+                            { kind: "thirds", label: "⅓ | ⅔" },
+                            { kind: "quarters", label: "¼ grid" }
+                        ]
+                        delegate: Rectangle {
+                            required property var modelData
+                            width: (snapLayoutChooser.width - 36) / 3
+                            height: snapLayoutChooser.height - 20
+                            radius: 8
+                            color: snapLayoutMouse.containsMouse ? theme.accent : theme.surface
+                            border.color: snapLayoutMouse.containsMouse ? theme.accent : theme.border
+                            Column {
+                                anchors.centerIn: parent
+                                spacing: 8
+                                Row {
+                                    spacing: 3
+                                    Repeater {
+                                        model: modelData.kind === "quarters" ? 2 : 2
+                                        delegate: Rectangle {
+                                            required property int index
+                                            width: modelData.kind === "thirds" ? (index === 0 ? 18 : 30)
+                                                 : modelData.kind === "quarters" ? 20 : 24
+                                            height: 24
+                                            radius: 2
+                                            color: Qt.rgba(theme.accent.r, theme.accent.g, theme.accent.b, 0.35)
+                                            border.color: theme.border
+                                        }
+                                    }
+                                }
+                                Text {
+                                    anchors.horizontalCenter: parent.horizontalCenter
+                                    text: modelData.label
+                                    color: snapLayoutMouse.containsMouse ? theme.accentText : theme.text
+                                    font.pixelSize: 11
+                                }
+                            }
+                            MouseArea {
+                                id: snapLayoutMouse
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: {
+                                    var area = window.screen ? window.screen.availableGeometry : Qt.rect(0, 0, window.width, window.height)
+                                    if (modelData.kind === "halves") {
+                                        window.width = area.width / 2
+                                        window.height = area.height
+                                        window.x = area.x
+                                        window.y = area.y
+                                    } else if (modelData.kind === "thirds") {
+                                        window.width = area.width * 2 / 3
+                                        window.height = area.height
+                                        window.x = area.x
+                                        window.y = area.y
+                                    } else {
+                                        window.width = area.width / 2
+                                        window.height = area.height / 2
+                                        window.x = area.x
+                                        window.y = area.y
+                                    }
+                                    titleBar.snapChoicesVisible = false
+                                    titleBar.titleDragActive = false
+                                }
+                            }
+                        }
+                    }
+                }
             }
 
             Row {
