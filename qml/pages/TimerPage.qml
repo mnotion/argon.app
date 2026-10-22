@@ -1974,6 +1974,13 @@ Item {
                         function onWeeklyYAxisMaxChanged() { historyCanvas.requestPaint() }
                         function onHoveredWeeklyPointIndexChanged() { historyCanvas.requestPaint() }
                     }
+                    Connections {
+                        target: theme
+                        function onAccentChanged() { historyCanvas.requestPaint() }
+                        function onBorderChanged() { historyCanvas.requestPaint() }
+                        function onMutedTextChanged() { historyCanvas.requestPaint() }
+                        function onTextChanged() { historyCanvas.requestPaint() }
+                    }
                 }
 
                 MouseArea {
@@ -1983,7 +1990,7 @@ Item {
                     acceptedButtons: Qt.NoButton
                     hoverEnabled: true
                     cursorShape: root.hoveredWeeklyPointIndex >= 0
-                                 ? Qt.WhatsThisCursor : Qt.ArrowCursor
+                                 ? Qt.PointingHandCursor : Qt.ArrowCursor
 
                     function updateHoveredPoint(mouseX, mouseY) {
                         var nearestIndex = -1
