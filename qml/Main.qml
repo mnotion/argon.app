@@ -1103,7 +1103,7 @@ ApplicationWindow {
                             required property var modelData
                             width: argonExplorerEntriesList.width
                             height: 40
-                            opacity: modelData.isFolder ? 1.0 : 0.18
+                            opacity: modelData.isFolder ? 1.0 : 0.86
 
                             Row {
                                 anchors.fill: parent
@@ -1390,7 +1390,7 @@ ApplicationWindow {
                         radius: 15
                         color: Qt.rgba(theme.surface.r, theme.surface.g, theme.surface.b, 0.92)
                         border.width: 1
-                        border.color: searchInput.activeFocus ? theme.accent : (theme.lightMode ? "#55000000" : "#55FFFFFF")
+                        border.color: searchInput.activeFocus ? theme.accent : theme.border
 
                         Text {
                             x: 19
@@ -1586,11 +1586,9 @@ ApplicationWindow {
                             radius: 10
                             opacity: 1
                             color: resultHover.containsMouse
-                                   ? (theme.lightMode ? "#10000000" : "#1AFFFFFF")
-                                   : (theme.lightMode ? "#06000000" : "#0CFFFFFF")
-                            border.color: resultHover.containsMouse
-                                         ? (theme.lightMode ? "#55000000" : "#72FFFFFF")
-                                         : (theme.lightMode ? "#30000000" : "#42FFFFFF")
+                                   ? Qt.rgba(theme.accent.r, theme.accent.g, theme.accent.b, 0.14)
+                                   : theme.surface
+                            border.color: resultHover.containsMouse ? theme.accent : theme.border
                             border.width: 1
                             antialiasing: true
 
@@ -1845,7 +1843,7 @@ ApplicationWindow {
                         Layout.preferredWidth: 54
                         Layout.preferredHeight: 54
                         radius: 16
-                        color: "#24FFFFFF"
+                        color: Qt.rgba(theme.accent.r, theme.accent.g, theme.accent.b, 0.10)
                         border.color: theme.accent
                         Text {
                             anchors.centerIn: parent
