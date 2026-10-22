@@ -882,14 +882,22 @@ Item {
                         }
 
                         MouseArea {
-                            anchors.left: parent.left
-                            anchors.top: parent.top
-                            anchors.bottom: parent.bottom
-                            anchors.right: subjectTimerControl.left
-                            anchors.rightMargin: 4
+                            id: subjectBodyMouse
+                            anchors.fill: parent
+                            anchors.rightMargin: 2
+                            z: 1
+                            acceptedButtons: Qt.LeftButton | Qt.RightButton
                             hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
-                            onClicked: root.selectSubject(subjectData.id)
+                            onClicked: {
+                                if (mouse.button === Qt.RightButton) {
+                                    root.openSubjectContextMenu(
+                                                subjectData.id, subjectBodyMouse, mouse.x, mouse.y)
+                                } else {
+                                    root.subjectContextMenuOpen = false
+                                    root.selectSubject(subjectData.id)
+                                }
+                            }
                         }
 
                         Text {
@@ -903,16 +911,6 @@ Item {
                             font.weight: Font.Medium
                             horizontalAlignment: Text.AlignRight
                             verticalAlignment: Text.AlignVCenter
-                        }
-
-                        MouseArea {
-                            id: subjectCardContextMouse
-                            anchors.fill: parent
-                            z: 4
-                            acceptedButtons: Qt.RightButton
-                            hoverEnabled: false
-                            onClicked: root.openSubjectContextMenu(
-                                           subjectData.id, subjectCardContextMouse, mouse.x, mouse.y)
                         }
 
                         Rectangle {
@@ -944,9 +942,18 @@ Item {
                             MouseArea {
                                 id: subjectTimerMouse
                                 anchors.fill: parent
+                                acceptedButtons: Qt.LeftButton | Qt.RightButton
                                 hoverEnabled: true
                                 cursorShape: Qt.PointingHandCursor
-                                onClicked: root.startSubjectTimer(subjectData.id)
+                                onClicked: {
+                                    if (mouse.button === Qt.RightButton) {
+                                        root.openSubjectContextMenu(
+                                                    subjectData.id, subjectTimerMouse, mouse.x, mouse.y)
+                                    } else {
+                                        root.subjectContextMenuOpen = false
+                                        root.startSubjectTimer(subjectData.id)
+                                    }
+                                }
                             }
 
                             ToolTip.visible: subjectTimerMouse.containsMouse
