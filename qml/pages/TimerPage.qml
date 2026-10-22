@@ -33,6 +33,8 @@ Item {
     property real historyLineProgress: 0
     property real historyAxisProgress: 0
     property real historyLockHighlight: 0
+    property real historyCardEntranceProgress: 0
+    property real historyGraphEntranceProgress: 0
     property real historyPlotDragOffset: 0
     property bool historyNavigationAnimating: false
     property bool historyNavigationFast: false
@@ -567,10 +569,13 @@ Item {
         refreshHistoryChartData()
         // Changing the viewing mode is instantaneous; only entering the page
         // plays the line/axis intro sequence.
+        historyRevealAnimation.stop()
+        historyLineProgress = 1
+        historyAxisProgress = 1
+        historyLockHighlight = 0
         if (scrollSectionIndex === 2) {
-            historyLineProgress = 1
-            historyAxisProgress = 1
-            historyLockHighlight = 0
+            historyCardEntranceProgress = 1
+            historyGraphEntranceProgress = 1
         }
     }
 
@@ -587,9 +592,14 @@ Item {
 
     function restartHistoryReveal() {
         historyRevealAnimation.stop()
-        historyLineProgress = 0
-        historyAxisProgress = 0
+        historyCardEntranceProgress = 0
+        historyGraphEntranceProgress = 0
+        historyLineProgress = 1
+        historyAxisProgress = 1
         historyLockHighlight = 0
+        historyPlotDragOffset = 0
+        historyNavigationAnimating = false
+        historyNavigationFast = false
         hoveredWeeklyPointIndex = -1
         refreshHistoryChartData()
         if (scrollSectionIndex === 2)
@@ -753,7 +763,7 @@ Item {
         }
 
         weeklyFocusPoints = points
-        weeklyYAxisMax = maxSeconds <= 0 || maxSeconds < 2 * 3600
+        weeklyYAxisMax = Math.floor(maxSeconds / 60) === 0
                          ? 3 : Math.ceil(maxSeconds / 3600) + 1
         var nextHeading = historyChartTitle()
         if (historyHeading !== nextHeading)
@@ -792,6 +802,8 @@ Item {
         } else {
             hoveredWeeklyPointIndex = -1
             historyRevealAnimation.stop()
+            historyCardEntranceProgress = 0
+            historyGraphEntranceProgress = 0
         }
     }
 
@@ -901,23 +913,24 @@ Item {
         }
     }
 
-    // The line draws first; one second later the axes grow from their shared origin.
+    // Grow the card first, then reveal the complete graph as a single layer.
     SequentialAnimation {
         id: historyRevealAnimation
         NumberAnimation {
             target: root
-            property: "historyLineProgress"
+            property: "historyCardEntranceProgress"
             from: 0
             to: 1
-            duration: 1000
+            duration: 340
             easing.type: Easing.OutCubic
         }
+        PauseAnimation { duration: 420 }
         NumberAnimation {
             target: root
-            property: "historyAxisProgress"
+            property: "historyGraphEntranceProgress"
             from: 0
             to: 1
-            duration: 620
+            duration: 260
             easing.type: Easing.OutCubic
         }
         NumberAnimation {
@@ -925,15 +938,15 @@ Item {
             property: "historyLockHighlight"
             from: 0
             to: 1
-            duration: 65
+            duration: 55
             easing.type: Easing.OutCubic
         }
-        PauseAnimation { duration: 25 }
+        PauseAnimation { duration: 20 }
         NumberAnimation {
             target: root
             property: "historyLockHighlight"
             to: 0
-            duration: 190
+            duration: 145
             easing.type: Easing.OutCubic
         }
     }
@@ -2049,21 +2062,11 @@ Item {
         Behavior on border.color { ColorAnimation { duration: 180; easing.type: Easing.OutCubic } }
         border.width: 1
         z: 4
-        opacity: root.introProgress(0.32)
-        scale: 0.97 + 0.03 * root.introProgress(0.32)
-        transform: [
-            Translate {
-                y: (1 - root.introProgress(0.32)) * 14
-            },
-            Translate {
-                y: (2 - root.scrollSectionIndex) * root.height
-                Behavior on y {
-                    NumberAnimation { duration: 620; easing.type: Easing.InOutCubic }
-                }
-            }
-        ]
+        visible: root.scrollSectionIndex === 2
+        opacity: root.historyCardEntranceProgress
+        scale: 0.88 + 0.12 * root.historyCardEntranceProgress
         Behavior on scale {
-            NumberAnimation { duration: 420; easing.type: Easing.OutCubic }
+            NumberAnimation { duration: 320; easing.type: Easing.OutCubic }
         }
 
         ColumnLayout {
@@ -2130,7 +2133,7 @@ Item {
                                 verticalAlignment: Text.AlignVCenter
                             }
                         }
-                        onClicked: historyPeriodMenu.visible ? historyPeriodMenu.close() : historyPeriodMenu.open()
+                        onClicked: historyPeriodMenu.opened ? historyPeriodMenu.close() : historyPeriodMenu.open()
                     }
 
                     Popup {
@@ -2143,7 +2146,7 @@ Item {
                         padding: 4
                         closePolicy: Popup.CloseOnPressOutside | Popup.CloseOnEscape
                         modal: false
-                        focus: false
+                        focus: true
                         z: 1000
                         implicitHeight: historyPeriodMenuColumn.implicitHeight + padding * 2
                         enter: Transition {
@@ -2212,6 +2215,9 @@ Item {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
                 Layout.minimumHeight: 260
+                clip: true
+                opacity: root.historyGraphEntranceProgress
+                scale: 0.94 + 0.06 * root.historyGraphEntranceProgress
 
                 Canvas {
                     id: historyCanvas
@@ -2654,12 +2660,8 @@ Item {
         width: 142
         height: 40
         z: 10
-        transform: Translate {
-            y: (2 - root.scrollSectionIndex) * root.height
-            Behavior on y {
-                NumberAnimation { duration: 620; easing.type: Easing.InOutCubic }
-            }
-        }
+        visible: root.scrollSectionIndex === 2
+        opacity: root.historyCardEntranceProgress
 
         Row {
             anchors.fill: parent
