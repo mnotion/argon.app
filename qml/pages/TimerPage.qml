@@ -672,7 +672,8 @@ Item {
         } else {
             hoveredWeeklyPointIndex = -1
             historyRevealAnimation.stop()
-            historyRevealProgress = 0
+            // Keep the finished chart drawn while it scrolls out of view.
+            // Its next entry resets the progress and replays the drawing animation.
         }
     }
 
