@@ -18,6 +18,26 @@ ApplicationWindow {
     flags: Qt.Window | Qt.FramelessWindowHint
     color: "transparent"
 
+    // Rounded corners are used only while windowed. Maximized and fullscreen
+    // states must fill the monitor with square corners and no inset border.
+    readonly property bool squareWindowCorners:
+        window.visibility === Window.Maximized || window.visibility === Window.FullScreen
+    readonly property real windowCornerRadius: squareWindowCorners ? 0 : 16
+
+    // Mask the complete window content, not just the central layout. This clips
+    // page content and root-level overlays to the same antialiased outer shape.
+    contentItem.layer.enabled: true
+    contentItem.layer.effect: MultiEffect {
+        maskEnabled: true
+        maskSource: Rectangle {
+            width: window.contentItem.width
+            height: window.contentItem.height
+            radius: window.windowCornerRadius
+            color: "white"
+            antialiasing: true
+        }
+    }
+
     Theme {
         id: theme
         lightMode: window.lightMode
@@ -193,10 +213,10 @@ ApplicationWindow {
     Rectangle {
         id: windowSurface
         anchors.fill: parent
-        radius: window.visibility === Window.FullScreen ? 0 : 16
+        radius: window.windowCornerRadius
         color: theme.window
-        border.color: window.visibility === Window.FullScreen ? "transparent" : theme.border
-        border.width: window.visibility === Window.FullScreen ? 0 : 1
+        border.color: window.squareWindowCorners ? "transparent" : theme.border
+        border.width: window.squareWindowCorners ? 0 : 1
         antialiasing: true
         z: -2
     }
@@ -757,10 +777,10 @@ ApplicationWindow {
     Rectangle {
         id: windowEdge
         anchors.fill: parent
-        radius: window.visibility === Window.FullScreen ? 0 : 16
+        radius: window.windowCornerRadius
         color: "transparent"
-        border.color: window.visibility === Window.FullScreen ? "transparent" : theme.border
-        border.width: window.visibility === Window.FullScreen ? 0 : 1
+        border.color: window.squareWindowCorners ? "transparent" : theme.border
+        border.width: window.squareWindowCorners ? 0 : 1
         antialiasing: true
         z: 100
         // Keep the border visible without intercepting window interaction.
@@ -770,23 +790,13 @@ ApplicationWindow {
     ColumnLayout {
         id: appContentLayout
         anchors.fill: parent
-        anchors.margins: window.visibility === Window.FullScreen ? 0 : 1
+        anchors.margins: window.squareWindowCorners ? 0 : 1
         spacing: 0
 
         // Blur the app surface behind Explorer and file-action dialogs.
         // Both popups are siblings of this layout, so their contents stay sharp.
         layer.effect: MultiEffect {
             blurMax: 48
-            // Clip the rendered app layer to the same rounded silhouette as the
-            // frameless window surface, including both bottom corners.
-            maskEnabled: true
-            maskSource: Rectangle {
-                width: appContentLayout.width
-                height: appContentLayout.height
-                radius: window.visibility === Window.FullScreen ? 0 : 16
-                color: "white"
-                antialiasing: true
-            }
             Behavior on blur {
                 NumberAnimation {
                     duration: 340
@@ -802,8 +812,8 @@ ApplicationWindow {
             visible: window.visibility !== Window.FullScreen
             z: 40
             radius: 0
-            topLeftRadius: window.visibility === Window.FullScreen ? 0 : 16
-            topRightRadius: window.visibility === Window.FullScreen ? 0 : 16
+            topLeftRadius: window.windowCornerRadius
+            topRightRadius: window.windowCornerRadius
             bottomLeftRadius: 0
             bottomRightRadius: 0
             clip: true
@@ -1034,7 +1044,7 @@ ApplicationWindow {
                     width: 46
                     height: titleBar.height
                     radius: 0
-                    topRightRadius: closeArea.containsMouse && window.visibility !== Window.FullScreen ? 16 : 0
+                    topRightRadius: closeArea.containsMouse && !window.squareWindowCorners ? 16 : 0
                     bottomRightRadius: 0
                     color: closeArea.containsMouse ? "#b94a4a" : "transparent"
                     MouseArea {
