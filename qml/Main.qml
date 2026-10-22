@@ -806,11 +806,14 @@ ApplicationWindow {
             property bool titleDragActive: false
             property bool snapChoicesVisible: false
 
-            DragHandler {
-                id: titleBarDrag
+            Item {
+                id: titleBarGestureArea
                 anchors.fill: parent
                 anchors.rightMargin: 126
                 z: 1
+
+                DragHandler {
+                id: titleBarDrag
                 target: null
                 acceptedButtons: Qt.LeftButton
                 acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchScreen | PointerDevice.Stylus
@@ -834,11 +837,8 @@ ApplicationWindow {
                 }
             }
 
-            TapHandler {
+                TapHandler {
                 id: titleBarTap
-                anchors.fill: parent
-                anchors.rightMargin: 126
-                z: 1
                 acceptedButtons: Qt.LeftButton
                 acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchScreen | PointerDevice.Stylus
                 gesturePolicy: TapHandler.DragThreshold
@@ -847,6 +847,7 @@ ApplicationWindow {
                         window.showNormal()
                     else
                         window.showMaximized()
+                }
                 }
             }
 
