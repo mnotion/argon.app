@@ -192,6 +192,27 @@ Item {
         }
         if (editingSubjectId === targetId)
             closeSubjectDialog()
+
+        // Remove the deleted card's lifetime and monthly ordering counters as well.
+        var remainingLifetimeTotals = {}
+        var lifetimeKeys = Object.keys(controller.subjectElapsedMilliseconds || ({}))
+        for (var lifetimeIndex = 0; lifetimeIndex < lifetimeKeys.length; ++lifetimeIndex) {
+            var lifetimeKey = lifetimeKeys[lifetimeIndex]
+            if (String(lifetimeKey) !== targetId)
+                remainingLifetimeTotals[lifetimeKey] = controller.subjectElapsedMilliseconds[lifetimeKey]
+        }
+        controller.subjectElapsedMilliseconds = remainingLifetimeTotals
+
+        var remainingMonthlyTotals = {}
+        var monthlyKeys = Object.keys(controller.subjectMonthlyElapsedMilliseconds || ({}))
+        for (var monthlyIndex = 0; monthlyIndex < monthlyKeys.length; ++monthlyIndex) {
+            var monthlyKey = monthlyKeys[monthlyIndex]
+            if (String(monthlyKey).slice(monthlyKey.lastIndexOf("|") + 1) !== targetId)
+                remainingMonthlyTotals[monthlyKey] = controller.subjectMonthlyElapsedMilliseconds[monthlyKey]
+        }
+        controller.subjectMonthlyElapsedMilliseconds = remainingMonthlyTotals
+        controller.persistElapsedState()
+
         refreshSubjectDisplayOrder()
         cancelSubjectDelete()
     }
@@ -2125,6 +2146,20 @@ Item {
                     }
                 }
             }
+        }
+    }
+
+    Item {
+        id: subjectContextDismissLayer
+        anchors.fill: parent
+        z: 119
+        opacity: root.subjectContextMenuOpen ? 1 : 0
+        visible: root.subjectContextMenuOpen || opacity > 0.01
+        Behavior on opacity { NumberAnimation { duration: 130; easing.type: Easing.OutCubic } }
+        MouseArea {
+            anchors.fill: parent
+            acceptedButtons: Qt.AllButtons
+            onClicked: root.subjectContextMenuOpen = false
         }
     }
 
