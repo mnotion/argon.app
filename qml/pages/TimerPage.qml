@@ -563,6 +563,7 @@ Item {
         historyPeriod = period
         historyReferenceDate = new Date()
         hoveredWeeklyPointIndex = -1
+        historyRevealAnimation.stop()
         refreshHistoryChartData()
         // Changing the viewing mode is instantaneous; only entering the page
         // plays the line/axis intro sequence.
@@ -655,6 +656,12 @@ Item {
         if (resetToToday && historyPeriodIsCurrent())
             return
 
+        historyRevealAnimation.stop()
+        historyLineProgress = 1
+        historyAxisProgress = 1
+        historyLockHighlight = 0
+        hoveredWeeklyPointIndex = -1
+        historyWheelDelta = 0
         historyPendingDirection = direction
         historyPendingAction = resetToToday ? "today" : "shift"
         historyNavigationFast = fast
@@ -778,10 +785,12 @@ Item {
 
     onScrollSectionIndexChanged: {
         calendarExpanded = scrollSectionIndex === 1
-        if (scrollSectionIndex === 2)
+        if (scrollSectionIndex === 2) {
             restartHistoryReveal()
-        else
+        } else {
             hoveredWeeklyPointIndex = -1
+            historyRevealAnimation.stop()
+        }
     }
 
     onCalendarExpandedChanged: {
@@ -2069,12 +2078,15 @@ Item {
                 Layout.preferredHeight: 42
 
                 Text {
-                    anchors.centerIn: parent
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: Math.max(100, parent.width - historyPeriodDropdown.width - 18)
+                    elide: Text.ElideRight
+                    horizontalAlignment: Text.AlignHCenter
                     text: root.historyHeading
                     color: theme.accent
                     font.pixelSize: 25
                     font.weight: Font.DemiBold
-                    horizontalAlignment: Text.AlignHCenter
                 }
 
                 Item {
@@ -2469,9 +2481,13 @@ Item {
                         if (amount === 0)
                             return
                         root.historyWheelDelta += amount
+                        if (root.historyNavigationAnimating) {
+                            root.historyWheelDelta = 0
+                            event.accepted = true
+                            return
+                        }
                         if (Math.abs(root.historyWheelDelta) >= 42
-                                && !historyWheelCooldown.running
-                                && !root.historyNavigationAnimating) {
+                                && !historyWheelCooldown.running) {
                             var direction = root.historyWheelDelta < 0 ? 1 : -1
                             root.historyWheelDelta = 0
                             root.requestHistoryNavigation(direction, false, false)
