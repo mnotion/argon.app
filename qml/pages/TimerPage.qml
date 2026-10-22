@@ -2139,7 +2139,6 @@ Item {
             color: theme.surfaceRaised
             border.color: theme.border
             border.width: 1
-            z: 1
 
             ColumnLayout {
                 anchors.fill: parent
