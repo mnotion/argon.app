@@ -1957,12 +1957,15 @@ Item {
 
         MouseArea {
             anchors.fill: parent
+            z: -1
+            acceptedButtons: Qt.AllButtons
             onClicked: { /* Keep the form open until Add or Cancel is chosen. */ }
         }
 
         Rectangle {
             id: subjectModal
             anchors.centerIn: parent
+            z: 1
             width: Math.min(440, parent.width - 36)
             height: 426
             radius: 18
@@ -2104,17 +2107,22 @@ Item {
                     Item { Layout.fillWidth: true }
 
                     Button {
+                        id: cancelSubjectEditButton
                         text: "Cancel"
                         Layout.preferredWidth: 100
                         Layout.preferredHeight: 42
+                        hoverEnabled: true
                         onClicked: root.closeSubjectDialog()
                         background: Rectangle {
                             radius: 9
-                            color: parent.hovered ? theme.border : theme.surface
-                            border.color: theme.border
+                            color: cancelSubjectEditButton.hovered ? theme.border : theme.surface
+                            border.color: cancelSubjectEditButton.hovered ? theme.accent : theme.border
+                            border.width: cancelSubjectEditButton.hovered ? 1.5 : 1
+                            Behavior on color { ColorAnimation { duration: 120 } }
+                            Behavior on border.color { ColorAnimation { duration: 120 } }
                         }
                         contentItem: Text {
-                            text: parent.text
+                            text: cancelSubjectEditButton.text
                             color: theme.text
                             font.pixelSize: 12
                             font.weight: Font.DemiBold
@@ -2124,20 +2132,28 @@ Item {
                     }
 
                     Button {
+                        id: saveSubjectButton
                         text: root.editingSubjectId.length > 0 ? "Save changes" : "Add"
                         Layout.preferredWidth: root.editingSubjectId.length > 0 ? 124 : 100
                         Layout.preferredHeight: 42
+                        hoverEnabled: true
                         enabled: root.newSubjectName.trim().length > 0
                                  && root.newSubjectGoal.trim().length > 0
                                  && Number(root.newSubjectGoal) > 0
                         onClicked: root.addSubject()
                         background: Rectangle {
                             radius: 9
-                            color: parent.enabled ? theme.accent : theme.border
+                            color: !saveSubjectButton.enabled ? theme.border
+                                   : saveSubjectButton.hovered ? Qt.darker(theme.accent, 1.12)
+                                   : theme.accent
+                            border.color: saveSubjectButton.hovered ? theme.text : theme.accent
+                            border.width: saveSubjectButton.hovered ? 1.2 : 1
+                            Behavior on color { ColorAnimation { duration: 120 } }
+                            Behavior on border.color { ColorAnimation { duration: 120 } }
                         }
                         contentItem: Text {
-                            text: parent.text
-                            color: parent.enabled ? theme.accentText : theme.mutedText
+                            text: saveSubjectButton.text
+                            color: saveSubjectButton.enabled ? theme.accentText : theme.mutedText
                             font.pixelSize: 12
                             font.weight: Font.DemiBold
                             horizontalAlignment: Text.AlignHCenter
@@ -2261,6 +2277,7 @@ Item {
 
         MouseArea {
             anchors.fill: parent
+            z: -1
             acceptedButtons: Qt.AllButtons
             onClicked: { /* Confirmation remains open until an explicit choice is made. */ }
         }
@@ -2268,6 +2285,7 @@ Item {
         Rectangle {
             id: deleteConfirmCard
             anchors.centerIn: parent
+            z: 1
             width: Math.min(410, parent.width - 36)
             height: deleteConfirmText.implicitHeight + (root.subjectDeleteError.length > 0 ? 160 : 130)
             radius: 17
@@ -2314,22 +2332,46 @@ Item {
                     spacing: 9
                     Item { Layout.fillWidth: true }
                     Button {
+                        id: cancelDeleteButton
                         text: "Cancel"
-                        Layout.preferredWidth: 86
-                        Layout.preferredHeight: 38
+                        Layout.preferredWidth: 94
+                        Layout.preferredHeight: 40
+                        hoverEnabled: true
                         onClicked: root.cancelSubjectDelete()
-                    }
-                    Button {
-                        text: root.deleteConfirmStage === 2 ? "Yes, delete forever" : "Yes, continue"
-                        Layout.preferredWidth: root.deleteConfirmStage === 2 ? 142 : 110
-                        Layout.preferredHeight: 38
-                        onClicked: root.confirmSubjectDelete()
                         background: Rectangle {
-                            radius: 8
-                            color: parent.hovered ? "#C84B4B" : "#A93636"
+                            radius: 9
+                            color: cancelDeleteButton.hovered ? theme.border : theme.surface
+                            border.color: cancelDeleteButton.hovered ? theme.accent : theme.border
+                            border.width: cancelDeleteButton.hovered ? 1.5 : 1
+                            Behavior on color { ColorAnimation { duration: 120 } }
+                            Behavior on border.color { ColorAnimation { duration: 120 } }
                         }
                         contentItem: Text {
-                            text: parent.text
+                            text: cancelDeleteButton.text
+                            color: theme.text
+                            font.pixelSize: 12
+                            font.weight: Font.Medium
+                            horizontalAlignment: Text.AlignHCenter
+                            verticalAlignment: Text.AlignVCenter
+                        }
+                    }
+                    Button {
+                        id: confirmDeleteButton
+                        text: root.deleteConfirmStage === 2 ? "Delete forever" : "Yes, continue"
+                        Layout.preferredWidth: root.deleteConfirmStage === 2 ? 132 : 116
+                        Layout.preferredHeight: 40
+                        hoverEnabled: true
+                        onClicked: root.confirmSubjectDelete()
+                        background: Rectangle {
+                            radius: 9
+                            color: confirmDeleteButton.hovered ? "#B93636" : "#C74747"
+                            border.color: confirmDeleteButton.hovered ? "#FF8585" : "#C74747"
+                            border.width: confirmDeleteButton.hovered ? 1.5 : 1
+                            Behavior on color { ColorAnimation { duration: 120 } }
+                            Behavior on border.color { ColorAnimation { duration: 120 } }
+                        }
+                        contentItem: Text {
+                            text: confirmDeleteButton.text
                             color: "#FFFFFF"
                             font.pixelSize: 12
                             font.weight: Font.DemiBold
