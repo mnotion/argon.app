@@ -28,6 +28,11 @@ Item {
     property var calendarFocusedSeconds: ({})
     property string calendarTodayIsoDate: ""
     property double todayFocusedSeconds: 0
+    property var weeklyFocusPoints: []
+    property int weeklyYAxisMax: 3
+    property int hoveredWeeklyPointIndex: -1
+    property real historyHoverX: 0
+    property real historyHoverY: 0
     property bool calendarDetailsVisible: false
     property real calendarDetailsProgress: calendarDetailsVisible ? 1 : 0
     property string selectedCalendarDate: ""
@@ -44,7 +49,7 @@ Item {
         }
     }
     property int calendarCommitOffset: 0
-    // Three vertically paged sections: timer + subjects, monthly analytics, daily focus.
+    // Three vertically paged sections: timer + subjects, monthly calendar, weekly history chart.
     property int scrollSectionIndex: 0
     property int scrollSectionCount: 3
     property var subjects: []
@@ -536,9 +541,53 @@ Item {
         var currentDateKey = calendarDateKey(new Date())
         if (currentDateKey !== calendarTodayIsoDate) {
             refreshCalendarData()
-            return
+        } else {
+            todayFocusedSeconds = dailyAnalyticsService.focusedSecondsForDate(currentDateKey)
         }
-        todayFocusedSeconds = dailyAnalyticsService.focusedSecondsForDate(currentDateKey)
+        refreshWeeklyFocusData()
+    }
+
+    function refreshWeeklyFocusData() {
+        var today = new Date()
+        today.setHours(0, 0, 0, 0)
+        var monday = new Date(today.getTime())
+        monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7))
+
+        var points = []
+        var maxSeconds = 0
+        for (var dayIndex = 0; dayIndex < 7; ++dayIndex) {
+            var date = new Date(monday.getTime())
+            date.setDate(monday.getDate() + dayIndex)
+            var key = calendarDateKey(date)
+            var seconds = Math.max(0, Number(dailyAnalyticsService.focusedSecondsForDate(key)) || 0)
+            if (key === calendarDateKey(today))
+                seconds = Math.max(seconds, Number(dailyAnalyticsService.focusedSecondsToday) || 0)
+
+            points.push({
+                "date": key,
+                "weekday": Qt.formatDate(date, "ddd"),
+                "day": date.getDate(),
+                "seconds": seconds
+            })
+            maxSeconds = Math.max(maxSeconds, seconds)
+        }
+
+        weeklyFocusPoints = points
+        // Leave three full hours of headroom above the busiest day.
+        // With no recorded time the chart still starts at a 3-hour maximum.
+        weeklyYAxisMax = Math.max(3, Math.ceil(maxSeconds / 3600) + 3)
+        hoveredWeeklyPointIndex = -1
+    }
+
+    function formatWeeklyDuration(seconds) {
+        var totalMinutes = Math.floor(Math.max(0, Number(seconds) || 0) / 60)
+        var hours = Math.floor(totalMinutes / 60)
+        var minutes = totalMinutes % 60
+        if (hours === 0)
+            return minutes + " min"
+        if (minutes === 0)
+            return hours + (hours === 1 ? " hour" : " hours")
+        return hours + "h " + minutes + " min"
     }
 
     function formattedFocusedTime() {
@@ -692,6 +741,7 @@ Item {
     Component.onCompleted: {
         dailyAnalyticsService.refreshToday()
         refreshCalendarData()
+        refreshWeeklyFocusData()
         loadSubjects()
         timerIntroProgress = 0
         timerPageEntrance.start()
@@ -1782,26 +1832,22 @@ Item {
         }
     }
 
-    // Only a slim strip of this independent card is visible initially.
+    // Weekly history: point-to-point daily focus totals for Monday through Sunday.
     Rectangle {
-        id: dailyFocusedCard
+        id: weeklyHistoryCard
         x: (root.width - width) / 2
         anchors.verticalCenter: parent.verticalCenter
-        anchors.verticalCenterOffset: -8
-            + (root.dailyCardSettled
-               ? Math.sin(root.dailyCardCloudPhase * 2 * Math.PI) * 3 : 0)
-        width: 248
-        height: 178
-        radius: 16
-        scale: root.dailyCardExpanded ? 1.02 : 0.96
+        anchors.verticalCenterOffset: -6
+        width: Math.min(1060, parent.width - 96)
+        height: Math.min(parent.height - 72, 620)
+        radius: 20
+        color: theme.surface
+        border.color: theme.border
+        border.width: 1
+        z: 4
         opacity: root.introProgress(0.32)
+        scale: 0.97 + 0.03 * root.introProgress(0.32)
         transform: [
-            Scale {
-                origin.x: dailyFocusedCard.width / 2
-                origin.y: dailyFocusedCard.height / 2
-                xScale: 0.96 + 0.04 * root.introProgress(0.32)
-                yScale: 0.96 + 0.04 * root.introProgress(0.32)
-            },
             Translate {
                 y: (1 - root.introProgress(0.32)) * 14
             },
@@ -1812,91 +1858,290 @@ Item {
                 }
             }
         ]
-        color: Qt.lighter(theme.surface, 1.0 + 0.11 * root.dailyCardCloudPhase)
-        border.color: Qt.lighter(theme.border, 1.0 + 0.06 * root.dailyCardCloudPhase)
-        border.width: 1
-        z: 4
-
-        Behavior on x {
-            NumberAnimation {
-                duration: 900
-                easing.type: Easing.OutExpo
-            }
-        }
         Behavior on scale {
-            NumberAnimation {
-                duration: 900
-                easing.type: Easing.OutExpo
-            }
+            NumberAnimation { duration: 420; easing.type: Easing.OutCubic }
         }
 
-        Column {
-            id: dailyCardContent
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.verticalCenter: parent.verticalCenter
-            anchors.leftMargin: 16
-            anchors.rightMargin: 16
-            spacing: 10
+        ColumnLayout {
+            anchors.fill: parent
+            anchors.leftMargin: 26
+            anchors.rightMargin: 26
+            anchors.topMargin: 20
+            anchors.bottomMargin: 16
+            spacing: 8
 
-            transform: Translate {
-                y: root.dailyCardSettled ? 0 : 8
-                Behavior on y {
-                    NumberAnimation {
-                        duration: 500
-                        easing.type: Easing.OutCubic
+            RowLayout {
+                Layout.fillWidth: true
+                Layout.preferredHeight: 42
+                spacing: 12
+
+                Text {
+                    text: "History"
+                    color: theme.accent
+                    font.pixelSize: 25
+                    font.weight: Font.DemiBold
+                }
+
+                Item { Layout.fillWidth: true }
+
+                Rectangle {
+                    Layout.preferredWidth: 116
+                    Layout.preferredHeight: 34
+                    radius: 10
+                    color: theme.surfaceRaised
+                    border.color: theme.border
+
+                    Row {
+                        anchors.centerIn: parent
+                        spacing: 9
+                        Text {
+                            text: "This week"
+                            color: theme.text
+                            font.pixelSize: 12
+                            font.weight: Font.Medium
+                            anchors.verticalCenter: parent.verticalCenter
+                        }
+                        Text {
+                            text: "▾"
+                            color: theme.mutedText
+                            font.pixelSize: 14
+                            anchors.verticalCenter: parent.verticalCenter
+                        }
                     }
                 }
             }
 
             Text {
-                id: focusedTimeText
-                width: parent.width
-                height: 58
-                horizontalAlignment: Text.AlignHCenter
-                verticalAlignment: Text.AlignVCenter
-                text: root.formattedFocusedTime()
-                color: theme.text
-                font.pixelSize: 40
-                font.weight: Font.Light
-                minimumPixelSize: 28
-                fontSizeMode: Text.Fit
-                opacity: 0
-                Behavior on opacity {
-                    NumberAnimation {
-                        duration: 190
-                        easing.type: Easing.OutCubic
-                    }
-                }
-            }
-
-            Rectangle {
-                x: 12
-                width: parent.width - 24
-                height: 1
-                color: Qt.lighter(theme.border, 1.0 + 0.06 * root.dailyCardCloudPhase)
-                opacity: focusedTimeText.opacity
-                Behavior on opacity {
-                    NumberAnimation { duration: 190; easing.type: Easing.OutCubic }
-                }
-            }
-
-            Text {
-                id: focusedDateText
-                width: parent.width
-                horizontalAlignment: Text.AlignHCenter
-                text: root.formattedDate()
+                Layout.fillWidth: true
+                text: "Daily focus time"
                 color: theme.mutedText
-                font.pixelSize: 13
-                opacity: 0
-                Behavior on opacity {
-                    NumberAnimation {
-                        duration: 260
-                        easing.type: Easing.OutCubic
+                font.pixelSize: 12
+            }
+
+            Item {
+                id: historyPlot
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                Layout.minimumHeight: 260
+
+                Canvas {
+                    id: historyCanvas
+                    anchors.fill: parent
+                    antialiasing: true
+
+                    readonly property real plotLeft: 66
+                    readonly property real plotTop: 14
+                    readonly property real plotRight: width - 12
+                    readonly property real plotBottom: height - 42
+                    readonly property real plotWidth: Math.max(1, plotRight - plotLeft)
+                    readonly property real plotHeight: Math.max(1, plotBottom - plotTop)
+
+                    function pointX(index) {
+                        return plotLeft + index * plotWidth / 6
+                    }
+
+                    function pointY(index) {
+                        var seconds = Number(root.weeklyFocusPoints[index]
+                                             ? root.weeklyFocusPoints[index].seconds : 0) || 0
+                        var hours = seconds / 3600
+                        return plotBottom - Math.min(root.weeklyYAxisMax, hours)
+                                / root.weeklyYAxisMax * plotHeight
+                    }
+
+                    onPaint: {
+                        var ctx = getContext("2d")
+                        ctx.clearRect(0, 0, width, height)
+
+                        var left = plotLeft
+                        var right = plotRight
+                        var top = plotTop
+                        var bottom = plotBottom
+                        var graphWidth = plotWidth
+                        var graphHeight = plotHeight
+                        var accentR = Math.round(theme.accent.r * 255)
+                        var accentG = Math.round(theme.accent.g * 255)
+                        var accentB = Math.round(theme.accent.b * 255)
+                        var accentCss = "rgb(" + accentR + "," + accentG + "," + accentB + ")"
+                        var gridCss = String(theme.border)
+                        var labelCss = String(theme.mutedText)
+                        var baseline = String(theme.text)
+
+                        ctx.lineWidth = 1
+                        ctx.font = "12px Sansation"
+                        ctx.textAlign = "right"
+                        ctx.textBaseline = "middle"
+
+                        // Horizontal dashed guides and the Y-axis labels.
+                        for (var tick = 0; tick <= root.weeklyYAxisMax; ++tick) {
+                            var y = bottom - tick / root.weeklyYAxisMax * graphHeight
+                            ctx.beginPath()
+                            ctx.strokeStyle = tick === 0 ? gridCss : gridCss
+                            ctx.globalAlpha = tick === 0 ? 0.9 : 0.55
+                            for (var dashX = left; dashX < right; dashX += 12) {
+                                ctx.moveTo(dashX, y)
+                                ctx.lineTo(Math.min(right, dashX + 5), y)
+                            }
+                            ctx.stroke()
+                            ctx.globalAlpha = 1
+                            ctx.fillStyle = tick === 0 ? baseline : labelCss
+                            ctx.fillText(tick === 0 ? "0 min" : tick + "h", left - 12, y)
+                        }
+
+                        // Axis rails remain quiet so the accent line carries the data.
+                        ctx.beginPath()
+                        ctx.strokeStyle = gridCss
+                        ctx.globalAlpha = 0.75
+                        ctx.moveTo(left, top)
+                        ctx.lineTo(left, bottom)
+                        ctx.lineTo(right, bottom)
+                        ctx.stroke()
+                        ctx.globalAlpha = 1
+
+                        if (root.weeklyFocusPoints.length > 0) {
+                            // Soft fill below the line.
+                            ctx.beginPath()
+                            ctx.moveTo(pointX(0), bottom)
+                            for (var fillIndex = 0; fillIndex < root.weeklyFocusPoints.length; ++fillIndex)
+                                ctx.lineTo(pointX(fillIndex), pointY(fillIndex))
+                            ctx.lineTo(pointX(root.weeklyFocusPoints.length - 1), bottom)
+                            ctx.closePath()
+                            ctx.fillStyle = "rgba(" + accentR + "," + accentG + "," + accentB + ",0.11)"
+                            ctx.fill()
+
+                            // Straight line segments only: no curve interpolation.
+                            ctx.beginPath()
+                            ctx.moveTo(pointX(0), pointY(0))
+                            for (var lineIndex = 1; lineIndex < root.weeklyFocusPoints.length; ++lineIndex)
+                                ctx.lineTo(pointX(lineIndex), pointY(lineIndex))
+                            ctx.strokeStyle = accentCss
+                            ctx.lineWidth = 3
+                            ctx.lineCap = "round"
+                            ctx.lineJoin = "round"
+                            ctx.stroke()
+
+                            // Daily markers; the hovered marker blooms without clicking.
+                            for (var pointIndex = 0; pointIndex < root.weeklyFocusPoints.length; ++pointIndex) {
+                                var px = pointX(pointIndex)
+                                var py = pointY(pointIndex)
+                                var isHovered = pointIndex === root.hoveredWeeklyPointIndex
+                                if (isHovered) {
+                                    ctx.beginPath()
+                                    ctx.arc(px, py, 15, 0, Math.PI * 2)
+                                    ctx.fillStyle = "rgba(" + accentR + "," + accentG + "," + accentB + ",0.20)"
+                                    ctx.fill()
+                                    ctx.shadowBlur = 18
+                                    ctx.shadowColor = accentCss
+                                }
+                                ctx.beginPath()
+                                ctx.arc(px, py, isHovered ? 8 : 5, 0, Math.PI * 2)
+                                ctx.fillStyle = accentCss
+                                ctx.fill()
+                                ctx.shadowBlur = 0
+                            }
+
+                            // Weekday labels underneath each point.
+                            ctx.font = "13px Sansation"
+                            ctx.textAlign = "center"
+                            ctx.textBaseline = "top"
+                            ctx.fillStyle = labelCss
+                            for (var labelIndex = 0; labelIndex < root.weeklyFocusPoints.length; ++labelIndex) {
+                                var dayPoint = root.weeklyFocusPoints[labelIndex]
+                                ctx.fillText(dayPoint.weekday + " " + dayPoint.day,
+                                             pointX(labelIndex), bottom + 12)
+                            }
+                        }
+                    }
+
+                    Connections {
+                        target: root
+                        function onWeeklyFocusPointsChanged() { historyCanvas.requestPaint() }
+                        function onWeeklyYAxisMaxChanged() { historyCanvas.requestPaint() }
+                        function onHoveredWeeklyPointIndexChanged() { historyCanvas.requestPaint() }
+                    }
+                }
+
+                MouseArea {
+                    id: historyHoverMouse
+                    anchors.fill: parent
+                    z: 5
+                    acceptedButtons: Qt.NoButton
+                    hoverEnabled: true
+                    cursorShape: root.hoveredWeeklyPointIndex >= 0
+                                 ? Qt.WhatsThisCursor : Qt.ArrowCursor
+
+                    function updateHoveredPoint(mouseX, mouseY) {
+                        var nearestIndex = -1
+                        var nearestDistance = 100000
+                        for (var i = 0; i < root.weeklyFocusPoints.length; ++i) {
+                            var dx = mouseX - historyCanvas.pointX(i)
+                            var dy = mouseY - historyCanvas.pointY(i)
+                            var distance = Math.sqrt(dx * dx + dy * dy)
+                            if (distance < nearestDistance) {
+                                nearestDistance = distance
+                                nearestIndex = i
+                            }
+                        }
+                        root.hoveredWeeklyPointIndex = nearestDistance <= 19 ? nearestIndex : -1
+                        root.historyHoverX = mouseX
+                        root.historyHoverY = mouseY
+                    }
+
+                    onPositionChanged: function(mouse) {
+                        updateHoveredPoint(mouse.x, mouse.y)
+                    }
+                    onEntered: {
+                        updateHoveredPoint(mouseX, mouseY)
+                    }
+                    onExited: root.hoveredWeeklyPointIndex = -1
+                }
+
+                Rectangle {
+                    id: historyHoverTooltip
+                    z: 8
+                    visible: root.hoveredWeeklyPointIndex >= 0
+                             && root.hoveredWeeklyPointIndex < root.weeklyFocusPoints.length
+                    width: 156
+                    height: 58
+                    radius: 10
+                    color: theme.surfaceRaised
+                    border.color: theme.accent
+                    border.width: 1
+                    x: Math.max(6, Math.min(historyPlot.width - width - 6,
+                                             root.historyHoverX - width / 2))
+                    y: Math.max(4, root.historyHoverY - height - 14)
+
+                    Column {
+                        anchors.fill: parent
+                        anchors.leftMargin: 12
+                        anchors.rightMargin: 10
+                        anchors.verticalCenter: parent.verticalCenter
+                        spacing: 3
+                        Text {
+                            width: parent.width
+                            text: root.hoveredWeeklyPointIndex >= 0
+                                  && root.hoveredWeeklyPointIndex < root.weeklyFocusPoints.length
+                                  ? root.weeklyFocusPoints[root.hoveredWeeklyPointIndex].weekday
+                                    + ", " + root.weeklyFocusPoints[root.hoveredWeeklyPointIndex].day
+                                  : ""
+                            color: theme.mutedText
+                            font.pixelSize: 11
+                        }
+                        Text {
+                            width: parent.width
+                            text: root.hoveredWeeklyPointIndex >= 0
+                                  && root.hoveredWeeklyPointIndex < root.weeklyFocusPoints.length
+                                  ? root.formatWeeklyDuration(root.weeklyFocusPoints[root.hoveredWeeklyPointIndex].seconds)
+                                  : ""
+                            color: theme.text
+                            font.pixelSize: 15
+                            font.weight: Font.DemiBold
+                        }
                     }
                 }
             }
         }
+    }
+
     }
 
 } // pageContent
