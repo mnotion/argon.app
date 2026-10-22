@@ -777,6 +777,16 @@ ApplicationWindow {
         // Both popups are siblings of this layout, so their contents stay sharp.
         layer.effect: MultiEffect {
             blurMax: 48
+            // Clip the rendered app layer to the same rounded silhouette as the
+            // frameless window surface, including both bottom corners.
+            maskEnabled: true
+            maskSource: Rectangle {
+                width: appContentLayout.width
+                height: appContentLayout.height
+                radius: window.visibility === Window.FullScreen ? 0 : 16
+                color: "white"
+                antialiasing: true
+            }
             Behavior on blur {
                 NumberAnimation {
                     duration: 340
