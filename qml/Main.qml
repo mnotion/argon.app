@@ -24,24 +24,6 @@ ApplicationWindow {
         window.visibility === Window.Maximized || window.visibility === Window.FullScreen
     readonly property real windowCornerRadius: squareWindowCorners ? 0 : 16
 
-    // Mask the complete window content, not just the central layout. This clips
-    // page content and root-level overlays to the same antialiased outer shape.
-    contentItem.layer.enabled: true
-    contentItem.layer.effect: MultiEffect {
-        maskEnabled: true
-        maskSource: Rectangle {
-            width: window.contentItem.width
-            height: window.contentItem.height
-            radius: window.windowCornerRadius
-            color: "white"
-            antialiasing: true
-            // MultiEffect samples maskSource as a texture; keep the rounded
-            // alpha channel antialiased so it removes the square bleed cleanly.
-            layer.enabled: true
-            layer.smooth: true
-        }
-    }
-
     Theme {
         id: theme
         lightMode: window.lightMode
