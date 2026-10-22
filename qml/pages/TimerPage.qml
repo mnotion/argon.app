@@ -160,15 +160,20 @@ Item {
             return
         }
 
+        var deletingActiveSubject = String(controller.activeSubjectId) === targetId
+        // Attribute the final running interval while the subject metadata still exists.
+        if (deletingActiveSubject && controller.timerRunning)
+            controller.tick()
+
         if (!appSettingsService.setValue("timer.subjects", updatedSubjects)) {
             subjectDeleteError = "Could not save the deletion. Please try again."
             return
         }
 
-        if (String(controller.activeSubjectId) === targetId) {
-            if (controller.timerRunning)
-                controller.toggleTimer()
+        if (deletingActiveSubject) {
+            controller.timerRunning = false
             controller.activeSubjectId = ""
+            controller.statusMessage = "Paused."
             controller.persistElapsedState()
         }
 
