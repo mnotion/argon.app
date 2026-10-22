@@ -12,7 +12,13 @@ Item {
     signal settingsRequested()
     signal fullscreenRequested()
     property bool bannerOpen: false
-    Theme { id: theme }
+    property bool lightMode: false
+    property color accentColor: "#8CBFFF"
+    Theme {
+        id: theme
+        lightMode: root.lightMode
+        accent: root.accentColor
+    }
 
     Layout.fillWidth: true
     Layout.preferredHeight: 0
