@@ -2148,7 +2148,6 @@ Item {
                         implicitHeight: historyPeriodMenuColumn.implicitHeight + padding * 2
                         enter: Transition {
                             NumberAnimation { property: "opacity"; from: 0; to: 1; duration: 120; easing.type: Easing.OutCubic }
-                            NumberAnimation { property: "scale"; from: 0.97; to: 1; duration: 140; easing.type: Easing.OutCubic }
                         }
                         exit: Transition {
                             NumberAnimation { property: "opacity"; from: 1; to: 0; duration: 100; easing.type: Easing.OutCubic }
@@ -2213,12 +2212,12 @@ Item {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
                 Layout.minimumHeight: 260
-                transform: Translate { x: root.historyPlotDragOffset }
 
                 Canvas {
                     id: historyCanvas
                     anchors.fill: parent
                     antialiasing: true
+                    transform: Translate { x: root.historyPlotDragOffset }
 
                     readonly property real plotLeft: 66
                     readonly property real plotTop: 14
@@ -2503,6 +2502,7 @@ Item {
                 Rectangle {
                     id: historyLockHighlightOverlay
                     anchors.fill: parent
+                    transform: Translate { x: root.historyPlotDragOffset }
                     z: 3
                     enabled: false
                     radius: 8
@@ -2519,7 +2519,10 @@ Item {
                     z: 5
                     acceptedButtons: Qt.NoButton
                     hoverEnabled: true
-                    enabled: root.historyLineProgress >= 0.999 && root.historyAxisProgress >= 0.999
+                    enabled: root.historyLineProgress >= 0.999
+                             && root.historyAxisProgress >= 0.999
+                             && !root.historyNavigationAnimating
+                             && Math.abs(root.historyPlotDragOffset) < 0.5
                     cursorShape: root.hoveredWeeklyPointIndex >= 0
                                  ? Qt.PointingHandCursor : Qt.ArrowCursor
 
@@ -2556,6 +2559,7 @@ Item {
                 Rectangle {
                     id: historyHoveredPointGlow
                     z: 4
+                    transform: Translate { x: root.historyPlotDragOffset }
                     enabled: false
                     width: 30
                     height: 30
@@ -2572,6 +2576,7 @@ Item {
                 Rectangle {
                     id: historyHoveredPointDot
                     z: 6
+                    transform: Translate { x: root.historyPlotDragOffset }
                     enabled: false
                     width: 16
                     height: 16
@@ -2587,6 +2592,7 @@ Item {
                 Rectangle {
                     id: historyHoverTooltip
                     z: 8
+                    transform: Translate { x: root.historyPlotDragOffset }
                     enabled: false
                     visible: root.hoveredWeeklyPointIndex >= 0
                              && root.hoveredWeeklyPointIndex < root.weeklyFocusPoints.length
