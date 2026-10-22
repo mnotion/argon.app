@@ -33,6 +33,12 @@ Item {
     property real historyLineProgress: 0
     property real historyAxisProgress: 0
     property real historyLockHighlight: 0
+    property real historyPlotDragOffset: 0
+    property bool historyNavigationAnimating: false
+    property bool historyNavigationFast: false
+    property string historyPendingAction: ""
+    property int historyPendingDirection: 0
+    property real historyWheelDelta: 0
     property int hoveredWeeklyPointIndex: -1
     property real historyHoverX: 0
     property real historyHoverY: 0
@@ -556,7 +562,15 @@ Item {
 
         historyPeriod = period
         historyReferenceDate = new Date()
-        restartHistoryReveal()
+        hoveredWeeklyPointIndex = -1
+        refreshHistoryChartData()
+        // Changing the viewing mode is instantaneous; only entering the page
+        // plays the line/axis intro sequence.
+        if (scrollSectionIndex === 2) {
+            historyLineProgress = 1
+            historyAxisProgress = 1
+            historyLockHighlight = 0
+        }
     }
 
     function historyChartTitle() {
@@ -611,12 +625,57 @@ Item {
                                             targetMonthStart.getMonth(),
                                             targetWeekIndex * 7 + 1)
         }
-        restartHistoryReveal()
+        refreshHistoryChartData()
+        hoveredWeeklyPointIndex = -1
+    }
+
+    function historyPeriodIsCurrent() {
+        var reference = new Date(historyReferenceDate)
+        var today = new Date()
+        if (historyPeriod === "monthly")
+            return reference.getFullYear() === today.getFullYear()
+                    && reference.getMonth() === today.getMonth()
+        if (historyPeriod === "weekly")
+            return reference.getFullYear() === today.getFullYear()
+                    && reference.getMonth() === today.getMonth()
+                    && Math.floor((reference.getDate() - 1) / 7)
+                       === Math.floor((today.getDate() - 1) / 7)
+        return calendarDateKey(reference) === calendarDateKey(today)
     }
 
     function resetHistoryPeriodToToday() {
         historyReferenceDate = new Date()
-        restartHistoryReveal()
+        refreshHistoryChartData()
+        hoveredWeeklyPointIndex = -1
+    }
+
+    function requestHistoryNavigation(direction, fast, resetToToday) {
+        if (historyNavigationAnimating)
+            return
+        if (resetToToday && historyPeriodIsCurrent())
+            return
+
+        historyPendingDirection = direction
+        historyPendingAction = resetToToday ? "today" : "shift"
+        historyNavigationFast = fast
+        historyNavigationAnimating = true
+
+        historyPlotOutAnimation.to = direction > 0 ? -historyPlot.width : historyPlot.width
+        historyPlotOutAnimation.restart()
+    }
+
+    function completeHistoryNavigation() {
+        if (historyPendingAction === "today")
+            historyReferenceDate = new Date()
+        else
+            shiftHistoryPeriod(historyPendingDirection)
+
+        refreshHistoryChartData()
+        hoveredWeeklyPointIndex = -1
+        // Bring the new period in from the opposite edge.
+        historyPlotDragOffset = historyPendingDirection > 0
+                ? historyPlot.width : -historyPlot.width
+        historyPlotInAnimation.restart()
     }
 
     function historyPlotPointCount() {
@@ -685,7 +744,8 @@ Item {
         }
 
         weeklyFocusPoints = points
-        weeklyYAxisMax = Math.max(3, Math.ceil(maxSeconds / 3600) + 3)
+        weeklyYAxisMax = maxSeconds <= 0 || maxSeconds < 2 * 3600
+                         ? 3 : Math.ceil(maxSeconds / 3600) + 1
         var nextHeading = historyChartTitle()
         if (historyHeading !== nextHeading)
             historyHeading = nextHeading
@@ -791,6 +851,45 @@ Item {
         easing.type: Easing.OutCubic
     }
 
+    Timer {
+        id: historyWheelCooldown
+        interval: 185
+        repeat: false
+    }
+
+    NumberAnimation {
+        id: historyPlotSnapBack
+        target: root
+        property: "historyPlotDragOffset"
+        to: 0
+        duration: 180
+        easing.type: Easing.OutCubic
+    }
+
+    NumberAnimation {
+        id: historyPlotOutAnimation
+        target: root
+        property: "historyPlotDragOffset"
+        to: root.historyPendingDirection > 0 ? -historyPlot.width : historyPlot.width
+        duration: root.historyNavigationFast ? 76 : 155
+        easing.type: Easing.InCubic
+        onFinished: root.completeHistoryNavigation()
+    }
+
+    NumberAnimation {
+        id: historyPlotInAnimation
+        target: root
+        property: "historyPlotDragOffset"
+        to: 0
+        duration: root.historyNavigationFast ? 125 : 235
+        easing.type: Easing.OutCubic
+        onFinished: {
+            root.historyNavigationAnimating = false
+            root.historyNavigationFast = false
+            root.historyPendingAction = ""
+        }
+    }
+
     // The line draws first; one second later the axes grow from their shared origin.
     SequentialAnimation {
         id: historyRevealAnimation
@@ -815,15 +914,15 @@ Item {
             property: "historyLockHighlight"
             from: 0
             to: 1
-            duration: 110
+            duration: 65
             easing.type: Easing.OutCubic
         }
-        PauseAnimation { duration: 120 }
+        PauseAnimation { duration: 25 }
         NumberAnimation {
             target: root
             property: "historyLockHighlight"
             to: 0
-            duration: 520
+            duration: 190
             easing.type: Easing.OutCubic
         }
     }
@@ -1934,7 +2033,7 @@ Item {
         color: theme.surface
         border.color: root.historyLockHighlight > 0
                       ? Qt.rgba(theme.accent.r, theme.accent.g, theme.accent.b,
-                                root.historyLockHighlight * 0.72)
+                                root.historyLockHighlight * 0.38)
                       : theme.border
         Behavior on border.color { ColorAnimation { duration: 180; easing.type: Easing.OutCubic } }
         border.width: 1
@@ -1990,7 +2089,7 @@ Item {
                         anchors.fill: parent
                         radius: 9
                         color: historyPeriodButton.hovered ? theme.surface : theme.surfaceRaised
-                        border.color: historyPeriodButton.hovered || historyPeriodMenu.visible
+                        border.color: historyPeriodButton.hovered || historyPeriodMenu.opened
                                       ? theme.accent : theme.border
                         border.width: 1
 
@@ -2017,40 +2116,44 @@ Item {
                                 verticalAlignment: Text.AlignVCenter
                             }
                         }
-                        onClicked: historyPeriodMenu.visible = !historyPeriodMenu.visible
+                        onClicked: historyPeriodMenu.opened ? historyPeriodMenu.close() : historyPeriodMenu.open()
                     }
 
-                    Rectangle {
+                    Popup {
                         id: historyPeriodMenu
-                        visible: false
-                        x: 0
-                        y: -height - 6
-                        width: parent.width
-                        height: historyPeriodMenuColumn.implicitHeight + 8
-                        radius: 10
-                        color: theme.surfaceRaised
-                        border.color: theme.border
-                        border.width: 1
-                        z: 30
-                        transformOrigin: Item.Bottom
-                        opacity: visible ? 1 : 0
-                        scale: visible ? 1 : 0.96
-                        Behavior on opacity { NumberAnimation { duration: 130; easing.type: Easing.OutCubic } }
-                        Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
-
-                        Column {
+                        parent: Overlay.overlay
+                        x: historyPeriodDropdown.mapToItem(Overlay.overlay, 0, 0).x
+                        y: historyPeriodDropdown.mapToItem(
+                               Overlay.overlay, 0, historyPeriodDropdown.height + 6).y
+                        width: historyPeriodDropdown.width
+                        padding: 4
+                        closePolicy: Popup.CloseOnPressOutside | Popup.CloseOnEscape
+                        modal: false
+                        focus: false
+                        z: 1000
+                        implicitHeight: historyPeriodMenuColumn.implicitHeight + padding * 2
+                        enter: Transition {
+                            NumberAnimation { property: "opacity"; from: 0; to: 1; duration: 120; easing.type: Easing.OutCubic }
+                            NumberAnimation { property: "scale"; from: 0.97; to: 1; duration: 140; easing.type: Easing.OutCubic }
+                        }
+                        exit: Transition {
+                            NumberAnimation { property: "opacity"; from: 1; to: 0; duration: 100; easing.type: Easing.OutCubic }
+                        }
+                        background: Rectangle {
+                            radius: 10
+                            color: theme.surfaceRaised
+                            border.color: theme.border
+                            border.width: 1
+                        }
+                        contentItem: Column {
                             id: historyPeriodMenuColumn
-                            anchors.fill: parent
-                            anchors.margins: 4
                             spacing: 2
-
                             Repeater {
                                 model: [
                                     { label: "Weekly", value: "weekly" },
                                     { label: "Monthly", value: "monthly" },
                                     { label: "Daily", value: "daily" }
                                 ]
-
                                 delegate: Rectangle {
                                     required property var modelData
                                     width: historyPeriodMenuColumn.width
@@ -2063,7 +2166,7 @@ Item {
                                     border.color: root.historyPeriod === modelData.value
                                                    ? Qt.rgba(theme.accent.r, theme.accent.g, theme.accent.b, 0.45)
                                                    : "transparent"
-
+                                    Behavior on color { ColorAnimation { duration: 100 } }
                                     Text {
                                         anchors.fill: parent
                                         anchors.leftMargin: 10
@@ -2073,7 +2176,6 @@ Item {
                                         font.weight: root.historyPeriod === modelData.value ? Font.DemiBold : Font.Normal
                                         verticalAlignment: Text.AlignVCenter
                                     }
-
                                     MouseArea {
                                         id: historyPeriodItemMouse
                                         anchors.fill: parent
@@ -2081,18 +2183,12 @@ Item {
                                         cursorShape: Qt.PointingHandCursor
                                         onClicked: {
                                             root.setHistoryPeriod(modelData.value)
-                                            historyPeriodMenu.visible = false
+                                            historyPeriodMenu.close()
                                         }
                                     }
                                 }
                             }
                         }
-                    }
-
-                    MouseArea {
-                        anchors.fill: parent
-                        z: -1
-                        onClicked: historyPeriodMenu.visible = false
                     }
                 }
             }
@@ -2102,6 +2198,7 @@ Item {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
                 Layout.minimumHeight: 260
+                transform: Translate { x: root.historyPlotDragOffset }
 
                 Canvas {
                     id: historyCanvas
@@ -2329,9 +2426,10 @@ Item {
                 DragHandler {
                     id: historyHorizontalSwipe
                     target: null
-                    acceptedDevices: PointerDevice.TouchScreen | PointerDevice.Stylus | PointerDevice.TouchPad
+                    acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchScreen
+                                     | PointerDevice.Stylus
                     acceptedPointerTypes: PointerDevice.Finger | PointerDevice.Pen
-                    dragThreshold: 18
+                    dragThreshold: 10
                     xAxis.enabled: true
                     yAxis.enabled: false
                     property real capturedSwipeX: 0
@@ -2339,17 +2437,48 @@ Item {
                     onActiveChanged: {
                         if (active) {
                             capturedSwipeX = 0
+                            root.historyPlotDragOffset = 0
                             return
                         }
                         var delta = capturedSwipeX
                         capturedSwipeX = 0
-                        if (Math.abs(delta) >= 64)
-                            root.shiftHistoryPeriod(delta < 0 ? 1 : -1)
+                        if (Math.abs(delta) >= historyPlot.width * 0.14) {
+                            root.requestHistoryNavigation(delta < 0 ? 1 : -1, false, false)
+                        } else {
+                            historyPlotSnapBack.restart()
+                        }
                     }
 
                     onActiveTranslationChanged: {
-                        if (active)
+                        if (active) {
                             capturedSwipeX = activeTranslation.x
+                            root.historyPlotDragOffset = Math.max(
+                                        -historyPlot.width * 0.78,
+                                        Math.min(historyPlot.width * 0.78, activeTranslation.x))
+                        }
+                    }
+                }
+
+                // Horizontal two-finger trackpad scrolling produces wheel deltas rather than a drag.
+                WheelHandler {
+                    id: historyHorizontalWheel
+                    acceptedDevices: PointerDevice.TouchPad | PointerDevice.Mouse
+                    orientation: Qt.Horizontal
+                    onWheel: function(event) {
+                        var amount = event.pixelDelta.x !== 0
+                                     ? event.pixelDelta.x : event.angleDelta.x
+                        if (amount === 0)
+                            return
+                        root.historyWheelDelta += amount
+                        if (Math.abs(root.historyWheelDelta) >= 42
+                                && !historyWheelCooldown.running
+                                && !root.historyNavigationAnimating) {
+                            var direction = root.historyWheelDelta < 0 ? 1 : -1
+                            root.historyWheelDelta = 0
+                            root.requestHistoryNavigation(direction, false, false)
+                            historyWheelCooldown.start()
+                        }
+                        event.accepted = true
                     }
                 }
 
@@ -2360,9 +2489,9 @@ Item {
                     enabled: false
                     radius: 8
                     color: Qt.rgba(theme.accent.r, theme.accent.g, theme.accent.b,
-                                   root.historyLockHighlight * 0.055)
+                                   root.historyLockHighlight * 0.025)
                     border.color: Qt.rgba(theme.accent.r, theme.accent.g, theme.accent.b,
-                                          root.historyLockHighlight * 0.60)
+                                          root.historyLockHighlight * 0.32)
                     border.width: 1
                 }
 
@@ -2515,7 +2644,7 @@ Item {
             Repeater {
                 model: [
                     { label: "<", action: "previous" },
-                    { label: Qt.formatDate(new Date(), "d"), action: "today" },
+                    { label: "", action: "today" },
                     { label: ">", action: "next" }
                 ]
 
@@ -2546,12 +2675,16 @@ Item {
                         hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
                         onClicked: {
-                            if (modelData.action === "previous")
-                                root.shiftHistoryPeriod(-1)
-                            else if (modelData.action === "next")
-                                root.shiftHistoryPeriod(1)
-                            else
-                                root.resetHistoryPeriodToToday()
+                            if (modelData.action === "previous") {
+                                root.requestHistoryNavigation(-1, true, false)
+                            } else if (modelData.action === "next") {
+                                root.requestHistoryNavigation(1, true, false)
+                            } else if (!root.historyPeriodIsCurrent()) {
+                                var reference = new Date(root.historyReferenceDate)
+                                var today = new Date()
+                                var direction = reference.getTime() < today.getTime() ? 1 : -1
+                                root.requestHistoryNavigation(direction, true, true)
+                            }
                         }
                     }
                 }
