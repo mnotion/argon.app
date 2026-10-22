@@ -6,7 +6,13 @@ import "../themes"
 
 Item {
     id: root
-    Theme { id: theme }
+    property bool lightMode: false
+    property string accentColor: "#8CBFFF"
+    Theme {
+        id: theme
+        lightMode: root.lightMode
+        accent: root.accentColor
+    }
     signal pageSelected(string pageName)
 
     property var controller: null
@@ -45,10 +51,18 @@ Item {
     property var subjectDisplayOrder: []
     property string selectedSubjectId: ""
     property bool subjectDialogOpen: false
+    property string editingSubjectId: ""
     property string newSubjectName: ""
     property string newSubjectGoal: ""
     property string newSubjectColour: "#8CBFFF"
     property string subjectFormError: ""
+    property bool subjectContextMenuOpen: false
+    property string contextMenuSubjectId: ""
+    property real subjectContextMenuX: 0
+    property real subjectContextMenuY: 0
+    property int deleteConfirmStage: 0
+    property string deleteSubjectId: ""
+    property string subjectDeleteError: ""
     property var subjectColourPalette: [
         "#8CBFFF", "#81C995", "#F4C96B", "#E99AAE",
         "#B5A2F5", "#E9A16D", "#62C5C1", "#D8DDE7"
@@ -64,6 +78,7 @@ Item {
     }
 
     function openSubjectDialog() {
+        editingSubjectId = ""
         newSubjectName = ""
         newSubjectGoal = ""
         newSubjectColour = subjectColourPalette[0]
@@ -72,9 +87,102 @@ Item {
         Qt.callLater(function() { subjectNameInput.forceActiveFocus() })
     }
 
+    function openEditSubjectDialog(subjectId) {
+        var targetId = String(subjectId)
+        var target = null
+        for (var i = 0; i < subjects.length; ++i) {
+            if (String(subjects[i].id) === targetId) {
+                target = subjects[i]
+                break
+            }
+        }
+        if (target === null)
+            return
+
+        subjectContextMenuOpen = false
+        contextMenuSubjectId = ""
+        editingSubjectId = targetId
+        newSubjectName = String(target.name || "")
+        newSubjectGoal = String(Number(target.goalHours) || "")
+        newSubjectColour = String(target.colour || subjectColourPalette[0])
+        subjectFormError = ""
+        subjectDialogOpen = true
+        Qt.callLater(function() { subjectNameInput.forceActiveFocus() })
+    }
+
     function closeSubjectDialog() {
         subjectDialogOpen = false
+        editingSubjectId = ""
         subjectFormError = ""
+    }
+
+    function openSubjectContextMenu(subjectId, sourceItem, sourceX, sourceY) {
+        if (root.subjectDialogOpen || root.deleteConfirmStage > 0)
+            return
+        contextMenuSubjectId = String(subjectId)
+        var point = sourceItem.mapToItem(root, sourceX, sourceY)
+        subjectContextMenuX = Math.max(8, Math.min(root.width - 176, point.x))
+        subjectContextMenuY = Math.max(8, Math.min(root.height - 104, point.y))
+        subjectContextMenuOpen = true
+    }
+
+    function requestSubjectDelete() {
+        deleteSubjectId = contextMenuSubjectId
+        contextMenuSubjectId = ""
+        subjectContextMenuOpen = false
+        subjectDeleteError = ""
+        deleteConfirmStage = 1
+    }
+
+    function confirmSubjectDelete() {
+        if (deleteConfirmStage === 1) {
+            subjectDeleteError = ""
+            deleteConfirmStage = 2
+            return
+        }
+        if (deleteConfirmStage === 2)
+            deleteSubjectForever()
+    }
+
+    function cancelSubjectDelete() {
+        deleteConfirmStage = 0
+        deleteSubjectId = ""
+        subjectDeleteError = ""
+    }
+
+    function deleteSubjectForever() {
+        var targetId = deleteSubjectId
+        var updatedSubjects = subjects.filter(function(subject) {
+            return String(subject.id) !== targetId
+        })
+        if (updatedSubjects.length === subjects.length) {
+            cancelSubjectDelete()
+            return
+        }
+
+        if (!appSettingsService.setValue("timer.subjects", updatedSubjects)) {
+            subjectDeleteError = "Could not save the deletion. Please try again."
+            return
+        }
+
+        if (String(controller.activeSubjectId) === targetId) {
+            if (controller.timerRunning)
+                controller.toggleTimer()
+            controller.activeSubjectId = ""
+            controller.persistElapsedState()
+        }
+
+        subjects = updatedSubjects
+        if (String(selectedSubjectId) === targetId) {
+            selectedSubjectId = ""
+            if (!appSettingsService.setValue("timer.selectedSubjectId", "")) {
+                console.warn("[Timer] Could not clear the deleted selected subject.")
+            }
+        }
+        if (editingSubjectId === targetId)
+            closeSubjectDialog()
+        refreshSubjectDisplayOrder()
+        cancelSubjectDelete()
     }
 
     function addSubject() {
@@ -88,6 +196,35 @@ Item {
         if (newSubjectGoal.trim().length === 0 || !isFinite(goalHours) || goalHours <= 0) {
             subjectFormError = "Enter a goal greater than zero hours."
             subjectGoalInput.forceActiveFocus()
+            return
+        }
+
+        if (editingSubjectId.length > 0) {
+            var editedId = editingSubjectId
+            var editedSubjects = subjects.map(function(subject) {
+                if (String(subject.id) !== editedId)
+                    return subject
+                return {
+                    "id": String(subject.id),
+                    "name": name,
+                    "colour": String(newSubjectColour),
+                    "goalHours": goalHours
+                }
+            })
+            var foundEditedSubject = editedSubjects.some(function(subject) {
+                return String(subject.id) === editedId
+            })
+            if (!foundEditedSubject) {
+                subjectFormError = "This subject no longer exists."
+                return
+            }
+            if (!appSettingsService.setValue("timer.subjects", editedSubjects)) {
+                subjectFormError = "The subject could not be saved. Please try again."
+                return
+            }
+            subjects = editedSubjects
+            refreshSubjectDisplayOrder()
+            closeSubjectDialog()
             return
         }
 
@@ -109,8 +246,7 @@ Item {
         selectedSubjectId = subjectId
         appSettingsService.setValue("timer.selectedSubjectId", selectedSubjectId)
         refreshSubjectDisplayOrder()
-        subjectDialogOpen = false
-        subjectFormError = ""
+        closeSubjectDialog()
     }
 
     function selectSubject(subjectId) {
@@ -630,10 +766,10 @@ Item {
         id: pageContent
         anchors.fill: parent
         clip: true
-        layer.enabled: root.subjectDialogOpen
+        layer.enabled: root.subjectDialogOpen || root.deleteConfirmStage > 0
         layer.effect: MultiEffect {
-            blurEnabled: root.subjectDialogOpen
-            blur: root.subjectDialogOpen ? 0.9 : 0
+            blurEnabled: root.subjectDialogOpen || root.deleteConfirmStage > 0
+            blur: (root.subjectDialogOpen || root.deleteConfirmStage > 0) ? 0.9 : 0
             blurMax: 32
         }
 
@@ -767,6 +903,16 @@ Item {
                             font.weight: Font.Medium
                             horizontalAlignment: Text.AlignRight
                             verticalAlignment: Text.AlignVCenter
+                        }
+
+                        MouseArea {
+                            id: subjectCardContextMouse
+                            anchors.fill: parent
+                            z: 4
+                            acceptedButtons: Qt.RightButton
+                            hoverEnabled: false
+                            onClicked: root.openSubjectContextMenu(
+                                           subjectData.id, subjectCardContextMouse, mouse.x, mouse.y)
                         }
 
                         Rectangle {
@@ -1792,7 +1938,7 @@ Item {
                 spacing: 10
 
                 Text {
-                    text: "Add a subject"
+                    text: root.editingSubjectId.length > 0 ? "Edit subject" : "Add a subject"
                     color: theme.text
                     font.pixelSize: 22
                     font.weight: Font.DemiBold
@@ -1939,8 +2085,8 @@ Item {
                     }
 
                     Button {
-                        text: "Add"
-                        Layout.preferredWidth: 100
+                        text: root.editingSubjectId.length > 0 ? "Save changes" : "Add"
+                        Layout.preferredWidth: root.editingSubjectId.length > 0 ? 124 : 100
                         Layout.preferredHeight: 42
                         enabled: root.newSubjectName.trim().length > 0
                                  && root.newSubjectGoal.trim().length > 0
@@ -1953,6 +2099,172 @@ Item {
                         contentItem: Text {
                             text: parent.text
                             color: parent.enabled ? theme.accentText : theme.mutedText
+                            font.pixelSize: 12
+                            font.weight: Font.DemiBold
+                            horizontalAlignment: Text.AlignHCenter
+                            verticalAlignment: Text.AlignVCenter
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    Rectangle {
+        id: subjectContextMenu
+        x: root.subjectContextMenuX
+        y: root.subjectContextMenuY
+        width: 168
+        height: 96
+        radius: 12
+        color: theme.surfaceRaised
+        border.color: theme.border
+        border.width: 1
+        z: 120
+        transformOrigin: Item.TopLeft
+        scale: root.subjectContextMenuOpen ? 1 : 0.92
+        opacity: root.subjectContextMenuOpen ? 1 : 0
+        visible: root.subjectContextMenuOpen || opacity > 0.01
+        Behavior on scale { NumberAnimation { duration: 170; easing.type: Easing.OutBack } }
+        Behavior on opacity { NumberAnimation { duration: 130; easing.type: Easing.OutCubic } }
+
+        MouseArea {
+            anchors.fill: parent
+            acceptedButtons: Qt.AllButtons
+            z: 0
+        }
+
+        Column {
+            anchors.fill: parent
+            anchors.margins: 6
+            spacing: 4
+            Repeater {
+                model: [
+                    { label: "Edit", action: "edit" },
+                    { label: "Delete", action: "delete" }
+                ]
+                delegate: Rectangle {
+                    required property var modelData
+                    width: parent.width
+                    height: 37
+                    radius: 7
+                    color: contextActionMouse.containsMouse
+                           ? (modelData.action === "delete"
+                              ? Qt.rgba(0.82, 0.20, 0.20, 0.16)
+                              : Qt.rgba(theme.accent.r, theme.accent.g, theme.accent.b, 0.16))
+                           : "transparent"
+                    z: 1
+                    Text {
+                        anchors.left: parent.left
+                        anchors.leftMargin: 11
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: modelData.label
+                        color: modelData.action === "delete" ? "#E06C6C" : theme.text
+                        font.pixelSize: 13
+                        font.weight: Font.Medium
+                    }
+                    MouseArea {
+                        id: contextActionMouse
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: {
+                            var targetId = root.contextMenuSubjectId
+                            root.subjectContextMenuOpen = false
+                            if (modelData.action === "edit") {
+                                root.openEditSubjectDialog(targetId)
+                            } else {
+                                root.requestSubjectDelete()
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    Rectangle {
+        id: deleteConfirmOverlay
+        anchors.fill: parent
+        z: 130
+        color: "#99000000"
+        opacity: root.deleteConfirmStage > 0 ? 1 : 0
+        visible: root.deleteConfirmStage > 0 || opacity > 0.01
+        enabled: root.deleteConfirmStage > 0
+        Behavior on opacity { NumberAnimation { duration: 170; easing.type: Easing.OutCubic } }
+
+        MouseArea {
+            anchors.fill: parent
+            acceptedButtons: Qt.AllButtons
+            onClicked: { /* Confirmation remains open until an explicit choice is made. */ }
+        }
+
+        Rectangle {
+            id: deleteConfirmCard
+            anchors.centerIn: parent
+            width: Math.min(410, parent.width - 36)
+            height: deleteConfirmText.implicitHeight + (root.subjectDeleteError.length > 0 ? 160 : 130)
+            radius: 17
+            color: theme.surfaceRaised
+            border.color: theme.border
+            border.width: 1
+            scale: root.deleteConfirmStage > 0 ? 1 : 0.94
+            Behavior on scale { NumberAnimation { duration: 200; easing.type: Easing.OutBack } }
+
+            ColumnLayout {
+                id: deleteConfirmText
+                anchors.fill: parent
+                anchors.margins: 24
+                spacing: 11
+
+                Text {
+                    Layout.fillWidth: true
+                    text: root.deleteConfirmStage === 2 ? "ARE YOU SURE??" : "Are you sure?"
+                    color: root.deleteConfirmStage === 2 ? "#F06A6A" : theme.text
+                    font.pixelSize: root.deleteConfirmStage === 2 ? 22 : 20
+                    font.weight: Font.Bold
+                    wrapMode: Text.WordWrap
+                }
+                Text {
+                    Layout.fillWidth: true
+                    text: root.deleteConfirmStage === 2
+                          ? "This will permanently delete this subject and cannot be undone."
+                          : "Do you really want to delete this subject?"
+                    color: theme.mutedText
+                    font.pixelSize: 13
+                    wrapMode: Text.WordWrap
+                }
+                Text {
+                    Layout.fillWidth: true
+                    visible: root.subjectDeleteError.length > 0
+                    text: root.subjectDeleteError
+                    color: "#F19A9A"
+                    font.pixelSize: 11
+                    wrapMode: Text.WordWrap
+                }
+                Item { Layout.fillHeight: true; Layout.minimumHeight: 0 }
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 9
+                    Item { Layout.fillWidth: true }
+                    Button {
+                        text: "Cancel"
+                        Layout.preferredWidth: 86
+                        Layout.preferredHeight: 38
+                        onClicked: root.cancelSubjectDelete()
+                    }
+                    Button {
+                        text: root.deleteConfirmStage === 2 ? "Yes, delete forever" : "Yes, continue"
+                        Layout.preferredWidth: root.deleteConfirmStage === 2 ? 142 : 110
+                        Layout.preferredHeight: 38
+                        onClicked: root.confirmSubjectDelete()
+                        background: Rectangle {
+                            radius: 8
+                            color: parent.hovered ? "#C84B4B" : "#A93636"
+                        }
+                        contentItem: Text {
+                            text: parent.text
+                            color: "#FFFFFF"
                             font.pixelSize: 12
                             font.weight: Font.DemiBold
                             horizontalAlignment: Text.AlignHCenter
