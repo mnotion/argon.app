@@ -1865,7 +1865,7 @@ Item {
         }
     }
 
-    // Weekly history: point-to-point daily focus totals for Monday through Sunday.
+    // Focus history chart: daily totals, monthly totals, or hourly distribution.
     Rectangle {
         id: weeklyHistoryCard
         x: (root.width - width) / 2
@@ -2249,14 +2249,12 @@ Item {
                                 nearestIndex = i
                             }
                         }
-                        // Tooltip follows the selected point; update only when it changes.
-                        if (nearestIndex !== root.hoveredWeeklyPointIndex) {
+                        // Keep the tooltip just above the live cursor. This moves only
+                        // lightweight QML items; it never invalidates the Canvas.
+                        root.historyHoverX = mouseX
+                        root.historyHoverY = mouseY
+                        if (nearestIndex !== root.hoveredWeeklyPointIndex)
                             root.hoveredWeeklyPointIndex = nearestIndex
-                            if (nearestIndex >= 0) {
-                                root.historyHoverX = historyCanvas.pointX(nearestIndex)
-                                root.historyHoverY = historyCanvas.pointY(nearestIndex)
-                            }
-                        }
                     }
 
                     onPositionChanged: function(mouse) {
