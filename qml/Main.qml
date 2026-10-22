@@ -816,7 +816,10 @@ ApplicationWindow {
                 id: titleBarDrag
                 target: null
                 acceptedButtons: Qt.LeftButton
-                acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchScreen | PointerDevice.Stylus
+                // Windows pens may be reported as a touchscreen device with Pen pointer type,
+                // or as a separate stylus device. Accept every device/type and filter nothing out.
+                acceptedDevices: PointerDevice.AllDevices
+                acceptedPointerTypes: PointerDevice.AllPointerTypes
                 dragThreshold: 8
 
                 onActiveChanged: {
@@ -840,7 +843,9 @@ ApplicationWindow {
                 TapHandler {
                 id: titleBarTap
                 acceptedButtons: Qt.LeftButton
-                acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchScreen | PointerDevice.Stylus
+                // Match the drag handler so stylus double-tap works across Windows pen drivers.
+                acceptedDevices: PointerDevice.AllDevices
+                acceptedPointerTypes: PointerDevice.AllPointerTypes
                 gesturePolicy: TapHandler.DragThreshold
                 onDoubleTapped: {
                     if (window.visibility === Window.Maximized)
