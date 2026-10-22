@@ -2131,8 +2131,9 @@ Item {
                         var ctx = getContext("2d")
                         ctx.clearRect(0, 0, width, height)
 
-                        var progress = Math.max(0, Math.min(1, root.historyRevealProgress))
-                        if (progress <= 0)
+                        var lineProgress = Math.max(0, Math.min(1, root.historyLineProgress))
+                        var axisProgress = Math.max(0, Math.min(1, root.historyAxisProgress))
+                        if (lineProgress <= 0 && axisProgress <= 0)
                             return
 
                         var left = plotLeft
@@ -2141,8 +2142,8 @@ Item {
                         var bottom = plotBottom
                         var graphWidth = plotWidth
                         var graphHeight = plotHeight
-                        var visibleRight = left + graphWidth * progress
-                        var visibleTop = bottom - graphHeight * progress
+                        var visibleRight = left + graphWidth * axisProgress
+                        var visibleTop = bottom - graphHeight * axisProgress
                         var pointCount = root.weeklyFocusPoints.length
                         var accentR = Math.round(theme.accent.r * 255)
                         var accentG = Math.round(theme.accent.g * 255)
@@ -2152,77 +2153,100 @@ Item {
                         var labelCss = String(theme.mutedText)
                         var baseline = String(theme.text)
 
-                        ctx.lineWidth = 1
-                        ctx.font = "12px Sansation"
-                        ctx.textAlign = "right"
-                        ctx.textBaseline = "middle"
+                        // Grid appears from the graph's origin only after the line has drawn.
+                        if (axisProgress > 0) {
+                            ctx.lineWidth = 1
+                            ctx.font = "12px Sansation"
+                            ctx.textAlign = "right"
+                            ctx.textBaseline = "middle"
 
-                        // Gridlines are uncovered from the same bottom-left origin as the axes.
-                        for (var tick = 0; tick <= root.weeklyYAxisMax; ++tick) {
-                            var y = bottom - tick / root.weeklyYAxisMax * graphHeight
-                            if (y < visibleTop - 1)
-                                continue
+                            for (var tick = 0; tick <= root.weeklyYAxisMax; ++tick) {
+                                var y = bottom - tick / root.weeklyYAxisMax * graphHeight
+                                if (y < visibleTop - 1)
+                                    continue
 
-                            ctx.beginPath()
-                            ctx.strokeStyle = gridCss
-                            ctx.globalAlpha = tick === 0 ? 0.72 : 0.42
-                            for (var dashX = left; dashX < visibleRight; dashX += 12) {
-                                ctx.moveTo(dashX, y)
-                                ctx.lineTo(Math.min(visibleRight, dashX + 5), y)
+                                ctx.beginPath()
+                                ctx.strokeStyle = gridCss
+                                ctx.globalAlpha = (tick === 0 ? 0.72 : 0.42) * axisProgress
+                                for (var dashX = left; dashX < visibleRight; dashX += 12) {
+                                    ctx.moveTo(dashX, y)
+                                    ctx.lineTo(Math.min(visibleRight, dashX + 5), y)
+                                }
+                                ctx.stroke()
+                                ctx.globalAlpha = axisProgress * 0.72
+                                ctx.fillStyle = tick === 0 ? baseline : labelCss
+                                ctx.fillText(tick === 0 ? "0 min" : tick + "h", left - 12, y)
+                                ctx.globalAlpha = 1
                             }
+
+                            // Both axes grow from the exact same bottom-left origin.
+                            ctx.beginPath()
+                            ctx.strokeStyle = baseline
+                            ctx.globalAlpha = 0.82 * axisProgress
+                            ctx.lineWidth = 1.4
+                            ctx.moveTo(left, bottom)
+                            ctx.lineTo(left, visibleTop)
+                            ctx.moveTo(left, bottom)
+                            ctx.lineTo(visibleRight, bottom)
                             ctx.stroke()
-                            ctx.globalAlpha = progress
-                            ctx.fillStyle = tick === 0 ? baseline : labelCss
-                            ctx.fillText(tick === 0 ? "0 min" : tick + "h", left - 12, y)
                             ctx.globalAlpha = 1
-                        }
+                            ctx.lineWidth = 1
 
-                        // The vertical and horizontal axes both grow out of (left, bottom).
-                        ctx.beginPath()
-                        ctx.strokeStyle = baseline
-                        ctx.globalAlpha = 0.82
-                        ctx.lineWidth = 1.4
-                        ctx.moveTo(left, bottom)
-                        ctx.lineTo(left, visibleTop)
-                        ctx.moveTo(left, bottom)
-                        ctx.lineTo(visibleRight, bottom)
-                        ctx.stroke()
-                        ctx.globalAlpha = 1
-                        ctx.lineWidth = 1
+                            // Subtle axis descriptors.
+                            ctx.save()
+                            ctx.globalAlpha = axisProgress * 0.64
+                            ctx.fillStyle = labelCss
+                            ctx.font = "11px Sansation"
+                            ctx.textAlign = "center"
+                            ctx.textBaseline = "middle"
+                            ctx.translate(15, top + graphHeight / 2)
+                            ctx.rotate(-Math.PI / 2)
+                            ctx.fillText("hours", 0, 0)
+                            ctx.restore()
 
-                        if (root.historyPeriod === "daily") {
-                            // Show the full day scale in 4-hour increments, progressively revealed.
+                            ctx.globalAlpha = axisProgress * 0.64
                             ctx.font = "11px Sansation"
                             ctx.textAlign = "center"
                             ctx.textBaseline = "top"
                             ctx.fillStyle = labelCss
-                            for (var hourTick = 0; hourTick <= 24; hourTick += 4) {
-                                var tickX = left + hourTick / 24 * graphWidth
-                                if (tickX > visibleRight + 1)
-                                    continue
-                                ctx.beginPath()
-                                ctx.globalAlpha = 0.32
-                                for (var verticalDash = visibleTop; verticalDash < bottom; verticalDash += 12) {
-                                    ctx.moveTo(tickX, verticalDash)
-                                    ctx.lineTo(tickX, Math.min(bottom, verticalDash + 4))
+                            ctx.fillText(root.historyPeriod === "daily" ? "Time of day" : "days",
+                                         left + graphWidth / 2, bottom + 37)
+                            ctx.globalAlpha = 1
+
+                            if (root.historyPeriod === "daily") {
+                                // 24-hour scale with subtle guide marks every four hours.
+                                ctx.font = "11px Sansation"
+                                ctx.textAlign = "center"
+                                ctx.textBaseline = "top"
+                                ctx.fillStyle = labelCss
+                                for (var hourTick = 0; hourTick <= 24; hourTick += 4) {
+                                    var tickX = left + hourTick / 24 * graphWidth
+                                    if (tickX > visibleRight + 1)
+                                        continue
+                                    ctx.beginPath()
+                                    ctx.globalAlpha = 0.32 * axisProgress
+                                    for (var verticalDash = visibleTop; verticalDash < bottom; verticalDash += 12) {
+                                        ctx.moveTo(tickX, verticalDash)
+                                        ctx.lineTo(tickX, Math.min(bottom, verticalDash + 4))
+                                    }
+                                    ctx.strokeStyle = gridCss
+                                    ctx.stroke()
+                                    ctx.globalAlpha = axisProgress * 0.72
+                                    ctx.fillText(String(hourTick), tickX, bottom + 12)
+                                    ctx.globalAlpha = 1
                                 }
-                                ctx.strokeStyle = gridCss
-                                ctx.stroke()
-                                ctx.globalAlpha = progress
-                                ctx.fillText(String(hourTick), tickX, bottom + 12)
-                                ctx.globalAlpha = 1
                             }
                         }
 
-                        if (pointCount > 0) {
-                            // Reveal the polyline a segment at a time from left to right.
-                            var travel = progress * (pointCount - 1)
+                        if (pointCount > 0 && lineProgress > 0) {
+                            // The data line completes about one second before the axes begin.
+                            var travel = lineProgress * (pointCount - 1)
                             var lastFullIndex = Math.min(pointCount - 1, Math.floor(travel))
                             var partialFraction = travel - lastFullIndex
                             var pathPoints = []
-                            for (var pathIndex = 0; pathIndex <= lastFullIndex; ++pathIndex) {
+                            for (var pathIndex = 0; pathIndex <= lastFullIndex; ++pathIndex)
                                 pathPoints.push({ x: pointX(pathIndex), y: pointY(pathIndex) })
-                            }
+
                             if (lastFullIndex < pointCount - 1 && partialFraction > 0) {
                                 var nextX = pointX(lastFullIndex + 1)
                                 var nextY = pointY(lastFullIndex + 1)
@@ -2233,7 +2257,6 @@ Item {
                                 })
                             }
 
-                            // Soft fill follows only the portion of the line that has appeared.
                             if (pathPoints.length > 1) {
                                 ctx.beginPath()
                                 ctx.moveTo(pathPoints[0].x, bottom)
@@ -2255,15 +2278,13 @@ Item {
                             ctx.lineJoin = "round"
                             ctx.stroke()
 
-                            // Static markers are painted once per animation frame; hovering never repaints the Canvas.
                             for (var pointIndex = 0; pointIndex <= lastFullIndex; ++pointIndex) {
                                 ctx.beginPath()
                                 ctx.arc(pointX(pointIndex), pointY(pointIndex), 4.5, 0, Math.PI * 2)
                                 ctx.fillStyle = accentCss
                                 ctx.fill()
                             }
-
-                            if (progress < 1 && pathPoints.length > 1) {
+                            if (lineProgress < 1 && pathPoints.length > 1) {
                                 var tip = pathPoints[pathPoints.length - 1]
                                 ctx.beginPath()
                                 ctx.arc(tip.x, tip.y, 4, 0, Math.PI * 2)
@@ -2271,27 +2292,27 @@ Item {
                                 ctx.fill()
                             }
 
-                            // Numeric day labels for weekly/monthly; hour marks for daily are above.
-                            if (root.historyPeriod !== "daily") {
+                            // X-axis day labels emerge with the axes, not during line drawing.
+                            if (axisProgress > 0 && root.historyPeriod !== "daily") {
                                 ctx.textAlign = "center"
                                 ctx.textBaseline = "top"
                                 ctx.fillStyle = labelCss
                                 ctx.font = root.historyPeriod === "monthly" ? "10px Sansation" : "13px Sansation"
-                                ctx.globalAlpha = progress
-                                for (var labelIndex = 0; labelIndex <= lastFullIndex; ++labelIndex) {
+                                ctx.globalAlpha = axisProgress * 0.84
+                                for (var labelIndex = 0; labelIndex < pointCount; ++labelIndex) {
                                     var dayPoint = root.weeklyFocusPoints[labelIndex]
-                                    ctx.fillText(String(dayPoint.label),
-                                                 pointX(labelIndex), bottom + 12)
+                                    if (pointX(labelIndex) <= visibleRight + 2)
+                                        ctx.fillText(String(dayPoint.label), pointX(labelIndex), bottom + 12)
                                 }
                                 ctx.globalAlpha = 1
                             }
                         }
-                    }
-                    Connections {
+                    }                    Connections {
                         target: root
                         function onWeeklyFocusPointsChanged() { historyCanvas.requestPaint() }
                         function onWeeklyYAxisMaxChanged() { historyCanvas.requestPaint() }
-                        function onHistoryRevealProgressChanged() { historyCanvas.requestPaint() }
+                        function onHistoryLineProgressChanged() { historyCanvas.requestPaint() }
+                        function onHistoryAxisProgressChanged() { historyCanvas.requestPaint() }
                     }
                     Connections {
                         target: theme
@@ -2329,13 +2350,26 @@ Item {
                     }
                 }
 
+                Rectangle {
+                    id: historyLockHighlightOverlay
+                    anchors.fill: parent
+                    z: 3
+                    enabled: false
+                    radius: 8
+                    color: Qt.rgba(theme.accent.r, theme.accent.g, theme.accent.b,
+                                   root.historyLockHighlight * 0.055)
+                    border.color: Qt.rgba(theme.accent.r, theme.accent.g, theme.accent.b,
+                                          root.historyLockHighlight * 0.60)
+                    border.width: 1
+                }
+
                 MouseArea {
                     id: historyHoverMouse
                     anchors.fill: parent
                     z: 5
                     acceptedButtons: Qt.NoButton
                     hoverEnabled: true
-                    enabled: root.historyRevealProgress >= 0.999
+                    enabled: root.historyLineProgress >= 0.999 && root.historyAxisProgress >= 0.999
                     cursorShape: root.hoveredWeeklyPointIndex >= 0
                                  ? Qt.PointingHandCursor : Qt.ArrowCursor
 
