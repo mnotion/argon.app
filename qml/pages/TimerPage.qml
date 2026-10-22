@@ -27,6 +27,9 @@ Item {
     property double todayFocusedSeconds: 0
     property var weeklyFocusPoints: []
     property int weeklyYAxisMax: 3
+    property string historyPeriod: "weekly"
+    property int historyChartYear: new Date().getFullYear()
+    property int historyChartMonth: new Date().getMonth()
     property int hoveredWeeklyPointIndex: -1
     property real historyHoverX: 0
     property real historyHoverY: 0
@@ -541,48 +544,86 @@ Item {
         } else {
             todayFocusedSeconds = dailyAnalyticsService.focusedSecondsForDate(currentDateKey)
         }
-        refreshWeeklyFocusData()
+        refreshHistoryChartData()
     }
 
-    function refreshWeeklyFocusData() {
+    function setHistoryPeriod(period) {
+        if (period !== "weekly" && period !== "monthly")
+            return
+
+        historyPeriod = period
+        if (period === "monthly") {
+            var today = new Date()
+            historyChartYear = today.getFullYear()
+            historyChartMonth = today.getMonth()
+        }
+        refreshHistoryChartData()
+    }
+
+    function historyChartTitle() {
+        if (historyPeriod === "monthly") {
+            return Qt.formatDate(
+                        new Date(historyChartYear, historyChartMonth, 1),
+                        "MMMM yyyy")
+        }
+
         var today = new Date()
         today.setHours(0, 0, 0, 0)
         var monday = new Date(today.getTime())
         monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7))
+        var sunday = new Date(monday.getTime())
+        sunday.setDate(monday.getDate() + 6)
+
+        if (monday.getMonth() === sunday.getMonth()
+                && monday.getFullYear() === sunday.getFullYear()) {
+            return Qt.formatDate(monday, "d") + "–" + Qt.formatDate(sunday, "d MMMM yyyy")
+        }
+        return Qt.formatDate(monday, "d MMM") + " – " + Qt.formatDate(sunday, "d MMM yyyy")
+    }
+
+    function refreshHistoryChartData() {
+        var today = new Date()
+        today.setHours(0, 0, 0, 0)
+        var rangeStart
+        var dayCount
+
+        if (historyPeriod === "monthly") {
+            rangeStart = new Date(historyChartYear, historyChartMonth, 1)
+            dayCount = new Date(historyChartYear, historyChartMonth + 1, 0).getDate()
+        } else {
+            rangeStart = new Date(today.getTime())
+            rangeStart.setDate(rangeStart.getDate() - ((rangeStart.getDay() + 6) % 7))
+            dayCount = 7
+        }
 
         var points = []
         var maxSeconds = 0
-        for (var dayIndex = 0; dayIndex < 7; ++dayIndex) {
-            var date = new Date(monday.getTime())
-            date.setDate(monday.getDate() + dayIndex)
+        var todayKey = calendarDateKey(today)
+
+        for (var dayIndex = 0; dayIndex < dayCount; ++dayIndex) {
+            var date = new Date(rangeStart.getTime())
+            date.setDate(rangeStart.getDate() + dayIndex)
             var key = calendarDateKey(date)
-            var seconds = Math.max(0, Number(dailyAnalyticsService.focusedSecondsForDate(key)) || 0)
-            if (key === calendarDateKey(today))
-                seconds = Math.max(seconds, Number(dailyAnalyticsService.focusedSecondsToday) || 0)
+            var seconds = Math.max(
+                        0, Number(dailyAnalyticsService.focusedSecondsForDate(key)) || 0)
+
+            if (key === todayKey) {
+                seconds = Math.max(
+                            seconds, Number(dailyAnalyticsService.focusedSecondsToday) || 0)
+            }
 
             points.push({
                 "date": key,
                 "weekday": Qt.formatDate(date, "ddd"),
                 "day": date.getDate(),
+                "label": historyPeriod === "weekly" ? dayIndex + 1 : date.getDate(),
                 "seconds": seconds
             })
             maxSeconds = Math.max(maxSeconds, seconds)
         }
 
-        // TEMPORARY GRAPH TEST DATA — remove after testing.
-        var testHours = [0.5, 1.3, 0.6, 0, 0, 1.2, 0.7]
-
-        for (var i = 0; i < points.length; ++i) {
-            points[i].seconds = testHours[i] * 3600
-        }
-
-        points[1].seconds = 4 * 3600
-        points[5].seconds = 2.5 * 3600
-
         weeklyFocusPoints = points
-        maxSeconds = 4 * 3600
-        // Leave three full hours of headroom above the busiest day.
-        // With no recorded time the chart still starts at a 3-hour maximum.
+        // Leave three full hours above the busiest day; empty charts start at 3h.
         weeklyYAxisMax = Math.max(3, Math.ceil(maxSeconds / 3600) + 3)
         hoveredWeeklyPointIndex = -1
     }
@@ -596,6 +637,14 @@ Item {
         if (minutes === 0)
             return hours + (hours === 1 ? " hour" : " hours")
         return hours + "h " + minutes + " min"
+    }
+
+    onScrollSectionIndexChanged: {
+        // The monthly calendar's staged reveal depends on this state transition.
+        // Restore it here so its heading, weekday row and dates become visible.
+        calendarExpanded = scrollSectionIndex === 1
+        if (scrollSectionIndex !== 2)
+            hoveredWeeklyPointIndex = -1
     }
 
     onCalendarExpandedChanged: {
@@ -668,7 +717,7 @@ Item {
     Component.onCompleted: {
         dailyAnalyticsService.refreshToday()
         refreshCalendarData()
-        refreshWeeklyFocusData()
+        refreshHistoryChartData()
         loadSubjects()
         timerIntroProgress = 0
         timerPageEntrance.start()
@@ -1781,7 +1830,8 @@ Item {
             Translate {
                 y: (2 - root.scrollSectionIndex) * root.height
                 Behavior on y {
-                    NumberAnimation { duration: 620; easing.type: Easing.InOutCubic }
+                    // Expo ease-out gives the history graph a decisive, smooth entrance.
+                    NumberAnimation { duration: 760; easing.type: Easing.OutExpo }
                 }
             }
         ]
@@ -1803,7 +1853,7 @@ Item {
                 spacing: 12
 
                 Text {
-                    text: "History"
+                    text: root.historyChartTitle()
                     color: theme.accent
                     font.pixelSize: 25
                     font.weight: Font.DemiBold
@@ -1811,28 +1861,62 @@ Item {
 
                 Item { Layout.fillWidth: true }
 
-                Rectangle {
-                    Layout.preferredWidth: 116
-                    Layout.preferredHeight: 34
-                    radius: 10
-                    color: theme.surfaceRaised
-                    border.color: theme.border
+                RowLayout {
+                    spacing: 6
 
-                    Row {
-                        anchors.centerIn: parent
-                        spacing: 9
-                        Text {
-                            text: "This week"
-                            color: theme.text
-                            font.pixelSize: 12
-                            font.weight: Font.Medium
-                            anchors.verticalCenter: parent.verticalCenter
+                    Button {
+                        id: weeklyHistoryButton
+                        text: "Weekly"
+                        hoverEnabled: true
+                        checked: root.historyPeriod === "weekly"
+                        onClicked: root.setHistoryPeriod("weekly")
+                        Layout.preferredHeight: 34
+                        Layout.preferredWidth: 82
+                        background: Rectangle {
+                            radius: 9
+                            color: weeklyHistoryButton.checked
+                                   ? Qt.rgba(theme.accent.r, theme.accent.g, theme.accent.b, 0.20)
+                                   : (weeklyHistoryButton.hovered ? theme.surface : theme.surfaceRaised)
+                            border.color: weeklyHistoryButton.checked || weeklyHistoryButton.hovered
+                                          ? theme.accent : theme.border
+                            border.width: weeklyHistoryButton.checked ? 1.4 : 1
+                            Behavior on color { ColorAnimation { duration: 120 } }
                         }
-                        Text {
-                            text: "▾"
-                            color: theme.mutedText
-                            font.pixelSize: 14
-                            anchors.verticalCenter: parent.verticalCenter
+                        contentItem: Text {
+                            text: weeklyHistoryButton.text
+                            color: weeklyHistoryButton.checked ? theme.accent : theme.text
+                            font.pixelSize: 12
+                            font.weight: Font.DemiBold
+                            horizontalAlignment: Text.AlignHCenter
+                            verticalAlignment: Text.AlignVCenter
+                        }
+                    }
+
+                    Button {
+                        id: monthlyHistoryButton
+                        text: "Monthly"
+                        hoverEnabled: true
+                        checked: root.historyPeriod === "monthly"
+                        onClicked: root.setHistoryPeriod("monthly")
+                        Layout.preferredHeight: 34
+                        Layout.preferredWidth: 86
+                        background: Rectangle {
+                            radius: 9
+                            color: monthlyHistoryButton.checked
+                                   ? Qt.rgba(theme.accent.r, theme.accent.g, theme.accent.b, 0.20)
+                                   : (monthlyHistoryButton.hovered ? theme.surface : theme.surfaceRaised)
+                            border.color: monthlyHistoryButton.checked || monthlyHistoryButton.hovered
+                                          ? theme.accent : theme.border
+                            border.width: monthlyHistoryButton.checked ? 1.4 : 1
+                            Behavior on color { ColorAnimation { duration: 120 } }
+                        }
+                        contentItem: Text {
+                            text: monthlyHistoryButton.text
+                            color: monthlyHistoryButton.checked ? theme.accent : theme.text
+                            font.pixelSize: 12
+                            font.weight: Font.DemiBold
+                            horizontalAlignment: Text.AlignHCenter
+                            verticalAlignment: Text.AlignVCenter
                         }
                     }
                 }
@@ -1960,9 +2044,10 @@ Item {
                             ctx.textAlign = "center"
                             ctx.textBaseline = "top"
                             ctx.fillStyle = labelCss
+                            ctx.font = root.historyPeriod === "monthly" ? "10px Sansation" : "13px Sansation"
                             for (var labelIndex = 0; labelIndex < root.weeklyFocusPoints.length; ++labelIndex) {
                                 var dayPoint = root.weeklyFocusPoints[labelIndex]
-                                ctx.fillText(dayPoint.weekday + " " + dayPoint.day,
+                                ctx.fillText(String(dayPoint.label),
                                              pointX(labelIndex), bottom + 12)
                             }
                         }
