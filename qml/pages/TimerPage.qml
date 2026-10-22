@@ -2041,6 +2041,8 @@ Item {
                         onClicked: historyPeriodMenu.visible = false
                     }
                 }
+            }
+
             Item {
                 id: historyPlot
                 Layout.fillWidth: true
