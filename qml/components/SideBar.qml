@@ -209,7 +209,7 @@ Item {
                 layer.effect: MultiEffect {
                     brightness: 1.0
                     colorization: 1.0
-                    colorizationColor: "white"
+                    colorizationColor: theme.text
                 }
             }
 
