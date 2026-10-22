@@ -673,12 +673,13 @@ Item {
     }
 
     function completeHistoryNavigation() {
-        if (historyPendingAction === "today")
+        if (historyPendingAction === "today") {
             historyReferenceDate = new Date()
-        else
+            refreshHistoryChartData()
+        } else {
             shiftHistoryPeriod(historyPendingDirection)
+        }
 
-        refreshHistoryChartData()
         hoveredWeeklyPointIndex = -1
         // Bring the new period in from the opposite edge.
         historyPlotDragOffset = historyPendingDirection > 0
@@ -2102,7 +2103,7 @@ Item {
                         anchors.fill: parent
                         radius: 9
                         color: historyPeriodButton.hovered ? theme.surface : theme.surfaceRaised
-                        border.color: historyPeriodButton.hovered || historyPeriodMenu.opened
+                        border.color: historyPeriodButton.hovered || historyPeriodMenu.visible
                                       ? theme.accent : theme.border
                         border.width: 1
 
@@ -2129,7 +2130,7 @@ Item {
                                 verticalAlignment: Text.AlignVCenter
                             }
                         }
-                        onClicked: historyPeriodMenu.opened ? historyPeriodMenu.close() : historyPeriodMenu.open()
+                        onClicked: historyPeriodMenu.visible ? historyPeriodMenu.close() : historyPeriodMenu.open()
                     }
 
                     Popup {
