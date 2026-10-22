@@ -2059,8 +2059,6 @@ Item {
         }
     }
 
-    }
-
 } // pageContent
 
     // Fixed page indicator. It stays anchored to the window while sections move.
