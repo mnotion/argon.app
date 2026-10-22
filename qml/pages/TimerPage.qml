@@ -2008,9 +2008,15 @@ Item {
 
             Text {
                 Layout.fillWidth: true
-                text: "Daily focus time"
+                text: root.historyPeriod === "daily"
+                      ? (root.dailyHourlyBreakdownMissing()
+                         ? "Earlier focus totals were not recorded by hour; tracking starts with this version."
+                         : "Focus distribution across the 24-hour day")
+                      : (root.historyPeriod === "monthly"
+                         ? "Daily focus time this month" : "Daily focus time this week")
                 color: theme.mutedText
                 font.pixelSize: 12
+                elide: Text.ElideRight
             }
 
             Item {
