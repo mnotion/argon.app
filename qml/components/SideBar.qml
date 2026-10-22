@@ -13,7 +13,7 @@ Item {
     signal fullscreenRequested()
     property bool bannerOpen: false
     property bool lightMode: false
-    property color accentColor: "#8CBFFF"
+    property string accentColor: "#8CBFFF"
     Theme {
         id: theme
         lightMode: root.lightMode
