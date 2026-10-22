@@ -783,6 +783,19 @@ ApplicationWindow {
         // Both popups are siblings of this layout, so their contents stay sharp.
         layer.effect: MultiEffect {
             blurMax: 48
+            // Clip the main app surface to the native window outline. Do this on
+            // the content layout only; masking ApplicationWindow.contentItem
+            // interferes with normal window composition and task switching.
+            maskEnabled: true
+            maskSource: Rectangle {
+                width: appContentLayout.width
+                height: appContentLayout.height
+                radius: window.windowCornerRadius
+                color: "white"
+                antialiasing: true
+                layer.enabled: true
+                layer.smooth: true
+            }
             Behavior on blur {
                 NumberAnimation {
                     duration: 340
