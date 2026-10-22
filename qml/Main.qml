@@ -35,7 +35,7 @@ ApplicationWindow {
     property string demoUsername: ""
     property string profileMessage: ""
     property bool lightMode: false
-    property color accentColor: "#8CBFFF"
+    property string accentColor: "#8CBFFF"
     readonly property var accentPalette: [
         "#8CBFFF", "#58A6FF", "#9B8AFB", "#D98CEB", "#F18AAB",
         "#F28C6B", "#F2C14E", "#8CCF7E", "#4CC9B0", "#8A99A8"
@@ -299,13 +299,13 @@ ApplicationWindow {
                 Repeater {
                     model: window.accentPalette
                     delegate: Rectangle {
-                        required property color modelData
+                        required property string modelData
                         Layout.preferredWidth: 19
                         Layout.preferredHeight: 19
                         radius: 10
                         color: modelData
-                        border.width: String(window.accentColor) === String(modelData) ? 3 : 1
-                        border.color: String(window.accentColor) === String(modelData)
+                        border.width: window.accentColor.toLowerCase() === modelData.toLowerCase() ? 3 : 1
+                        border.color: window.accentColor.toLowerCase() === modelData.toLowerCase()
                                       ? theme.text : Qt.rgba(theme.text.r, theme.text.g, theme.text.b, 0.28)
                         scale: accentSwatchMouse.containsMouse ? 1.12 : 1
                         Behavior on scale { NumberAnimation { duration: 130; easing.type: Easing.OutCubic } }
@@ -314,7 +314,7 @@ ApplicationWindow {
                             anchors.fill: parent
                             hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
-                            onClicked: window.accentColor = String(modelData)
+                            onClicked: window.accentColor = modelData
                         }
                     }
                 }
@@ -1394,9 +1394,9 @@ ApplicationWindow {
                         width: parent.width - 64
                         height: 60
                         radius: 15
-                        color: "#A6292929"
+                        color: Qt.rgba(searchTheme.surface.r, searchTheme.surface.g, searchTheme.surface.b, 0.92)
                         border.width: 1
-                        border.color: searchInput.activeFocus ? searchTheme.accent : "#55FFFFFF"
+                        border.color: searchInput.activeFocus ? searchTheme.accent : (searchTheme.lightMode ? "#55000000" : "#55FFFFFF")
 
                         Text {
                             x: 19
@@ -1591,8 +1591,12 @@ ApplicationWindow {
                             height: 56
                             radius: 10
                             opacity: 1
-                            color: resultHover.containsMouse ? "#1AFFFFFF" : "#0CFFFFFF"
-                            border.color: resultHover.containsMouse ? "#72FFFFFF" : "#42FFFFFF"
+                            color: resultHover.containsMouse
+                                   ? (searchTheme.lightMode ? "#10000000" : "#1AFFFFFF")
+                                   : (searchTheme.lightMode ? "#06000000" : "#0CFFFFFF")
+                            border.color: resultHover.containsMouse
+                                         ? (searchTheme.lightMode ? "#55000000" : "#72FFFFFF")
+                                         : (searchTheme.lightMode ? "#30000000" : "#42FFFFFF")
                             border.width: 1
                             antialiasing: true
 
