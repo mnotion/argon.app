@@ -820,9 +820,14 @@ Item {
             restartHistoryReveal()
         } else {
             hoveredWeeklyPointIndex = -1
-            // Do not reset scale or opacity while the card is moving out of view.
-            // Keeping both at their completed values makes reverse scrolling symmetric.
             historyRevealAnimation.stop()
+            // Finish the reveal before moving the section out. This prevents a
+            // partially scaled/faded card from being carried through reverse scrolling.
+            historyCardEntranceProgress = 1
+            historyGraphEntranceProgress = 1
+            historyLineProgress = 1
+            historyAxisProgress = 1
+            historyLockHighlight = 0
         }
     }
 
