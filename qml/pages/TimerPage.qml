@@ -654,6 +654,18 @@ Item {
             hoveredWeeklyPointIndex = -1
     }
 
+    function dailyHourlyBreakdownMissing() {
+        if (historyPeriod !== "daily"
+                || Number(dailyAnalyticsService.focusedSecondsToday) <= 0)
+            return false
+
+        for (var i = 0; i < weeklyFocusPoints.length; ++i) {
+            if (Number(weeklyFocusPoints[i].seconds) > 0)
+                return false
+        }
+        return true
+    }
+
     function formatWeeklyDuration(seconds) {
         var totalMinutes = Math.floor(Math.max(0, Number(seconds) || 0) / 60)
         var hours = Math.floor(totalMinutes / 60)
