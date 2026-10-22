@@ -36,6 +36,8 @@ Item {
     property real historyCardEntranceProgress: 0
     property real historyGraphEntranceProgress: 0
     property real historyPlotDragOffset: 0
+    property real historyMenuX: 0
+    property real historyMenuY: 0
     property bool historyNavigationAnimating: false
     property bool historyNavigationFast: false
     property string historyPendingAction: ""
@@ -578,6 +580,22 @@ Item {
         }
     }
 
+    function toggleHistoryPeriodMenu() {
+        if (historyPeriodMenu.opened) {
+            historyPeriodMenu.close()
+            return
+        }
+
+        // Map the selector's bottom edge into the top-level window overlay at click time.
+        // The popup is independent of card clipping and any nested transforms.
+        var anchor = historyPeriodDropdown.mapToItem(
+                    Overlay.overlay, 0, historyPeriodDropdown.height)
+        historyMenuX = Math.max(8, Math.min(
+                    Overlay.overlay.width - historyPeriodDropdown.width - 8, anchor.x))
+        historyMenuY = anchor.y + 6
+        historyPeriodMenu.open()
+    }
+
     function historyChartTitle() {
         var reference = new Date(historyReferenceDate)
         if (historyPeriod === "monthly")
@@ -802,9 +820,9 @@ Item {
             restartHistoryReveal()
         } else {
             hoveredWeeklyPointIndex = -1
+            // Do not reset scale or opacity while the card is moving out of view.
+            // Keeping both at their completed values makes reverse scrolling symmetric.
             historyRevealAnimation.stop()
-            historyCardEntranceProgress = 0
-            historyGraphEntranceProgress = 0
         }
     }
 
@@ -2138,15 +2156,14 @@ Item {
                                 verticalAlignment: Text.AlignVCenter
                             }
                         }
-                        onClicked: historyPeriodMenu.opened ? historyPeriodMenu.close() : historyPeriodMenu.open()
+                        onClicked: root.toggleHistoryPeriodMenu()
                     }
 
                     Popup {
                         id: historyPeriodMenu
-                        parent: weeklyHistoryCard
-                        x: historyPeriodDropdown.mapToItem(weeklyHistoryCard, 0, 0).x
-                        y: historyPeriodDropdown.mapToItem(
-                               weeklyHistoryCard, 0, historyPeriodDropdown.height + 6).y
+                        parent: Overlay.overlay
+                        x: root.historyMenuX
+                        y: root.historyMenuY
                         width: historyPeriodDropdown.width
                         padding: 4
                         closePolicy: Popup.CloseOnPressOutside | Popup.CloseOnEscape
