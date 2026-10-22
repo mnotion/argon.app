@@ -931,7 +931,7 @@ Item {
             property: "historyGraphEntranceProgress"
             from: 0
             to: 1
-            duration: 260
+            duration: 360
             easing.type: Easing.OutCubic
         }
         NumberAnimation {
@@ -2062,10 +2062,17 @@ Item {
                       : theme.border
         Behavior on border.color { ColorAnimation { duration: 180; easing.type: Easing.OutCubic } }
         border.width: 1
+        clip: true
         z: 4
-        visible: root.scrollSectionIndex === 2
-        opacity: root.historyCardEntranceProgress
-        scale: 0.88 + 0.12 * root.historyCardEntranceProgress
+        visible: true
+        opacity: 1
+        scale: 0.78 + 0.22 * root.historyCardEntranceProgress
+        transform: Translate {
+            y: (2 - root.scrollSectionIndex) * root.height
+            Behavior on y {
+                NumberAnimation { duration: 620; easing.type: Easing.InOutCubic }
+            }
+        }
 
         ColumnLayout {
             anchors.fill: parent
@@ -2131,15 +2138,15 @@ Item {
                                 verticalAlignment: Text.AlignVCenter
                             }
                         }
-                        onClicked: historyPeriodMenu.visible ? historyPeriodMenu.close() : historyPeriodMenu.open()
+                        onClicked: historyPeriodMenu.opened ? historyPeriodMenu.close() : historyPeriodMenu.open()
                     }
 
                     Popup {
                         id: historyPeriodMenu
-                        parent: Overlay.overlay
-                        x: historyPeriodDropdown.mapToItem(Overlay.overlay, 0, 0).x
+                        parent: weeklyHistoryCard
+                        x: historyPeriodDropdown.mapToItem(weeklyHistoryCard, 0, 0).x
                         y: historyPeriodDropdown.mapToItem(
-                               Overlay.overlay, 0, historyPeriodDropdown.height + 6).y
+                               weeklyHistoryCard, 0, historyPeriodDropdown.height + 6).y
                         width: historyPeriodDropdown.width
                         padding: 4
                         closePolicy: Popup.CloseOnPressOutside | Popup.CloseOnEscape
@@ -2215,7 +2222,7 @@ Item {
                 Layout.minimumHeight: 260
                 clip: true
                 opacity: root.historyGraphEntranceProgress
-                scale: 0.94 + 0.06 * root.historyGraphEntranceProgress
+                scale: 0.86 + 0.14 * root.historyGraphEntranceProgress
 
                 Canvas {
                     id: historyCanvas
@@ -2658,8 +2665,14 @@ Item {
         width: 142
         height: 40
         z: 10
-        visible: root.scrollSectionIndex === 2
+        visible: root.scrollSectionIndex >= 1
         opacity: root.historyCardEntranceProgress
+        transform: Translate {
+            y: (2 - root.scrollSectionIndex) * root.height
+            Behavior on y {
+                NumberAnimation { duration: 620; easing.type: Easing.InOutCubic }
+            }
+        }
 
         Row {
             anchors.fill: parent
