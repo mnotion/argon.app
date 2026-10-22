@@ -1493,12 +1493,6 @@ ApplicationWindow {
 
         Item {
             id: searchPlaceholder
-            Theme {
-                id: searchTheme
-                lightMode: window.lightMode
-                accent: window.accentColor
-            }
-
             property string query: ""
             property var results: []
             property int currentPage: 0
@@ -1520,7 +1514,7 @@ ApplicationWindow {
 
             Rectangle {
                 anchors.fill: parent
-                color: searchTheme.window
+                color: theme.window
             }
 
             Timer {
@@ -1550,14 +1544,14 @@ ApplicationWindow {
 
                     Text {
                         text: "Search"
-                        color: searchTheme.text
+                        color: theme.text
                         font.pixelSize: 30
                         font.weight: Font.DemiBold
                     }
 
                     Text {
                         text: "Find your way through Argon."
-                        color: searchTheme.mutedText
+                        color: theme.mutedText
                         font.pixelSize: 14
                     }
                 }
@@ -1572,15 +1566,15 @@ ApplicationWindow {
                         width: parent.width - 64
                         height: 60
                         radius: 15
-                        color: Qt.rgba(searchTheme.surface.r, searchTheme.surface.g, searchTheme.surface.b, 0.92)
+                        color: Qt.rgba(theme.surface.r, theme.surface.g, theme.surface.b, 0.92)
                         border.width: 1
-                        border.color: searchInput.activeFocus ? searchTheme.accent : searchTheme.border
+                        border.color: searchInput.activeFocus ? theme.accent : theme.border
 
                         Text {
                             x: 19
                             anchors.verticalCenter: parent.verticalCenter
                             text: "⌕"
-                            color: searchTheme.mutedText
+                            color: theme.mutedText
                             font.pixelSize: 28
                         }
 
@@ -1593,8 +1587,8 @@ ApplicationWindow {
                             anchors.top: parent.top
                             anchors.bottom: parent.bottom
                             placeholderText: "Search anything..."
-                            color: searchTheme.text
-                            placeholderTextColor: searchTheme.mutedText
+                            color: theme.text
+                            placeholderTextColor: theme.mutedText
                             font.pixelSize: 16
                             selectByMouse: true
                             verticalAlignment: TextInput.AlignVCenter
@@ -1637,7 +1631,7 @@ ApplicationWindow {
                             Text {
                                 anchors.centerIn: parent
                                 text: "×"
-                                color: searchTheme.mutedText
+                                color: theme.mutedText
                                 font.pixelSize: 20
                             }
 
@@ -1660,7 +1654,7 @@ ApplicationWindow {
                         radius: 13
                         color: "transparent"
                         border.width: 1
-                        border.color: searchTheme.border
+                        border.color: theme.border
 
                         Item {
                             anchors.centerIn: parent
@@ -1674,7 +1668,7 @@ ApplicationWindow {
                                 height: 12
                                 radius: 2
                                 color: "transparent"
-                                border.color: searchTheme.text
+                                border.color: theme.text
                                 border.width: 1.4
                             }
 
@@ -1685,7 +1679,7 @@ ApplicationWindow {
                                 height: 5
                                 radius: 1
                                 color: "transparent"
-                                border.color: searchTheme.text
+                                border.color: theme.text
                                 border.width: 1.3
                             }
                         }
@@ -1721,8 +1715,8 @@ ApplicationWindow {
                         Behavior on width {
                             NumberAnimation { duration: 220; easing.type: Easing.OutCubic }
                         }
-                    color: searchTheme.surfaceRaised
-                    border.color: searchTheme.border
+                    color: theme.surfaceRaised
+                    border.color: theme.border
                     border.width: 1
                     clip: true
 
@@ -1734,7 +1728,7 @@ ApplicationWindow {
                         visible: searchPlaceholder.results.length === 0
                                  && !searchPlaceholder.searchPending
                         text: "No results found"
-                        color: searchTheme.mutedText
+                        color: theme.mutedText
                         font.pixelSize: 13
                     }
 
@@ -1770,9 +1764,9 @@ ApplicationWindow {
                             radius: 10
                             opacity: 1
                             color: resultHover.containsMouse
-                                   ? Qt.rgba(searchTheme.accent.r, searchTheme.accent.g, searchTheme.accent.b, 0.14)
-                                   : searchTheme.surface
-                            border.color: resultHover.containsMouse ? searchTheme.accent : searchTheme.border
+                                   ? Qt.rgba(theme.accent.r, theme.accent.g, theme.accent.b, 0.14)
+                                   : theme.surface
+                            border.color: resultHover.containsMouse ? theme.accent : theme.border
                             border.width: 1
                             antialiasing: true
 
@@ -1796,7 +1790,7 @@ ApplicationWindow {
                                 anchors.rightMargin: 12
                                 anchors.verticalCenter: parent.verticalCenter
                                 text: displayName
-                                color: searchTheme.text
+                                color: theme.text
                                 font.pixelSize: 14
                                 font.weight: Font.DemiBold
                                 elide: Text.ElideRight
@@ -1811,7 +1805,7 @@ ApplicationWindow {
                                          || fileExtension === "doc"
                                          || fileExtension === "docx"
                                 text: fileExtension.toUpperCase()
-                                color: fileExtension === "pdf" ? "#C64B4B" : searchTheme.accent
+                                color: fileExtension === "pdf" ? "#C64B4B" : theme.accent
                                 font.pixelSize: 11
                                 font.weight: Font.DemiBold
                             }
@@ -1841,14 +1835,14 @@ ApplicationWindow {
                                     height: 30
                                     radius: 7
                                     color: previousPageMouse.containsMouse && searchPlaceholder.currentPage > 0
-                                           ? searchTheme.surfaceRaised : "transparent"
-                                    border.color: searchTheme.border
+                                           ? theme.surfaceRaised : "transparent"
+                                    border.color: theme.border
                                     opacity: searchPlaceholder.currentPage > 0 ? 1 : 0.4
 
                                     Text {
                                         anchors.centerIn: parent
                                         text: "Previous"
-                                        color: searchTheme.text
+                                        color: theme.text
                                         font.pixelSize: 12
                                     }
 
@@ -1871,7 +1865,7 @@ ApplicationWindow {
                                           + " / " + (searchPlaceholder.hasMoreResults
                                                      ? "…"
                                                      : Math.max(1, searchPlaceholder.loadedPageCount))
-                                    color: searchTheme.mutedText
+                                    color: theme.mutedText
                                     font.pixelSize: 11
                                 }
 
@@ -1879,8 +1873,8 @@ ApplicationWindow {
                                     width: 72
                                     height: 30
                                     radius: 7
-                                    color: nextPageMouse.containsMouse ? searchTheme.surfaceRaised : "transparent"
-                                    border.color: searchTheme.border
+                                    color: nextPageMouse.containsMouse ? theme.surfaceRaised : "transparent"
+                                    border.color: theme.border
                                     opacity: (searchPlaceholder.currentPage
                                               < searchPlaceholder.loadedPageCount - 1
                                               || searchPlaceholder.hasMoreResults) ? 1 : 0.4
@@ -1888,7 +1882,7 @@ ApplicationWindow {
                                     Text {
                                         anchors.centerIn: parent
                                         text: "Next"
-                                        color: searchTheme.text
+                                        color: theme.text
                                         font.pixelSize: 12
                                     }
 
