@@ -114,6 +114,10 @@ ApplicationWindow {
         if (accountService.hasPendingUit) {
             window.accountMode = "uit"
             window.accountSectionOpen = true
+        } else if (accountService.hasPendingRegistration) {
+            window.accountMode = "signup-password"
+            window.accountSectionOpen = true
+            window.accountUiMessage = "Signup was interrupted. Re-enter the password to safely finish the same attempt."
         }
         if (appUpdateService.state === "installed" || appUpdateService.state === "failed")
             updateResultDialog.open()
@@ -891,6 +895,7 @@ ApplicationWindow {
                             TextField {
                                 id: signupUsernameInput
                                 Layout.fillWidth: true
+                                text: accountService.pendingRegistrationUsername
                                 placeholderText: "Username"
                                 maximumLength: 14
                                 selectByMouse: true
