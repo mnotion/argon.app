@@ -40,6 +40,9 @@ ApplicationWindow {
     property bool demoLoggedIn: false
     property string demoUsername: ""
     property string profileMessage: ""
+    property bool accountSectionOpen: false
+    property string accountMode: "login"
+    property string accountUiMessage: ""
     property bool lightMode: false
     property string accentColor: "#8CBFFF"
     readonly property var accentPalette: [
@@ -99,10 +102,48 @@ ApplicationWindow {
         appSettingsService.sync()
     }
 
+    function openAccountSection(mode) {
+        window.accountMode = mode
+        window.accountUiMessage = ""
+        accountService.clearError()
+        window.accountSectionOpen = true
+    }
+
     Component.onCompleted: {
         window.loadPersistentSettings()
+        if (accountService.hasPendingUit) {
+            window.accountMode = "uit"
+            window.accountSectionOpen = true
+        }
         if (appUpdateService.state === "installed" || appUpdateService.state === "failed")
             updateResultDialog.open()
+    }
+
+    Connections {
+        target: accountService
+        function onPendingStateChanged() {
+            if (accountService.hasPendingUit) {
+                window.accountMode = "uit"
+                window.accountSectionOpen = true
+            } else if (window.accountMode === "uit") {
+                window.accountSectionOpen = false
+                window.profileOpen = true
+                window.profileExpanded = false
+            }
+        }
+        function onLoggedInChanged() {
+            if (accountService.loggedIn && !accountService.hasPendingUit) {
+                window.accountSectionOpen = false
+                window.profileOpen = true
+                window.profileExpanded = false
+                window.profileMessage = ""
+            }
+        }
+        function onRecoveryCompleted() {
+            window.accountMode = "login"
+            window.accountUiMessage = "Password reset successfully. Log in using your new password."
+            accountService.clearError()
+        }
     }
 
     onClosing: {
@@ -573,8 +614,8 @@ ApplicationWindow {
                     border.color: theme.border
                     Text {
                         anchors.centerIn: parent
-                        text: window.demoLoggedIn && window.demoUsername.length > 0
-                              ? window.demoUsername.charAt(0).toUpperCase() : "●"
+                        text: accountService.loggedIn && accountService.username.length > 0
+                              ? accountService.username.charAt(0).toUpperCase() : "●"
                         color: theme.accent
                         font.pixelSize: 20
                         font.weight: Font.DemiBold
@@ -585,7 +626,7 @@ ApplicationWindow {
                     spacing: 3
                     Text {
                         Layout.fillWidth: true
-                        text: window.demoLoggedIn ? window.demoUsername : "Guest account"
+                        text: accountService.loggedIn ? accountService.username : "Guest account"
                         color: theme.text
                         font.pixelSize: 14
                         font.weight: Font.DemiBold
@@ -593,7 +634,7 @@ ApplicationWindow {
                     }
                     Text {
                         Layout.fillWidth: true
-                        text: window.demoLoggedIn ? "Local demo profile" : "Not signed in"
+                        text: accountService.loggedIn ? "Argon account" : "Not signed in"
                         color: theme.mutedText
                         font.pixelSize: 11
                     }
@@ -602,90 +643,115 @@ ApplicationWindow {
 
             Text {
                 Layout.fillWidth: true
-                text: window.demoLoggedIn ? "Profile" : "Sign in to your demo profile"
-                color: theme.accent
-                font.pixelSize: 12
-                font.weight: Font.DemiBold
-            }
-
-            TextField {
-                id: profileUsername
-                Layout.fillWidth: true
-                visible: !window.demoLoggedIn
-                placeholderText: "Username"
-                color: theme.text
-                selectByMouse: true
-                background: Rectangle {
-                    radius: 8
-                    color: theme.surface
-                    border.color: profileUsername.activeFocus ? theme.accent : theme.border
-                }
-            }
-
-            TextField {
-                id: profilePassword
-                Layout.fillWidth: true
-                visible: !window.demoLoggedIn
-                placeholderText: "Password (demo only)"
-                echoMode: TextInput.Password
-                color: theme.text
-                selectByMouse: true
-                background: Rectangle {
-                    radius: 8
-                    color: theme.surface
-                    border.color: profilePassword.activeFocus ? theme.accent : theme.border
-                }
-            }
-
-            Text {
-                Layout.fillWidth: true
-                visible: window.profileMessage.length > 0
-                text: window.profileMessage
+                visible: accountService.hasPendingUit
+                text: "Your recovery token still needs to be saved."
                 color: theme.accent
                 font.pixelSize: 11
                 wrapMode: Text.WordWrap
             }
-
-            RowLayout {
+            Button {
                 Layout.fillWidth: true
+                visible: accountService.hasPendingUit
+                text: "Finish account setup"
+                onClicked: window.openAccountSection("uit")
+            }
+
+            ColumnLayout {
+                Layout.fillWidth: true
+                visible: !accountService.loggedIn && !accountService.hasPendingUit
                 spacing: 8
                 Button {
                     Layout.fillWidth: true
-                    text: window.demoLoggedIn ? "Sign out" : "Log in"
-                    onClicked: {
-                        if (window.demoLoggedIn) {
-                            window.demoLoggedIn = false
-                            window.demoUsername = ""
-                            window.profileMessage = "Signed out of the demo profile."
-                            profilePassword.text = ""
-                            profileUsername.text = ""
-                        } else if (profileUsername.text.trim().length === 0 || profilePassword.text.length === 0) {
-                            window.profileMessage = "Enter a username and password to try the demo."
-                        } else {
-                            window.demoUsername = profileUsername.text.trim()
-                            window.demoLoggedIn = true
-                            window.profileMessage = "Demo login successful. No account was created and no credentials were sent or saved."
-                            profilePassword.text = ""
-                        }
+                    Layout.preferredHeight: 44
+                    text: "Sign Up!"
+                    onClicked: window.openAccountSection("signup-username")
+                    background: Rectangle {
+                        radius: 10
+                        color: parent.hovered ? theme.accent : Qt.darker(theme.accent, 1.06)
+                        border.color: theme.accent
+                    }
+                    contentItem: Text {
+                        text: parent.text
+                        color: theme.accentText
+                        font.pixelSize: 15
+                        font.weight: Font.DemiBold
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
                     }
                 }
                 Button {
-                    visible: !window.demoLoggedIn
-                    text: "Guest"
-                    onClicked: {
-                        window.demoUsername = "Guest"
-                        window.demoLoggedIn = true
-                        window.profileMessage = "Continuing as a guest demo profile."
-                        profilePassword.text = ""
-                    }
+                    Layout.fillWidth: true
+                    text: "Log in"
+                    onClicked: window.openAccountSection("login")
+                }
+            }
+
+            ColumnLayout {
+                Layout.fillWidth: true
+                visible: accountService.loggedIn
+                spacing: 8
+                Text {
+                    Layout.fillWidth: true
+                    text: "Plan: " + accountService.plan + "  •  1 GB cloud storage"
+                    color: theme.text
+                    font.pixelSize: 11
+                    wrapMode: Text.WordWrap
+                }
+                Button {
+                    Layout.fillWidth: true
+                    text: "Plans"
+                    onClicked: window.openAccountSection("plans")
+                }
+                Button {
+                    Layout.fillWidth: true
+                    text: "Account settings"
+                    onClicked: window.openAccountSection("settings")
+                }
+                Button {
+                    Layout.fillWidth: true
+                    enabled: false
+                    text: "Sync  ·  Coming soon"
+                }
+                Text {
+                    Layout.fillWidth: true
+                    text: "Sync status: Coming soon"
+                    color: theme.mutedText
+                    font.pixelSize: 11
+                }
+                Button {
+                    Layout.fillWidth: true
+                    text: accountService.busy ? "Signing out…" : "Log out"
+                    enabled: !accountService.busy
+                    onClicked: accountService.logout()
+                }
+            }
+
+            Button {
+                Layout.fillWidth: true
+                text: "The Argon Campus"
+                onClicked: campusPopup.open()
+                background: Rectangle {
+                    radius: 10
+                    color: Qt.rgba(theme.accent.r, theme.accent.g, theme.accent.b, parent.hovered ? 0.25 : 0.13)
+                    border.color: theme.accent
+                    border.width: 1
+                }
+                contentItem: Text {
+                    text: parent.text
+                    color: theme.accent
+                    font.pixelSize: 13
+                    font.weight: Font.DemiBold
+                    horizontalAlignment: Text.AlignHCenter
+                    verticalAlignment: Text.AlignVCenter
                 }
             }
 
             Text {
                 Layout.fillWidth: true
-                text: "Demo only — authentication is not connected to a server."
-                color: theme.mutedText
-                font.pixelSize: 10
+                visible: accountService.errorMessage.length > 0 || window.profileMessage.length > 0
+                text: accountService.errorMessage.length > 0 ? accountService.errorMessage : window.profileMessage
+                color: accountService.errorMessage.length > 0 ? "#D95D5D" : theme.mutedText
+                font.pixelSize: 11
                 wrapMode: Text.WordWrap
             }
         }
@@ -724,6 +790,507 @@ ApplicationWindow {
             hoverEnabled: true
             cursorShape: Qt.PointingHandCursor
             onClicked: window.profileExpanded = !window.profileExpanded
+        }
+    }
+
+
+    Item {
+        id: accountSectionOverlay
+        anchors.fill: parent
+        z: 900
+        visible: window.accountSectionOpen
+        enabled: visible
+
+        Rectangle {
+            anchors.fill: parent
+            color: Qt.rgba(0, 0, 0, theme.lightMode ? 0.35 : 0.62)
+        }
+
+        Rectangle {
+            id: accountSectionCard
+            width: Math.min(560, parent.width - 36)
+            height: Math.min(690, parent.height - 36)
+            anchors.centerIn: parent
+            radius: 18
+            color: theme.surface
+            border.color: theme.border
+            border.width: 1
+            clip: true
+
+            ColumnLayout {
+                anchors.fill: parent
+                anchors.margins: 22
+                spacing: 14
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 10
+                    Button {
+                        text: "← Back"
+                        onClicked: {
+                            window.accountSectionOpen = false
+                            window.profileOpen = true
+                            window.accountUiMessage = ""
+                        }
+                    }
+                    Text {
+                        Layout.fillWidth: true
+                        text: window.accountMode === "signup-username" || window.accountMode === "signup-password"
+                              ? "Create your Argon account"
+                              : window.accountMode === "uit" ? "Save your recovery token"
+                              : window.accountMode === "recover" ? "Recover your account"
+                              : window.accountMode === "plans" ? "Argon plans"
+                              : window.accountMode === "settings" ? "Account settings"
+                              : "Log in to Argon"
+                        color: theme.text
+                        font.pixelSize: 19
+                        font.weight: Font.DemiBold
+                        horizontalAlignment: Text.AlignHCenter
+                        elide: Text.ElideRight
+                    }
+                    Button {
+                        text: "×"
+                        onClicked: {
+                            window.accountSectionOpen = false
+                            window.profileOpen = true
+                        }
+                    }
+                }
+
+                Rectangle { Layout.fillWidth: true; height: 1; color: theme.border }
+
+                ScrollView {
+                    id: accountBodyScroll
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    clip: true
+                    ScrollBar.vertical.policy: ScrollBar.AsNeeded
+
+                    ColumnLayout {
+                        width: accountBodyScroll.availableWidth
+                        spacing: 14
+
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            visible: window.accountMode === "signup-username"
+                            spacing: 12
+                            Text {
+                                Layout.fillWidth: true
+                                text: "Create your username"
+                                color: theme.text
+                                font.pixelSize: 17
+                                font.weight: Font.DemiBold
+                            }
+                            Text {
+                                Layout.fillWidth: true
+                                text: "Use 6–14 visible characters. Spaces and invisible/control characters are not allowed. Usernames are unique and case-insensitive."
+                                color: theme.mutedText
+                                font.pixelSize: 12
+                                wrapMode: Text.WordWrap
+                            }
+                            TextField {
+                                id: signupUsernameInput
+                                Layout.fillWidth: true
+                                placeholderText: "Username"
+                                maximumLength: 14
+                                selectByMouse: true
+                                color: theme.text
+                                background: Rectangle {
+                                    radius: 9
+                                    color: theme.surfaceRaised
+                                    border.color: signupUsernameInput.activeFocus ? theme.accent : theme.border
+                                }
+                            }
+                            Button {
+                                Layout.fillWidth: true
+                                text: "Next"
+                                onClicked: {
+                                    var candidate = signupUsernameInput.text
+                                    if (candidate.length < 6 || candidate.length > 14 || /\\s/.test(candidate)) {
+                                        window.accountUiMessage = "Enter a username between 6 and 14 characters without spaces."
+                                        return
+                                    }
+                                    window.accountUiMessage = ""
+                                    accountService.clearError()
+                                    window.accountMode = "signup-password"
+                                }
+                            }
+                            Button {
+                                Layout.fillWidth: true
+                                text: "Already have an account? Log in"
+                                flat: true
+                                onClicked: { window.accountMode = "login"; window.accountUiMessage = ""; accountService.clearError() }
+                            }
+                        }
+
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            visible: window.accountMode === "signup-password"
+                            spacing: 12
+                            Text {
+                                Layout.fillWidth: true
+                                text: "Create a password"
+                                color: theme.text
+                                font.pixelSize: 17
+                                font.weight: Font.DemiBold
+                            }
+                            Text {
+                                Layout.fillWidth: true
+                                text: "Username: " + signupUsernameInput.text
+                                color: theme.mutedText
+                                font.pixelSize: 12
+                            }
+                            TextField {
+                                id: signupPasswordInput
+                                Layout.fillWidth: true
+                                placeholderText: "Password"
+                                maximumLength: 24
+                                echoMode: TextInput.Password
+                                selectByMouse: true
+                                color: theme.text
+                                background: Rectangle {
+                                    radius: 9
+                                    color: theme.surfaceRaised
+                                    border.color: signupPasswordInput.activeFocus ? theme.accent : theme.border
+                                }
+                            }
+                            Text {
+                                Layout.fillWidth: true
+                                text: "8–24 characters; include an uppercase letter, a digit and at least one of @ # ! ? - _ & % $ £. Passwords are case-sensitive."
+                                color: theme.mutedText
+                                font.pixelSize: 12
+                                wrapMode: Text.WordWrap
+                            }
+                            Button {
+                                Layout.fillWidth: true
+                                text: accountService.busy ? "Creating account…" : "Create account"
+                                enabled: !accountService.busy
+                                onClicked: accountService.createAccount(signupUsernameInput.text, signupPasswordInput.text)
+                            }
+                            Button {
+                                Layout.fillWidth: true
+                                text: "Back to username"
+                                flat: true
+                                onClicked: { window.accountMode = "signup-username"; accountService.clearError(); window.accountUiMessage = "" }
+                            }
+                        }
+
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            visible: window.accountMode === "uit"
+                            spacing: 12
+                            Text {
+                                Layout.fillWidth: true
+                                text: "Congratulations — your Argon account has been created."
+                                color: theme.text
+                                font.pixelSize: 17
+                                font.weight: Font.DemiBold
+                                wrapMode: Text.WordWrap
+                            }
+                            Text {
+                                Layout.fillWidth: true
+                                text: "Save this permanent 10-character Unique Identification Token (UIT) somewhere secure. You need it to recover your account if you lose your password. Do not share it with anyone."
+                                color: theme.mutedText
+                                font.pixelSize: 13
+                                wrapMode: Text.WordWrap
+                            }
+                            Rectangle {
+                                Layout.fillWidth: true
+                                Layout.preferredHeight: 68
+                                radius: 10
+                                color: theme.surfaceRaised
+                                border.color: theme.accent
+                                Text {
+                                    anchors.centerIn: parent
+                                    text: accountService.pendingUit
+                                    color: theme.text
+                                    font.pixelSize: 22
+                                    font.family: "monospace"
+                                    font.weight: Font.DemiBold
+                                    selectByMouse: true
+                                }
+                            }
+                            Button {
+                                Layout.fillWidth: true
+                                text: "Copy recovery token"
+                                onClicked: accountService.copyPendingUit()
+                            }
+                            CheckBox {
+                                id: uitSavedCheckbox
+                                Layout.fillWidth: true
+                                text: "I have saved the UIT somewhere secure."
+                                onCheckedChanged: window.accountUiMessage = ""
+                            }
+                            Button {
+                                Layout.fillWidth: true
+                                text: "Continue"
+                                enabled: uitSavedCheckbox.checked && !accountService.busy
+                                onClicked: accountService.acknowledgePendingUit()
+                            }
+                        }
+
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            visible: window.accountMode === "login"
+                            spacing: 12
+                            Text {
+                                Layout.fillWidth: true
+                                text: "Log in with your username and password."
+                                color: theme.mutedText
+                                font.pixelSize: 13
+                                wrapMode: Text.WordWrap
+                            }
+                            TextField {
+                                id: loginUsernameInput
+                                Layout.fillWidth: true
+                                placeholderText: "Username"
+                                maximumLength: 14
+                                selectByMouse: true
+                                color: theme.text
+                                background: Rectangle {
+                                    radius: 9
+                                    color: theme.surfaceRaised
+                                    border.color: loginUsernameInput.activeFocus ? theme.accent : theme.border
+                                }
+                            }
+                            TextField {
+                                id: loginPasswordInput
+                                Layout.fillWidth: true
+                                placeholderText: "Password"
+                                maximumLength: 24
+                                echoMode: TextInput.Password
+                                selectByMouse: true
+                                color: theme.text
+                                background: Rectangle {
+                                    radius: 9
+                                    color: theme.surfaceRaised
+                                    border.color: loginPasswordInput.activeFocus ? theme.accent : theme.border
+                                }
+                            }
+                            Button {
+                                Layout.fillWidth: true
+                                text: accountService.busy ? "Logging in…" : "Log in"
+                                enabled: !accountService.busy
+                                onClicked: accountService.login(loginUsernameInput.text, loginPasswordInput.text)
+                            }
+                            Button {
+                                Layout.fillWidth: true
+                                text: "Forgot password? Recover with UIT"
+                                flat: true
+                                onClicked: { window.accountMode = "recover"; window.accountUiMessage = ""; accountService.clearError() }
+                            }
+                            Button {
+                                Layout.fillWidth: true
+                                text: "Create a new account"
+                                flat: true
+                                onClicked: { window.accountMode = "signup-username"; window.accountUiMessage = ""; accountService.clearError() }
+                            }
+                        }
+
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            visible: window.accountMode === "recover"
+                            spacing: 12
+                            Text {
+                                Layout.fillWidth: true
+                                text: "Use your username and UIT to set a new password. This will sign out existing sessions."
+                                color: theme.mutedText
+                                font.pixelSize: 13
+                                wrapMode: Text.WordWrap
+                            }
+                            TextField {
+                                id: recoveryUsernameInput
+                                Layout.fillWidth: true
+                                placeholderText: "Username"
+                                maximumLength: 14
+                                color: theme.text
+                                selectByMouse: true
+                            }
+                            TextField {
+                                id: recoveryUitInput
+                                Layout.fillWidth: true
+                                placeholderText: "10-character UIT"
+                                maximumLength: 10
+                                color: theme.text
+                                selectByMouse: true
+                            }
+                            TextField {
+                                id: recoveryPasswordInput
+                                Layout.fillWidth: true
+                                placeholderText: "New password"
+                                maximumLength: 24
+                                echoMode: TextInput.Password
+                                color: theme.text
+                                selectByMouse: true
+                            }
+                            TextField {
+                                id: recoveryConfirmInput
+                                Layout.fillWidth: true
+                                placeholderText: "Confirm new password"
+                                maximumLength: 24
+                                echoMode: TextInput.Password
+                                color: theme.text
+                                selectByMouse: true
+                            }
+                            Button {
+                                Layout.fillWidth: true
+                                text: accountService.busy ? "Recovering…" : "Reset password"
+                                enabled: !accountService.busy
+                                onClicked: {
+                                    if (recoveryPasswordInput.text !== recoveryConfirmInput.text) {
+                                        window.accountUiMessage = "The new passwords do not match."
+                                        return
+                                    }
+                                    window.accountUiMessage = ""
+                                    accountService.recoverPassword(recoveryUsernameInput.text, recoveryUitInput.text, recoveryPasswordInput.text)
+                                }
+                            }
+                            Button {
+                                Layout.fillWidth: true
+                                text: "Back to login"
+                                flat: true
+                                onClicked: { window.accountMode = "login"; window.accountUiMessage = ""; accountService.clearError() }
+                            }
+                        }
+
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            visible: window.accountMode === "plans"
+                            spacing: 12
+                            Text {
+                                Layout.fillWidth: true
+                                text: "Current plan: Free"
+                                color: theme.text
+                                font.pixelSize: 17
+                                font.weight: Font.DemiBold
+                            }
+                            Text {
+                                Layout.fillWidth: true
+                                text: "Includes 1 GB of planned cloud storage. File synchronisation and usage tracking are not implemented yet."
+                                color: theme.mutedText
+                                font.pixelSize: 13
+                                wrapMode: Text.WordWrap
+                            }
+                            Button {
+                                Layout.fillWidth: true
+                                enabled: false
+                                text: "Choose storage size  ·  Coming soon"
+                            }
+                            Button {
+                                Layout.fillWidth: true
+                                enabled: false
+                                text: "Expand plan options  ·  Coming soon"
+                            }
+                        }
+
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            visible: window.accountMode === "settings"
+                            spacing: 12
+                            Text {
+                                Layout.fillWidth: true
+                                text: "Account details"
+                                color: theme.text
+                                font.pixelSize: 17
+                                font.weight: Font.DemiBold
+                            }
+                            Button {
+                                Layout.fillWidth: true
+                                enabled: false
+                                text: "Change username  ·  Coming soon"
+                            }
+                            Button {
+                                Layout.fillWidth: true
+                                enabled: false
+                                text: "Change password  ·  Coming soon"
+                            }
+                            Button {
+                                Layout.fillWidth: true
+                                enabled: false
+                                text: "Choose profile picture  ·  Coming soon"
+                            }
+                            Rectangle { Layout.fillWidth: true; height: 1; color: theme.border }
+                            Text {
+                                Layout.fillWidth: true
+                                text: "Legal and privacy"
+                                color: theme.text
+                                font.pixelSize: 17
+                                font.weight: Font.DemiBold
+                            }
+                            Text {
+                                Layout.fillWidth: true
+                                text: "Placeholder links until Argon's legal documents are published."
+                                color: theme.mutedText
+                                font.pixelSize: 12
+                                wrapMode: Text.WordWrap
+                            }
+                            Button {
+                                Layout.fillWidth: true
+                                text: "Terms and privacy information"
+                                onClicked: Qt.openUrlExternally("https://example.com")
+                            }
+                        }
+
+                        Text {
+                            Layout.fillWidth: true
+                            visible: window.accountUiMessage.length > 0
+                            text: window.accountUiMessage
+                            color: theme.accent
+                            font.pixelSize: 12
+                            wrapMode: Text.WordWrap
+                        }
+                        Text {
+                            Layout.fillWidth: true
+                            visible: accountService.errorMessage.length > 0
+                            text: accountService.errorMessage
+                            color: "#D95D5D"
+                            font.pixelSize: 12
+                            wrapMode: Text.WordWrap
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    Popup {
+        id: campusPopup
+        parent: Overlay.overlay
+        x: (parent.width - width) / 2
+        y: (parent.height - height) / 2
+        width: 320
+        height: 180
+        modal: true
+        focus: true
+        closePolicy: Popup.CloseOnEscape
+        background: Rectangle {
+            radius: 14
+            color: theme.surface
+            border.color: theme.accent
+            border.width: 1
+        }
+        contentItem: ColumnLayout {
+            spacing: 14
+            Text {
+                Layout.fillWidth: true
+                text: "The Argon Campus"
+                color: theme.text
+                font.pixelSize: 18
+                font.weight: Font.DemiBold
+                horizontalAlignment: Text.AlignHCenter
+            }
+            Text {
+                Layout.fillWidth: true
+                text: "Coming soon"
+                color: theme.mutedText
+                font.pixelSize: 14
+                horizontalAlignment: Text.AlignHCenter
+            }
+            Button {
+                Layout.fillWidth: true
+                text: "Close"
+                onClicked: campusPopup.close()
+            }
         }
     }
 
