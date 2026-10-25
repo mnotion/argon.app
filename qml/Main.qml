@@ -906,7 +906,7 @@ ApplicationWindow {
                                 text: "Next"
                                 onClicked: {
                                     var candidate = signupUsernameInput.text
-                                    if (candidate.length < 6 || candidate.length > 14 || /\\s/.test(candidate)) {
+                                    if (candidate.length < 6 || candidate.length > 14 || /\s/.test(candidate)) {
                                         window.accountUiMessage = "Enter a username between 6 and 14 characters without spaces."
                                         return
                                     }
