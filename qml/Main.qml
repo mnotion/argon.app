@@ -151,6 +151,19 @@ ApplicationWindow {
             window.accountUiMessage = "Password reset successfully. Log in using your new password."
             accountService.clearError()
         }
+
+        function onBusyChanged() {
+            if (accountService.busy)
+                return
+
+            // Clear credential inputs as soon as an authentication request finishes,
+            // including failed attempts, so secrets are not left in hidden fields.
+            signupPasswordInput.clear()
+            loginPasswordInput.clear()
+            recoveryUitInput.clear()
+            recoveryPasswordInput.clear()
+            recoveryConfirmInput.clear()
+        }
     }
 
     onClosing: {
