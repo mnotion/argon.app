@@ -136,7 +136,10 @@ ApplicationWindow {
             }
         }
         function onLoggedInChanged() {
-            if (accountService.loggedIn && !accountService.hasPendingUit) {
+            if (accountService.loggedIn && accountService.hasPendingUit) {
+                window.accountMode = "uit"
+                window.accountSectionOpen = true
+            } else if (accountService.loggedIn) {
                 window.accountSectionOpen = false
                 window.profileOpen = true
                 window.profileExpanded = false
@@ -657,7 +660,16 @@ ApplicationWindow {
                 Layout.fillWidth: true
                 visible: accountService.hasPendingUit
                 text: "Finish account setup"
-                onClicked: window.openAccountSection("uit")
+                onClicked: {
+                    uitSavedCheckbox.checked = false
+                    window.openAccountSection("uit")
+                }
+            }
+            Button {
+                Layout.fillWidth: true
+                visible: accountService.hasPendingUit && !accountService.loggedIn
+                text: "Log in to finish setup"
+                onClicked: window.openAccountSection("login")
             }
 
             ColumnLayout {
@@ -912,7 +924,7 @@ ApplicationWindow {
                                 onClicked: {
                                     var candidate = signupUsernameInput.text
                                     if (candidate.length < 6 || candidate.length > 14 || /\s/.test(candidate)) {
-                                        window.accountUiMessage = "Enter a username between 6 and 14 characters without spaces."
+                                        window.accountUiMessage = "Enter 6–14 visible characters without spaces or invisible characters."
                                         return
                                     }
                                     window.accountUiMessage = ""
@@ -1026,10 +1038,28 @@ ApplicationWindow {
                                 text: "I have saved the UIT somewhere secure."
                                 onCheckedChanged: window.accountUiMessage = ""
                             }
+                            Text {
+                                Layout.fillWidth: true
+                                visible: !accountService.loggedIn
+                                text: "Log in to confirm the token was saved. Your UIT will remain on this screen."
+                                color: theme.mutedText
+                                font.pixelSize: 12
+                                wrapMode: Text.WordWrap
+                            }
                             Button {
                                 Layout.fillWidth: true
-                                text: "Continue"
-                                enabled: uitSavedCheckbox.checked && !accountService.busy
+                                visible: !accountService.loggedIn
+                                text: "Log in to finish setup"
+                                onClicked: {
+                                    uitSavedCheckbox.checked = false
+                                    window.accountMode = "login"
+                                    window.accountUiMessage = ""
+                                }
+                            }
+                            Button {
+                                Layout.fillWidth: true
+                                text: accountService.busy ? "Confirming…" : "Continue"
+                                enabled: uitSavedCheckbox.checked && !accountService.busy && accountService.loggedIn
                                 onClicked: accountService.acknowledgePendingUit()
                             }
                         }
