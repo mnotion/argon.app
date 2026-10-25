@@ -22,6 +22,8 @@ class AccountService final : public QObject
     Q_PROPERTY(QString errorMessage READ errorMessage NOTIFY errorMessageChanged)
     Q_PROPERTY(bool hasPendingUit READ hasPendingUit NOTIFY pendingStateChanged)
     Q_PROPERTY(QString pendingUit READ pendingUit NOTIFY pendingStateChanged)
+    Q_PROPERTY(bool hasPendingRegistration READ hasPendingRegistration NOTIFY registrationStateChanged)
+    Q_PROPERTY(QString pendingRegistrationUsername READ pendingRegistrationUsername NOTIFY registrationStateChanged)
 
 public:
     explicit AccountService(QObject *parent = nullptr);
@@ -36,6 +38,8 @@ public:
     QString errorMessage() const { return m_errorMessage; }
     bool hasPendingUit() const { return !m_pendingUit.isEmpty(); }
     QString pendingUit() const { return m_pendingUit; }
+    bool hasPendingRegistration() const { return !m_registrationId.isEmpty(); }
+    QString pendingRegistrationUsername() const { return m_registrationUsername; }
 
     Q_INVOKABLE void createAccount(const QString &username, const QString &password);
     Q_INVOKABLE void login(const QString &username, const QString &password);
@@ -52,6 +56,7 @@ signals:
     void busyChanged();
     void errorMessageChanged();
     void pendingStateChanged();
+    void registrationStateChanged();
     void recoveryCompleted();
 
 private:
@@ -73,6 +78,10 @@ private:
     QByteArray unprotectBytes(const QByteArray &data) const;
     QString sessionPath() const;
     QString pendingUitPath() const;
+    QString pendingRegistrationPath() const;
+    bool savePendingRegistration(const QString &username);
+    bool loadPendingRegistration();
+    void clearPendingRegistration();
     bool savePendingUit(const QString &uit, const QJsonObject &account);
     bool loadPendingUit();
 
@@ -90,4 +99,6 @@ private:
     QString m_pendingUsername;
     QString m_pendingAccountId;
     QString m_pendingUdt;
+    QString m_registrationId;
+    QString m_registrationUsername;
 };
