@@ -9,11 +9,13 @@
 #include <QFileDevice>
 #include <QFileInfo>
 #include <QGuiApplication>
+#include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonParseError>
 #include <QNetworkReply>
 #include <QNetworkRequest>
 #include <QSaveFile>
+#include <QStringList>
 #include <QTimer>
 #include <QUrl>
 
@@ -30,8 +32,6 @@ namespace
 #ifndef ARGON_API_BASE_URL
 #define ARGON_API_BASE_URL "https://argon-backend-y4b1.onrender.com"
 #endif
-
-const QString kDataPrefix = QStringLiteral("ARGON_LOCAL_V1:");
 
 QString responseError(const QJsonObject &json, const QString &fallback)
 {
