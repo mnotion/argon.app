@@ -10,13 +10,17 @@
 #include <QFileInfo>
 #include <QGuiApplication>
 #include <QJsonArray>
+#include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonParseError>
 #include <QNetworkReply>
+#include <QClipboard>
 #include <QNetworkRequest>
 #include <QSaveFile>
 #include <QStringList>
 #include <QTimer>
+#include <QUuid>
+#include <utility>
 #include <QUrl>
 
 #ifdef Q_OS_WIN
@@ -55,7 +59,10 @@ AccountService::AccountService(QObject *parent)
     : QObject(parent)
 {
     QDir().mkpath(ArgonPaths::accountsDirectory());
+    loadPendingRegistration();
     loadPendingUit();
+    if (!m_pendingUit.isEmpty())
+        clearPendingRegistration();
     restoreSession();
 }
 
@@ -67,6 +74,59 @@ QString AccountService::sessionPath() const
 QString AccountService::pendingUitPath() const
 {
     return QDir(ArgonPaths::accountsDirectory()).filePath(QStringLiteral("pending-uit.bin"));
+}
+
+QString AccountService::pendingRegistrationPath() const
+{
+    return QDir(ArgonPaths::accountsDirectory()).filePath(QStringLiteral("pending-registration.bin"));
+}
+
+bool AccountService::savePendingRegistration(const QString &username)
+{
+    const QString normalized = username.normalized(QString::NormalizationForm_C).toCaseFolded();
+    const QString currentNormalized =
+        m_registrationUsername.normalized(QString::NormalizationForm_C).toCaseFolded();
+    if (m_registrationId.isEmpty() || normalized != currentNormalized) {
+        m_registrationId = QUuid::createUuid().toString(QUuid::WithoutBraces);
+        m_registrationUsername = username;
+    }
+
+    const QJsonObject pending{
+        {QStringLiteral("schemaVersion"), 1},
+        {QStringLiteral("registrationId"), m_registrationId},
+        {QStringLiteral("username"), m_registrationUsername},
+    };
+    if (!writeProtectedJson(pendingRegistrationPath(), pending))
+        return false;
+    emit registrationStateChanged();
+    return true;
+}
+
+bool AccountService::loadPendingRegistration()
+{
+    QJsonObject pending;
+    if (!readProtectedJson(pendingRegistrationPath(), pending))
+        return false;
+
+    const QString id = pending.value(QStringLiteral("registrationId")).toString();
+    const QString username = pending.value(QStringLiteral("username")).toString();
+    if (QUuid(id).isNull() || username.isEmpty())
+        return false;
+    m_registrationId = QUuid(id).toString(QUuid::WithoutBraces);
+    m_registrationUsername = username;
+    emit registrationStateChanged();
+    return true;
+}
+
+void AccountService::clearPendingRegistration()
+{
+    if (QFileInfo::exists(pendingRegistrationPath()) && !QFile::remove(pendingRegistrationPath())) {
+        setErrorMessage(QStringLiteral("Argon could not clear the interrupted-signup marker. It will retry safely on the next launch."));
+        return;
+    }
+    m_registrationId.clear();
+    m_registrationUsername.clear();
+    emit registrationStateChanged();
 }
 
 void AccountService::setBusy(bool busy)
@@ -200,6 +260,8 @@ bool AccountService::savePendingUit(const QString &uit, const QJsonObject &accou
     };
     const bool saved = writeProtectedJson(pendingUitPath(), pending);
     emit pendingStateChanged();
+    if (saved)
+        clearPendingRegistration();
     return saved;
 }
 
@@ -308,7 +370,7 @@ void AccountService::requestJson(const QString &method, const QString &path,
     QUrl url(QString::fromLatin1(ARGON_API_BASE_URL) + path);
     QNetworkRequest request(url);
     request.setHeader(QNetworkRequest::ContentTypeHeader, QStringLiteral("application/json"));
-    request.setTransferTimeout(30000);
+    request.setTransferTimeout(120000);
     if (!bearerToken.isEmpty())
         request.setRawHeader("Authorization", QByteArray("Bearer ") + bearerToken.toUtf8());
 
@@ -346,15 +408,23 @@ void AccountService::createAccount(const QString &username, const QString &passw
     if (m_busy)
         return;
     setErrorMessage(QString());
+    if (!savePendingRegistration(username)) {
+        setErrorMessage(QStringLiteral("Argon could not save the signup attempt securely. Check disk access and try again."));
+        return;
+    }
+
+    const QString registrationId = m_registrationId;
     setBusy(true);
     requestJson(QStringLiteral("POST"), QStringLiteral("/api/v1/auth/signup"),
-                {{QStringLiteral("username"), username},
+                {{QStringLiteral("registration_id"), registrationId},
+                 {QStringLiteral("username"), username},
                  {QStringLiteral("password"), password}},
                 QString(), [this](int status, const QJsonObject &json, const QString &error) {
-        if (status != 201) {
+        if (status != 200 && status != 201) {
             setErrorMessage(error.isEmpty()
                 ? QStringLiteral("Account creation failed. Check your connection and try again.")
                 : error);
+            // Reuse the saved registration ID when retrying after a lost response.
             setBusy(false);
             return;
         }
@@ -363,7 +433,7 @@ void AccountService::createAccount(const QString &username, const QString &passw
         const QString uit = json.value(QStringLiteral("uit")).toString();
         const QJsonObject account = json.value(QStringLiteral("account")).toObject();
         if (token.isEmpty() || uit.size() != 10 || account.value(QStringLiteral("username")).toString().isEmpty()) {
-            setErrorMessage(QStringLiteral("The server returned an incomplete signup response. Contact support before retrying."));
+            setErrorMessage(QStringLiteral("The server returned an incomplete signup response. Retry the same signup; Argon will reuse the saved attempt ID."));
             setBusy(false);
             return;
         }
@@ -371,7 +441,9 @@ void AccountService::createAccount(const QString &username, const QString &passw
         const bool pendingSaved = savePendingUit(uit, account);
         setSession(token, account);
         if (!pendingSaved) {
-            setErrorMessage(QStringLiteral("Account created, but Argon could not save the recovery-token screen. Copy the UIT now and keep Argon open."));
+            setErrorMessage(QStringLiteral("Your account was created, but the UIT screen could not be saved securely. Keep Argon open and retry this same signup to recover it."));
+        } else {
+            setErrorMessage(QString());
         }
         setBusy(false);
     });
@@ -457,18 +529,34 @@ void AccountService::logout()
 
 void AccountService::acknowledgePendingUit()
 {
-    if (m_pendingUit.isEmpty())
+    if (m_pendingUit.isEmpty() || m_busy || m_accessToken.isEmpty())
         return;
-    if (QFileInfo::exists(pendingUitPath()) && !QFile::remove(pendingUitPath())) {
-        setErrorMessage(QStringLiteral("Argon could not clear the saved UIT screen. Try again."));
-        return;
-    }
-    m_pendingUit.clear();
-    m_pendingUsername.clear();
-    m_pendingAccountId.clear();
-    m_pendingUdt.clear();
     setErrorMessage(QString());
-    emit pendingStateChanged();
+    setBusy(true);
+    requestJson(QStringLiteral("POST"), QStringLiteral("/api/v1/auth/uit/acknowledge"), {},
+                m_accessToken, [this](int status, const QJsonObject &, const QString &error) {
+        if (status < 200 || status >= 300) {
+            setErrorMessage(error.isEmpty()
+                ? QStringLiteral("Argon could not confirm that your UIT was saved. Your token has been kept; try again.")
+                : error);
+            setBusy(false);
+            return;
+        }
+
+        // Clear the local token only after the backend confirms acknowledgement.
+        if (QFileInfo::exists(pendingUitPath()) && !QFile::remove(pendingUitPath())) {
+            setErrorMessage(QStringLiteral("The UIT was acknowledged, but Argon could not clear the local screen file. The token remains on this device; retry to finish."));
+            setBusy(false);
+            return;
+        }
+        m_pendingUit.clear();
+        m_pendingUsername.clear();
+        m_pendingAccountId.clear();
+        m_pendingUdt.clear();
+        setErrorMessage(QString());
+        emit pendingStateChanged();
+        setBusy(false);
+    });
 }
 
 void AccountService::copyPendingUit()
