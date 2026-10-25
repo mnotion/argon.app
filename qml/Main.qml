@@ -730,9 +730,40 @@ ApplicationWindow {
                 }
                 Text {
                     Layout.fillWidth: true
-                    text: "Sync status: Coming soon"
+                    visible: window.profileExpanded
+                    text: "Cloud sync indicators · preview only"
                     color: theme.mutedText
                     font.pixelSize: 11
+                }
+                RowLayout {
+                    Layout.fillWidth: true
+                    visible: window.profileExpanded
+                    spacing: 5
+                    Repeater {
+                        model: ["Synced", "Not synced", "Syncing"]
+                        delegate: Rectangle {
+                            required property string modelData
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: 27
+                            radius: 7
+                            color: theme.surfaceRaised
+                            border.color: theme.border
+                            Text {
+                                anchors.centerIn: parent
+                                text: modelData
+                                color: theme.mutedText
+                                font.pixelSize: 10
+                            }
+                        }
+                    }
+                }
+                Text {
+                    Layout.fillWidth: true
+                    visible: window.profileExpanded
+                    text: "These are placeholders, not live status. Cloud file sync is not active yet."
+                    color: theme.mutedText
+                    font.pixelSize: 10
+                    wrapMode: Text.WordWrap
                 }
                 Button {
                     Layout.fillWidth: true
