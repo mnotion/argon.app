@@ -442,8 +442,6 @@ void AccountService::createAccount(const QString &username, const QString &passw
         setSession(token, account);
         if (!pendingSaved) {
             setErrorMessage(QStringLiteral("Your account was created, but the UIT screen could not be saved securely. Keep Argon open and retry this same signup to recover it."));
-        } else {
-            setErrorMessage(QString());
         }
         setBusy(false);
     });
