@@ -22,7 +22,7 @@ jobs:
       - name: Configure
         shell: pwsh
         run: cmake -S . -B build -DCMAKE_PREFIX_PATH="$env:QT_ROOT_DIR" -DCMAKE_BUILD_TYPE=Release -DARGON_BUILD_VERSIONING_TESTS=ON
-      - name: Build
-        run: cmake --build build --config Release --parallel
+      - name: Build application and regression tests
+        run: cmake --build build --config Release --target Argon ArgonVersioningTests ArgonUserSettingsTests --parallel
       - name: Run C++ tests
         run: ctest --test-dir build -C Release --output-on-failure
