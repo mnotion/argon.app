@@ -10,7 +10,6 @@
 #include <QFileInfo>
 #include <QGuiApplication>
 #include <QJsonArray>
-#include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonParseError>
 #include <QNetworkReply>
