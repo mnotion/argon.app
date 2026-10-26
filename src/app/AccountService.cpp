@@ -285,15 +285,18 @@ void AccountService::restoreSession()
     if (!readProtectedJson(sessionPath(), session))
         return;
     m_accessToken = session.value(QStringLiteral("accessToken")).toString();
-    const QJsonObject account = session.value(QStringLiteral("account")).toObject();
-    applyAccount(account);
-    const bool changed = !m_accessToken.isEmpty() != m_loggedIn;
-    m_loggedIn = !m_accessToken.isEmpty();
-    emit accountChanged();
-    if (changed)
-        emit loggedInChanged();
-    if (m_loggedIn)
-        QTimer::singleShot(0, this, &AccountService::refreshProfile);
+    if (m_accessToken.isEmpty()) {
+        clearSession();
+        return;
+    }
+
+    // Keep only the server-issued token locally. A cached profile is not proof
+    // that the account still exists in B2, so startup stays logged out until the
+    // backend validates this token and returns the current account record.
+    writeProtectedJson(sessionPath(), {
+        {QStringLiteral("accessToken"), m_accessToken},
+    });
+    QTimer::singleShot(0, this, &AccountService::refreshProfile);
 }
 
 void AccountService::refreshProfile()
@@ -301,20 +304,27 @@ void AccountService::refreshProfile()
     if (m_accessToken.isEmpty())
         return;
     requestJson(QStringLiteral("GET"), QStringLiteral("/api/v1/account/me"), {},
-                m_accessToken, [this](int status, const QJsonObject &json, const QString &) {
+                m_accessToken, [this](int status, const QJsonObject &json, const QString &error) {
         if (status >= 200 && status < 300) {
+            const bool wasLoggedIn = m_loggedIn;
             applyAccount(json);
+            m_loggedIn = true;
             QJsonObject session{
                 {QStringLiteral("accessToken"), m_accessToken},
-                {QStringLiteral("account"), json},
             };
             writeProtectedJson(sessionPath(), session);
             emit accountChanged();
+            if (!wasLoggedIn)
+                emit loggedInChanged();
         } else if (status == 401) {
             clearSession();
+        } else {
+            // Preserve the encrypted token for a later retry, but do not show a
+            // saved local identity as logged in when B2 could not be verified.
+            setErrorMessage(error.isEmpty()
+                ? QStringLiteral("Argon couldn't verify your saved account with B2. Connect to the internet and try again.")
+                : error);
         }
-        // On network failures, retain the locally persisted session so a temporary
-        // outage or a sleeping free service does not silently sign the user out.
     });
 }
 
@@ -337,7 +347,6 @@ void AccountService::setSession(const QString &token, const QJsonObject &account
     m_loggedIn = !m_accessToken.isEmpty();
     const QJsonObject session{
         {QStringLiteral("accessToken"), m_accessToken},
-        {QStringLiteral("account"), account},
     };
     if (!writeProtectedJson(sessionPath(), session))
         setErrorMessage(QStringLiteral("Your session could not be saved securely on this device. You may need to log in again after restarting Argon."));
