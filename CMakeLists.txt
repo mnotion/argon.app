@@ -14,6 +14,8 @@ qt_add_executable(Argon
     src/main.cpp
     src/app/AppPaths.cpp
     src/app/AppPaths.h
+    src/app/AccountService.cpp
+    src/app/AccountService.h
     src/app/AppServices.cpp
     src/app/AppServices.h
     src/app/UserSettingsService.cpp
@@ -54,6 +56,9 @@ target_link_libraries(Argon PRIVATE
     Qt6::QuickControls2
     Qt6::Network
 )
+if(WIN32)
+    target_link_libraries(Argon PRIVATE crypt32)
+endif()
 
 # This CMake project version is the application's single version source.
 target_compile_definitions(Argon PRIVATE "ARGON_VERSION_STRING=\"${PROJECT_VERSION}\"")

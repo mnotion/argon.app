@@ -1,0 +1,28 @@
+name: Desktop build
+
+on:
+  push:
+    branches: ["account-system-ui"]
+  pull_request:
+    branches: ["sync-config"]
+
+jobs:
+  windows-qt-build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: "6.8.3"
+          host: windows
+          target: desktop
+          arch: win64_msvc2022_64
+          cache: true
+      - name: Configure
+        shell: pwsh
+        run: cmake -S . -B build -DCMAKE_PREFIX_PATH="$env:QT_ROOT_DIR" -DCMAKE_BUILD_TYPE=Release -DARGON_BUILD_VERSIONING_TESTS=ON
+      - name: Build application and regression tests
+        run: cmake --build build --config Release --target Argon ArgonVersioningTests ArgonUserSettingsTests --parallel
+      - name: Run C++ tests
+        run: ctest --test-dir build -C Release --output-on-failure
