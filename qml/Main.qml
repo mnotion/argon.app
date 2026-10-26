@@ -868,56 +868,110 @@ ApplicationWindow {
 
         Rectangle {
             id: accountSectionCard
-            width: Math.min(560, parent.width - 36)
-            height: Math.min(690, parent.height - 36)
+            width: Math.min(600, parent.width - 48)
+            height: Math.min(720, parent.height - 48)
             anchors.centerIn: parent
-            radius: 18
-            color: theme.surface
+            radius: 20
+            color: Qt.rgba(theme.surface.r, theme.surface.g, theme.surface.b, 0.98)
             border.color: theme.border
             border.width: 1
             clip: true
 
+            Rectangle {
+                anchors.top: parent.top
+                anchors.left: parent.left
+                anchors.right: parent.right
+                height: 3
+                color: theme.accent
+            }
+
             ColumnLayout {
                 anchors.fill: parent
-                anchors.margins: 22
-                spacing: 14
+                anchors.margins: 28
+                spacing: 18
 
                 RowLayout {
                     Layout.fillWidth: true
-                    spacing: 10
+                    spacing: 14
                     Button {
+                        id: accountBackButton
                         text: "← Back"
+                        visible: window.accountMode !== "login"
                         onClicked: {
                             window.accountSectionOpen = false
                             window.profileOpen = true
                             window.accountUiMessage = ""
                         }
+                        background: Rectangle {
+                            radius: 9
+                            color: accountBackButton.hovered ? theme.surfaceRaised : "transparent"
+                            border.color: accountBackButton.hovered ? theme.border : "transparent"
+                            border.width: 1
+                        }
+                        contentItem: Text {
+                            text: accountBackButton.text
+                            color: theme.mutedText
+                            font.pixelSize: 12
+                            horizontalAlignment: Text.AlignHCenter
+                            verticalAlignment: Text.AlignVCenter
+                        }
                     }
-                    Text {
+                    ColumnLayout {
                         Layout.fillWidth: true
-                        text: window.accountMode === "signup-username" || window.accountMode === "signup-password"
-                              ? "Create your Argon account"
-                              : window.accountMode === "uit" ? "Save your recovery token"
-                              : window.accountMode === "recover" ? "Recover your account"
-                              : window.accountMode === "plans" ? "Argon plans"
-                              : window.accountMode === "settings" ? "Account settings"
-                              : "Log in to Argon"
-                        color: theme.text
-                        font.pixelSize: 19
-                        font.weight: Font.DemiBold
-                        horizontalAlignment: Text.AlignHCenter
-                        elide: Text.ElideRight
+                        spacing: 2
+                        Text {
+                            Layout.fillWidth: true
+                            text: "ARGON ACCOUNT"
+                            color: theme.accent
+                            font.pixelSize: 10
+                            font.weight: Font.DemiBold
+                            horizontalAlignment: Text.AlignHCenter
+                        }
+                        Text {
+                            Layout.fillWidth: true
+                            text: window.accountMode === "signup-username" || window.accountMode === "signup-password"
+                                  ? "Create your account"
+                                  : window.accountMode === "uit" ? "Save your recovery token"
+                                  : window.accountMode === "recover" ? "Recover your account"
+                                  : window.accountMode === "plans" ? "Argon plans"
+                                  : window.accountMode === "settings" ? "Account settings"
+                                  : "Welcome back"
+                            color: theme.text
+                            font.pixelSize: 20
+                            font.weight: Font.DemiBold
+                            horizontalAlignment: Text.AlignHCenter
+                            elide: Text.ElideRight
+                        }
                     }
                     Button {
+                        id: accountCloseButton
                         text: "×"
                         onClicked: {
                             window.accountSectionOpen = false
                             window.profileOpen = true
                         }
+                        background: Rectangle {
+                            radius: 9
+                            color: accountCloseButton.hovered ? theme.surfaceRaised : "transparent"
+                            border.color: accountCloseButton.hovered ? theme.border : "transparent"
+                            border.width: 1
+                        }
+                        contentItem: Text {
+                            text: accountCloseButton.text
+                            color: theme.mutedText
+                            font.pixelSize: 22
+                            horizontalAlignment: Text.AlignHCenter
+                            verticalAlignment: Text.AlignVCenter
+                        }
                     }
                 }
 
-                Rectangle { Layout.fillWidth: true; height: 1; color: theme.border }
+                Rectangle {
+                    Layout.fillWidth: true
+                    height: 1
+                    color: theme.border
+                    opacity: 0.7
+                }
 
                 ScrollView {
                     id: accountBodyScroll
@@ -933,12 +987,12 @@ ApplicationWindow {
                         ColumnLayout {
                             Layout.fillWidth: true
                             visible: window.accountMode === "signup-username"
-                            spacing: 12
+                            spacing: 14
                             Text {
                                 Layout.fillWidth: true
                                 text: "Create your username"
                                 color: theme.text
-                                font.pixelSize: 17
+                                font.pixelSize: 22
                                 font.weight: Font.DemiBold
                             }
                             Text {
@@ -956,14 +1010,20 @@ ApplicationWindow {
                                 maximumLength: 14
                                 selectByMouse: true
                                 color: theme.text
+                                Layout.preferredHeight: 48
+                                leftPadding: 14
+                                rightPadding: 14
                                 background: Rectangle {
-                                    radius: 9
-                                    color: theme.surfaceRaised
+                                    radius: 10
+                                    color: theme.window
                                     border.color: signupUsernameInput.activeFocus ? theme.accent : theme.border
+                                    border.width: signupUsernameInput.activeFocus ? 2 : 1
                                 }
                             }
                             Button {
+                                id: signupUsernameNextButton
                                 Layout.fillWidth: true
+                                Layout.preferredHeight: 46
                                 text: "Next"
                                 onClicked: {
                                     var candidate = signupUsernameInput.text
@@ -975,24 +1035,45 @@ ApplicationWindow {
                                     accountService.clearError()
                                     window.accountMode = "signup-password"
                                 }
+                                background: Rectangle {
+                                    radius: 10
+                                    color: signupUsernameNextButton.hovered ? Qt.lighter(theme.accent, 1.08) : theme.accent
+                                }
+                                contentItem: Text {
+                                    text: signupUsernameNextButton.text
+                                    color: theme.accentText
+                                    font.pixelSize: 13
+                                    font.weight: Font.DemiBold
+                                    horizontalAlignment: Text.AlignHCenter
+                                    verticalAlignment: Text.AlignVCenter
+                                }
                             }
                             Button {
+                                id: signupToLoginButton
                                 Layout.fillWidth: true
+                                Layout.preferredHeight: 38
                                 text: "Already have an account? Log in"
                                 flat: true
                                 onClicked: { window.accountMode = "login"; window.accountUiMessage = ""; accountService.clearError() }
+                                contentItem: Text {
+                                    text: signupToLoginButton.text
+                                    color: theme.accent
+                                    font.pixelSize: 12
+                                    horizontalAlignment: Text.AlignHCenter
+                                    verticalAlignment: Text.AlignVCenter
+                                }
                             }
                         }
 
                         ColumnLayout {
                             Layout.fillWidth: true
                             visible: window.accountMode === "signup-password"
-                            spacing: 12
+                            spacing: 14
                             Text {
                                 Layout.fillWidth: true
                                 text: "Create a password"
                                 color: theme.text
-                                font.pixelSize: 17
+                                font.pixelSize: 22
                                 font.weight: Font.DemiBold
                             }
                             Text {
@@ -1009,10 +1090,14 @@ ApplicationWindow {
                                 echoMode: TextInput.Password
                                 selectByMouse: true
                                 color: theme.text
+                                Layout.preferredHeight: 48
+                                leftPadding: 14
+                                rightPadding: 14
                                 background: Rectangle {
-                                    radius: 9
-                                    color: theme.surfaceRaised
+                                    radius: 10
+                                    color: theme.window
                                     border.color: signupPasswordInput.activeFocus ? theme.accent : theme.border
+                                    border.width: signupPasswordInput.activeFocus ? 2 : 1
                                 }
                             }
                             Text {
@@ -1023,28 +1108,53 @@ ApplicationWindow {
                                 wrapMode: Text.WordWrap
                             }
                             Button {
+                                id: createAccountButton
                                 Layout.fillWidth: true
+                                Layout.preferredHeight: 46
                                 text: accountService.busy ? "Creating account…" : "Create account"
                                 enabled: !accountService.busy
                                 onClicked: accountService.createAccount(signupUsernameInput.text, signupPasswordInput.text)
+                                background: Rectangle {
+                                    radius: 10
+                                    color: createAccountButton.enabled
+                                           ? (createAccountButton.hovered ? Qt.lighter(theme.accent, 1.08) : theme.accent)
+                                           : theme.surfaceRaised
+                                }
+                                contentItem: Text {
+                                    text: createAccountButton.text
+                                    color: createAccountButton.enabled ? theme.accentText : theme.mutedText
+                                    font.pixelSize: 13
+                                    font.weight: Font.DemiBold
+                                    horizontalAlignment: Text.AlignHCenter
+                                    verticalAlignment: Text.AlignVCenter
+                                }
                             }
                             Button {
+                                id: signupBackButton
                                 Layout.fillWidth: true
+                                Layout.preferredHeight: 38
                                 text: "Back to username"
                                 flat: true
                                 onClicked: { window.accountMode = "signup-username"; accountService.clearError(); window.accountUiMessage = "" }
+                                contentItem: Text {
+                                    text: signupBackButton.text
+                                    color: theme.mutedText
+                                    font.pixelSize: 12
+                                    horizontalAlignment: Text.AlignHCenter
+                                    verticalAlignment: Text.AlignVCenter
+                                }
                             }
                         }
 
                         ColumnLayout {
                             Layout.fillWidth: true
                             visible: window.accountMode === "uit"
-                            spacing: 12
+                            spacing: 14
                             Text {
                                 Layout.fillWidth: true
                                 text: "Congratulations — your Argon account has been created."
                                 color: theme.text
-                                font.pixelSize: 17
+                                font.pixelSize: 22
                                 font.weight: Font.DemiBold
                                 wrapMode: Text.WordWrap
                             }
@@ -1057,24 +1167,44 @@ ApplicationWindow {
                             }
                             Rectangle {
                                 Layout.fillWidth: true
-                                Layout.preferredHeight: 68
-                                radius: 10
-                                color: theme.surfaceRaised
+                                Layout.preferredHeight: 72
+                                radius: 12
+                                color: Qt.rgba(theme.accent.r, theme.accent.g, theme.accent.b, 0.10)
                                 border.color: theme.accent
-                                Text {
-                                    anchors.centerIn: parent
+                                border.width: 1
+                                TextInput {
+                                    anchors.fill: parent
+                                    anchors.margins: 8
                                     text: accountService.pendingUit
                                     color: theme.text
                                     font.pixelSize: 22
                                     font.family: "monospace"
                                     font.weight: Font.DemiBold
+                                    readOnly: true
                                     selectByMouse: true
+                                    horizontalAlignment: TextInput.AlignHCenter
+                                    verticalAlignment: TextInput.AlignVCenter
                                 }
                             }
                             Button {
+                                id: copyUitButton
                                 Layout.fillWidth: true
+                                Layout.preferredHeight: 44
                                 text: "Copy recovery token"
                                 onClicked: accountService.copyPendingUit()
+                                background: Rectangle {
+                                    radius: 10
+                                    color: copyUitButton.hovered ? theme.surfaceRaised : "transparent"
+                                    border.color: theme.border
+                                }
+                                contentItem: Text {
+                                    text: copyUitButton.text
+                                    color: theme.text
+                                    font.pixelSize: 12
+                                    font.weight: Font.DemiBold
+                                    horizontalAlignment: Text.AlignHCenter
+                                    verticalAlignment: Text.AlignVCenter
+                                }
                             }
                             CheckBox {
                                 id: uitSavedCheckbox
@@ -1101,22 +1231,38 @@ ApplicationWindow {
                                 }
                             }
                             Button {
+                                id: continueUitButton
                                 Layout.fillWidth: true
+                                Layout.preferredHeight: 46
                                 text: accountService.busy ? "Confirming…" : "Continue"
                                 enabled: uitSavedCheckbox.checked && !accountService.busy && accountService.loggedIn
                                 onClicked: accountService.acknowledgePendingUit()
+                                background: Rectangle {
+                                    radius: 10
+                                    color: continueUitButton.enabled
+                                           ? (continueUitButton.hovered ? Qt.lighter(theme.accent, 1.08) : theme.accent)
+                                           : theme.surfaceRaised
+                                }
+                                contentItem: Text {
+                                    text: continueUitButton.text
+                                    color: continueUitButton.enabled ? theme.accentText : theme.mutedText
+                                    font.pixelSize: 13
+                                    font.weight: Font.DemiBold
+                                    horizontalAlignment: Text.AlignHCenter
+                                    verticalAlignment: Text.AlignVCenter
+                                }
                             }
                         }
 
                         ColumnLayout {
                             Layout.fillWidth: true
                             visible: window.accountMode === "login"
-                            spacing: 12
+                            spacing: 14
                             Text {
                                 Layout.fillWidth: true
                                 text: "Log in with your username and password."
                                 color: theme.mutedText
-                                font.pixelSize: 13
+                                font.pixelSize: 14
                                 wrapMode: Text.WordWrap
                             }
                             TextField {
@@ -1126,10 +1272,14 @@ ApplicationWindow {
                                 maximumLength: 14
                                 selectByMouse: true
                                 color: theme.text
+                                Layout.preferredHeight: 48
+                                leftPadding: 14
+                                rightPadding: 14
                                 background: Rectangle {
-                                    radius: 9
-                                    color: theme.surfaceRaised
+                                    radius: 10
+                                    color: theme.window
                                     border.color: loginUsernameInput.activeFocus ? theme.accent : theme.border
+                                    border.width: loginUsernameInput.activeFocus ? 2 : 1
                                 }
                             }
                             TextField {
@@ -1140,41 +1290,79 @@ ApplicationWindow {
                                 echoMode: TextInput.Password
                                 selectByMouse: true
                                 color: theme.text
+                                Layout.preferredHeight: 48
+                                leftPadding: 14
+                                rightPadding: 14
                                 background: Rectangle {
-                                    radius: 9
-                                    color: theme.surfaceRaised
+                                    radius: 10
+                                    color: theme.window
                                     border.color: loginPasswordInput.activeFocus ? theme.accent : theme.border
+                                    border.width: loginPasswordInput.activeFocus ? 2 : 1
                                 }
                             }
                             Button {
+                                id: loginButton
                                 Layout.fillWidth: true
+                                Layout.preferredHeight: 46
                                 text: accountService.busy ? "Logging in…" : "Log in"
                                 enabled: !accountService.busy
                                 onClicked: accountService.login(loginUsernameInput.text, loginPasswordInput.text)
+                                background: Rectangle {
+                                    radius: 10
+                                    color: loginButton.enabled
+                                           ? (loginButton.hovered ? Qt.lighter(theme.accent, 1.08) : theme.accent)
+                                           : theme.surfaceRaised
+                                }
+                                contentItem: Text {
+                                    text: loginButton.text
+                                    color: loginButton.enabled ? theme.accentText : theme.mutedText
+                                    font.pixelSize: 13
+                                    font.weight: Font.DemiBold
+                                    horizontalAlignment: Text.AlignHCenter
+                                    verticalAlignment: Text.AlignVCenter
+                                }
                             }
                             Button {
+                                id: forgotPasswordButton
                                 Layout.fillWidth: true
+                                Layout.preferredHeight: 38
                                 text: "Forgot password? Recover with UIT"
                                 flat: true
                                 onClicked: { window.accountMode = "recover"; window.accountUiMessage = ""; accountService.clearError() }
+                                contentItem: Text {
+                                    text: forgotPasswordButton.text
+                                    color: theme.accent
+                                    font.pixelSize: 12
+                                    horizontalAlignment: Text.AlignHCenter
+                                    verticalAlignment: Text.AlignVCenter
+                                }
                             }
                             Button {
+                                id: loginToSignupButton
                                 Layout.fillWidth: true
+                                Layout.preferredHeight: 38
                                 text: "Create a new account"
                                 flat: true
                                 onClicked: { window.accountMode = "signup-username"; window.accountUiMessage = ""; accountService.clearError() }
+                                contentItem: Text {
+                                    text: loginToSignupButton.text
+                                    color: theme.mutedText
+                                    font.pixelSize: 12
+                                    horizontalAlignment: Text.AlignHCenter
+                                    verticalAlignment: Text.AlignVCenter
+                                }
                             }
                         }
 
                         ColumnLayout {
                             Layout.fillWidth: true
                             visible: window.accountMode === "recover"
-                            spacing: 12
+                            spacing: 14
                             Text {
                                 Layout.fillWidth: true
                                 text: "Use your username and UIT to set a new password. This will sign out existing sessions."
                                 color: theme.mutedText
-                                font.pixelSize: 13
+                                font.pixelSize: 14
                                 wrapMode: Text.WordWrap
                             }
                             TextField {
@@ -1184,6 +1372,15 @@ ApplicationWindow {
                                 maximumLength: 14
                                 color: theme.text
                                 selectByMouse: true
+                                Layout.preferredHeight: 48
+                                leftPadding: 14
+                                rightPadding: 14
+                                background: Rectangle {
+                                    radius: 10
+                                    color: theme.window
+                                    border.color: recoveryUsernameInput.activeFocus ? theme.accent : theme.border
+                                    border.width: recoveryUsernameInput.activeFocus ? 2 : 1
+                                }
                             }
                             TextField {
                                 id: recoveryUitInput
@@ -1192,6 +1389,15 @@ ApplicationWindow {
                                 maximumLength: 10
                                 color: theme.text
                                 selectByMouse: true
+                                Layout.preferredHeight: 48
+                                leftPadding: 14
+                                rightPadding: 14
+                                background: Rectangle {
+                                    radius: 10
+                                    color: theme.window
+                                    border.color: recoveryUitInput.activeFocus ? theme.accent : theme.border
+                                    border.width: recoveryUitInput.activeFocus ? 2 : 1
+                                }
                             }
                             TextField {
                                 id: recoveryPasswordInput
@@ -1201,6 +1407,15 @@ ApplicationWindow {
                                 echoMode: TextInput.Password
                                 color: theme.text
                                 selectByMouse: true
+                                Layout.preferredHeight: 48
+                                leftPadding: 14
+                                rightPadding: 14
+                                background: Rectangle {
+                                    radius: 10
+                                    color: theme.window
+                                    border.color: recoveryPasswordInput.activeFocus ? theme.accent : theme.border
+                                    border.width: recoveryPasswordInput.activeFocus ? 2 : 1
+                                }
                             }
                             TextField {
                                 id: recoveryConfirmInput
@@ -1210,9 +1425,20 @@ ApplicationWindow {
                                 echoMode: TextInput.Password
                                 color: theme.text
                                 selectByMouse: true
+                                Layout.preferredHeight: 48
+                                leftPadding: 14
+                                rightPadding: 14
+                                background: Rectangle {
+                                    radius: 10
+                                    color: theme.window
+                                    border.color: recoveryConfirmInput.activeFocus ? theme.accent : theme.border
+                                    border.width: recoveryConfirmInput.activeFocus ? 2 : 1
+                                }
                             }
                             Button {
+                                id: resetPasswordButton
                                 Layout.fillWidth: true
+                                Layout.preferredHeight: 46
                                 text: accountService.busy ? "Recovering…" : "Reset password"
                                 enabled: !accountService.busy
                                 onClicked: {
@@ -1223,24 +1449,47 @@ ApplicationWindow {
                                     window.accountUiMessage = ""
                                     accountService.recoverPassword(recoveryUsernameInput.text, recoveryUitInput.text, recoveryPasswordInput.text)
                                 }
+                                background: Rectangle {
+                                    radius: 10
+                                    color: resetPasswordButton.enabled
+                                           ? (resetPasswordButton.hovered ? Qt.lighter(theme.accent, 1.08) : theme.accent)
+                                           : theme.surfaceRaised
+                                }
+                                contentItem: Text {
+                                    text: resetPasswordButton.text
+                                    color: resetPasswordButton.enabled ? theme.accentText : theme.mutedText
+                                    font.pixelSize: 13
+                                    font.weight: Font.DemiBold
+                                    horizontalAlignment: Text.AlignHCenter
+                                    verticalAlignment: Text.AlignVCenter
+                                }
                             }
                             Button {
+                                id: recoveryBackButton
                                 Layout.fillWidth: true
+                                Layout.preferredHeight: 38
                                 text: "Back to login"
                                 flat: true
                                 onClicked: { window.accountMode = "login"; window.accountUiMessage = ""; accountService.clearError() }
+                                contentItem: Text {
+                                    text: recoveryBackButton.text
+                                    color: theme.mutedText
+                                    font.pixelSize: 12
+                                    horizontalAlignment: Text.AlignHCenter
+                                    verticalAlignment: Text.AlignVCenter
+                                }
                             }
                         }
 
                         ColumnLayout {
                             Layout.fillWidth: true
                             visible: window.accountMode === "plans"
-                            spacing: 12
+                            spacing: 14
                             Text {
                                 Layout.fillWidth: true
                                 text: "Current plan: Free"
                                 color: theme.text
-                                font.pixelSize: 17
+                                font.pixelSize: 22
                                 font.weight: Font.DemiBold
                             }
                             Text {
@@ -1251,42 +1500,74 @@ ApplicationWindow {
                                 wrapMode: Text.WordWrap
                             }
                             Button {
+                                id: chooseStorageButton
                                 Layout.fillWidth: true
+                                Layout.preferredHeight: 44
                                 enabled: false
                                 text: "Choose storage size  ·  Coming soon"
+                                background: Rectangle { radius: 10; color: theme.surfaceRaised; border.color: theme.border }
+                                contentItem: Text {
+                                    text: chooseStorageButton.text
+                                    color: theme.mutedText
+                                    font.pixelSize: 12
+                                    horizontalAlignment: Text.AlignHCenter
+                                    verticalAlignment: Text.AlignVCenter
+                                }
                             }
                             Button {
+                                id: expandPlanButton
                                 Layout.fillWidth: true
+                                Layout.preferredHeight: 44
                                 enabled: false
                                 text: "Expand plan options  ·  Coming soon"
+                                background: Rectangle { radius: 10; color: theme.surfaceRaised; border.color: theme.border }
+                                contentItem: Text {
+                                    text: expandPlanButton.text
+                                    color: theme.mutedText
+                                    font.pixelSize: 12
+                                    horizontalAlignment: Text.AlignHCenter
+                                    verticalAlignment: Text.AlignVCenter
+                                }
                             }
                         }
 
                         ColumnLayout {
                             Layout.fillWidth: true
                             visible: window.accountMode === "settings"
-                            spacing: 12
+                            spacing: 14
                             Text {
                                 Layout.fillWidth: true
                                 text: "Account details"
                                 color: theme.text
-                                font.pixelSize: 17
+                                font.pixelSize: 22
                                 font.weight: Font.DemiBold
                             }
                             Button {
+                                id: changeUsernameButton
                                 Layout.fillWidth: true
+                                Layout.preferredHeight: 44
                                 enabled: false
                                 text: "Change username  ·  Coming soon"
+                                background: Rectangle { radius: 10; color: theme.surfaceRaised; border.color: theme.border }
+                                contentItem: Text { text: changeUsernameButton.text; color: theme.mutedText; font.pixelSize: 12; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
                             }
                             Button {
+                                id: changePasswordButton
                                 Layout.fillWidth: true
+                                Layout.preferredHeight: 44
                                 enabled: false
                                 text: "Change password  ·  Coming soon"
+                                background: Rectangle { radius: 10; color: theme.surfaceRaised; border.color: theme.border }
+                                contentItem: Text { text: changePasswordButton.text; color: theme.mutedText; font.pixelSize: 12; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
                             }
                             Button {
+                                id: profilePictureButton
                                 Layout.fillWidth: true
+                                Layout.preferredHeight: 44
                                 enabled: false
                                 text: "Choose profile picture  ·  Coming soon"
+                                background: Rectangle { radius: 10; color: theme.surfaceRaised; border.color: theme.border }
+                                contentItem: Text { text: profilePictureButton.text; color: theme.mutedText; font.pixelSize: 12; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
                             }
                             Rectangle { Layout.fillWidth: true; height: 1; color: theme.border }
                             Text {
@@ -1310,21 +1591,41 @@ ApplicationWindow {
                             }
                         }
 
-                        Text {
+                        Rectangle {
+                            id: accountInfoMessageBox
                             Layout.fillWidth: true
                             visible: window.accountUiMessage.length > 0
-                            text: window.accountUiMessage
-                            color: theme.accent
-                            font.pixelSize: 12
-                            wrapMode: Text.WordWrap
+                            implicitHeight: accountInfoMessage.implicitHeight + 24
+                            radius: 10
+                            color: Qt.rgba(theme.accent.r, theme.accent.g, theme.accent.b, 0.10)
+                            border.color: Qt.rgba(theme.accent.r, theme.accent.g, theme.accent.b, 0.28)
+                            Text {
+                                id: accountInfoMessage
+                                anchors.fill: parent
+                                anchors.margins: 12
+                                text: window.accountUiMessage
+                                color: theme.accent
+                                font.pixelSize: 12
+                                wrapMode: Text.WordWrap
+                            }
                         }
-                        Text {
+                        Rectangle {
+                            id: accountErrorMessageBox
                             Layout.fillWidth: true
                             visible: accountService.errorMessage.length > 0
-                            text: accountService.errorMessage
-                            color: "#D95D5D"
-                            font.pixelSize: 12
-                            wrapMode: Text.WordWrap
+                            implicitHeight: accountErrorMessage.implicitHeight + 24
+                            radius: 10
+                            color: Qt.rgba(0.85, 0.20, 0.20, 0.10)
+                            border.color: Qt.rgba(0.85, 0.35, 0.35, 0.30)
+                            Text {
+                                id: accountErrorMessage
+                                anchors.fill: parent
+                                anchors.margins: 12
+                                text: accountService.errorMessage
+                                color: "#D95D5D"
+                                font.pixelSize: 12
+                                wrapMode: Text.WordWrap
+                            }
                         }
                     }
                 }
@@ -2118,7 +2419,7 @@ ApplicationWindow {
             if (importStarted) {
                 // This operation copies into search QR; explicitly keep the
                 // source items at their original location.
-                drop.setDropAction(Qt.CopyAction)
+                drop.action = Qt.CopyAction
                 drop.accept()
             } else {
                 drop.accepted = false

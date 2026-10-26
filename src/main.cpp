@@ -157,6 +157,10 @@ int main(int argc, char *argv[])
         });
 
     engine.loadFromModule("Argon", "Main");
+    if (engine.rootObjects().isEmpty()) {
+        qCritical() << "Argon could not create its QML root window; skipping background update checks.";
+        return 1;
+    }
     // Bootstrap is launched as a background companion. It owns the updater version
     // comparison and writes a status JSON that the Argon menu reads.
     QTimer *updaterStatusRetryTimer = new QTimer(&app);
