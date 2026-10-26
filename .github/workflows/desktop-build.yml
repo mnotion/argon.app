@@ -2,7 +2,7 @@ name: Desktop build
 
 on:
   push:
-    branches: ["account-system-ui"]
+    branches: ["account-system-ui", "ui-tune"]
   pull_request:
     branches: ["sync-config"]
 

@@ -43,6 +43,13 @@ qt_add_qml_module(Argon
     VERSION 1.0
     QML_FILES
         qml/Main.qml
+        qml/overlays/AccountOverlay.qml
+        qml/account/LoginView.qml
+        qml/account/SignupView.qml
+        qml/account/RecoveryView.qml
+        qml/account/UitView.qml
+        qml/account/PlansView.qml
+        qml/account/AccountSettingsView.qml
         qml/components/SideBar.qml
         qml/components/TimerController.qml
         qml/pages/TimerPage.qml
