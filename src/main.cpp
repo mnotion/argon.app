@@ -15,6 +15,7 @@
 #include <cstdio>
 
 #include "app/AppPaths.h"
+#include "app/AccountService.h"
 #include "app/AppServices.h"
 #include "app/UserSettingsService.h"
 #include "analytics/DailyAnalyticsService.h"
@@ -79,6 +80,7 @@ int main(int argc, char *argv[])
     }
 
     AppServices appServices;
+    AccountService accountService;
     UserSettingsService userSettingsService;
     DailyAnalyticsService dailyAnalyticsService;
     SearchService searchService;
@@ -97,6 +99,7 @@ int main(int argc, char *argv[])
 
     QQmlApplicationEngine engine;
     engine.rootContext()->setContextProperty("appServices", &appServices);
+    engine.rootContext()->setContextProperty("accountService", &accountService);
     engine.rootContext()->setContextProperty("appSettingsService", &userSettingsService);
     engine.rootContext()->setContextProperty("dailyAnalyticsService", &dailyAnalyticsService);
     engine.rootContext()->setContextProperty("searchService", &searchService);
@@ -154,6 +157,10 @@ int main(int argc, char *argv[])
         });
 
     engine.loadFromModule("Argon", "Main");
+    if (engine.rootObjects().isEmpty()) {
+        qCritical() << "Argon could not create its QML root window; skipping background update checks.";
+        return 1;
+    }
     // Bootstrap is launched as a background companion. It owns the updater version
     // comparison and writes a status JSON that the Argon menu reads.
     QTimer *updaterStatusRetryTimer = new QTimer(&app);

@@ -1,1 +1,0 @@
-Reserved for cross-cutting application services such as settings, persistence, file dialogs and diagnostics. Services should expose small testable interfaces.
