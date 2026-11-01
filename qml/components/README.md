@@ -1,1 +1,0 @@
-Reusable QML controls belong here. Components should receive data through properties and report user intent through signals; keep document and filesystem logic out of visual components.
