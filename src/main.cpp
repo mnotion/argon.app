@@ -188,6 +188,11 @@ int main(int argc, char *argv[])
         }
 
         engine.addImportPath(QFileInfo(devQmlDirectory).absoluteFilePath());
+        const QString qtQmlImportPath =
+            qEnvironmentVariable("QML_IMPORT_PATH").trimmed();
+        if (!qtQmlImportPath.isEmpty())
+            engine.addImportPath(qtQmlImportPath);
+
         qInfo().noquote() << "[Development] Loading QML from source:"
                           << mainQmlFile.absoluteFilePath();
         engine.load(QUrl::fromLocalFile(mainQmlFile.absoluteFilePath()));
