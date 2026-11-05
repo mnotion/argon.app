@@ -30,6 +30,16 @@ ApplicationWindow {
         accent: window.accentColor
     }
     TimerController { id: timerControllerInstance }
+
+    DeveloperConsole {
+        id: developerConsole
+        panelColor: theme.surfaceRaised
+        textColor: theme.text
+        mutedTextColor: theme.mutedText
+        borderColor: theme.border
+        accentColor: theme.accent
+        accentTextColor: theme.accentText
+    }
     property string activePage: "Search"
     property bool settingsOpen: false
     property bool settingsExpanded: false
@@ -255,6 +265,12 @@ ApplicationWindow {
     Shortcut {
         sequence: "F11"
         onActivated: window.toggleFullscreen()
+    }
+
+    Shortcut {
+        sequence: "F12"
+        enabled: scriptConsoleEnabled
+        onActivated: developerConsole.open()
     }
 
     Rectangle {
