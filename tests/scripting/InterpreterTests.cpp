@@ -60,6 +60,11 @@ void testNativeFunctionAllowlist() {
     const auto result = interpreter.execute("print(doubleIt(21));");
     check(result.success && result.output.size() == 1 && result.output[0] == "42", "registered function callable");
     check(!interpreter.execute("unknown();").success, "unregistered function rejected");
+    check(interpreter.execute("let temporary = 9;").success, "declare value before reset");
+    interpreter.reset();
+    check(!interpreter.hasGlobal("temporary"), "reset clears globals");
+    const auto afterReset = interpreter.execute("print(doubleIt(21));");
+    check(afterReset.success && afterReset.output[0] == "42", "reset preserves registered host functions");
 }
 void testDiagnostics() {
     Interpreter interpreter;
