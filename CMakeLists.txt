@@ -2,6 +2,7 @@ cmake_minimum_required(VERSION 3.21)
 project(Argon VERSION 0.1.5 LANGUAGES CXX)
 
 option(ARGON_ENABLE_SCRIPT_CONSOLE "Enable the F12 developer scripting console" OFF)
+option(ARGON_DEV_SOURCE_QML "Load QML directly from the source tree for development" OFF)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -51,19 +52,23 @@ qt_add_executable(Argon
     src/versioning/UpdaterStatusService.h
 )
 
-qt_add_qml_module(Argon
-    URI Argon
-    VERSION 1.0
-    QML_FILES
-        qml/Main.qml
-        qml/components/SideBar.qml
-        qml/components/DeveloperConsole.qml
-        qml/components/TimerController.qml
-        qml/pages/TimerPage.qml
-        qml/themes/Theme.qml
-    RESOURCES
-        qml/assets/icons/Settings/setting-icon.png
-)
+if(NOT ARGON_DEV_SOURCE_QML)
+    qt_add_qml_module(Argon
+        URI Argon
+        VERSION 1.0
+        QML_FILES
+            qml/Main.qml
+            qml/components/SideBar.qml
+            qml/components/DeveloperConsole.qml
+            qml/components/TimerController.qml
+            qml/pages/TimerPage.qml
+            qml/themes/Theme.qml
+        RESOURCES
+            qml/assets/icons/Settings/setting-icon.png
+    )
+else()
+    message(STATUS "Argon development mode: QML is loaded directly from the source tree.")
+endif()
 
 target_link_libraries(Argon PRIVATE
     Qt6::Quick
