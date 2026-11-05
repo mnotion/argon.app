@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.21)
 project(Argon VERSION 0.1.5 LANGUAGES CXX)
 
+option(ARGON_ENABLE_SCRIPT_CONSOLE "Enable the F12 developer scripting console" OFF)
+
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)
@@ -55,6 +57,7 @@ qt_add_qml_module(Argon
     QML_FILES
         qml/Main.qml
         qml/components/SideBar.qml
+        qml/components/DeveloperConsole.qml
         qml/components/TimerController.qml
         qml/pages/TimerPage.qml
         qml/themes/Theme.qml
@@ -69,6 +72,14 @@ target_link_libraries(Argon PRIVATE
 )
 if(WIN32)
     target_link_libraries(Argon PRIVATE crypt32)
+endif()
+
+if(ARGON_ENABLE_SCRIPT_CONSOLE)
+    target_sources(Argon PRIVATE
+        src/scripting/ScriptService.h
+        src/scripting/ScriptService.cpp
+    )
+    target_compile_definitions(Argon PRIVATE ARGON_ENABLE_SCRIPT_CONSOLE=1)
 endif()
 
 # This CMake project version is the application's single version source.
