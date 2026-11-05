@@ -86,5 +86,5 @@ QVariantMap ScriptService::execute(const QString &source)
 
 void ScriptService::reset()
 {
-    m_interpreter = Argon::Scripting::Interpreter{};
+    m_interpreter.reset();
 }
