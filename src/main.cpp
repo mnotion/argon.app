@@ -4,6 +4,8 @@
 #include <QQmlContext>
 #include <QCoreApplication>
 #include <QFile>
+#include <QDir>
+#include <QFileInfo>
 #include <QSaveFile>
 #include <QUrl>
 #include <QDateTime>
@@ -171,7 +173,28 @@ int main(int argc, char *argv[])
             });
         });
 
-    engine.loadFromModule("Argon", "Main");
+    // Development builds can load QML from the working tree so UI edits are
+    // visible on the next launch without regenerating or recompiling QML resources.
+    const QString devQmlDirectory =
+        qEnvironmentVariable("ARGON_DEV_QML_DIR").trimmed();
+    if (!devQmlDirectory.isEmpty()) {
+        const QFileInfo mainQmlFile(
+            QDir(devQmlDirectory).filePath(QStringLiteral("Main.qml")));
+        if (!mainQmlFile.exists() || !mainQmlFile.isFile()) {
+            qCritical().noquote()
+                << "[Development] Main.qml was not found in ARGON_DEV_QML_DIR:"
+                << devQmlDirectory;
+            return 1;
+        }
+
+        engine.addImportPath(QFileInfo(devQmlDirectory).absoluteFilePath());
+        qInfo().noquote() << "[Development] Loading QML from source:"
+                          << mainQmlFile.absoluteFilePath();
+        engine.load(QUrl::fromLocalFile(mainQmlFile.absoluteFilePath()));
+    } else {
+        engine.loadFromModule("Argon", "Main");
+    }
+
     if (engine.rootObjects().isEmpty()) {
         qCritical() << "Argon could not create its QML root window; skipping background update checks.";
         return 1;
