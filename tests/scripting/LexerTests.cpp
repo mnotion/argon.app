@@ -20,12 +20,17 @@ int main()
     assert(tokens[5].kind == TokenKind::Identifier);
     assert(tokens[6].kind == TokenKind::GreaterEqual);
     assert(tokens[7].kind == TokenKind::Number);
-    assert(tokens[8].kind == TokenKind::AndAnd);\n    assert(tokens[9].kind == TokenKind::True);\n    assert(tokens[10].kind == TokenKind::EndOfFile);
+    assert(tokens[8].kind == TokenKind::AndAnd);
+    assert(tokens[9].kind == TokenKind::True);
+    assert(tokens[10].kind == TokenKind::EndOfFile);
 
     Lexer strings("\"hello world\"");
     const auto stringTokens = strings.tokenize();
     assert(stringTokens.front().kind == TokenKind::String);
     assert(stringTokens.front().lexeme == "\"hello world\"");
+
+    Lexer trailingWhitespace("let x = 1;   \n");
+    assert(trailingWhitespace.tokenize().back().kind == TokenKind::EndOfFile);
 
     std::cout << "Argon lexer tests passed.\n";
     return 0;
