@@ -2706,10 +2706,6 @@ ApplicationWindow {
                         width: searchResultsContainer.width
                         radius: 14
 
-                        Behavior on x {
-                            NumberAnimation { duration: 180; easing.type: Easing.OutCubic }
-                        }
-
                         Behavior on width {
                             NumberAnimation { duration: 220; easing.type: Easing.OutCubic }
                         }
@@ -2718,8 +2714,6 @@ ApplicationWindow {
                     border.width: 1
                     clip: true
 
-                    Behavior on color { ColorAnimation { duration: 130 } }
-                    Behavior on border.color { ColorAnimation { duration: 130 } }
 
                     Text {
                         anchors.centerIn: parent
@@ -2772,10 +2766,7 @@ ApplicationWindow {
                             border.width: 1
                             antialiasing: true
 
-                            Behavior on opacity { NumberAnimation { duration: 150 } }
 
-                            Behavior on color { ColorAnimation { duration: 120 } }
-                            Behavior on border.color { ColorAnimation { duration: 120 } }
 
                             MouseArea {
                                 id: resultHover
@@ -2836,10 +2827,6 @@ ApplicationWindow {
                         Behavior on x {
                             NumberAnimation { duration: 220; easing.type: Easing.OutCubic }
                         }
-                        Behavior on width {
-                            NumberAnimation { duration: 220; easing.type: Easing.OutCubic }
-                        }
-
                         ColumnLayout {
                             anchors.fill: parent
                             anchors.margins: 14

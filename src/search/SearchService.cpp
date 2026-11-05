@@ -458,12 +458,6 @@ QVariantMap SearchService::previewFile(const QString &path) const
         return preview;
     }
 
-    if (extension == QStringLiteral("pdf")) {
-        preview.insert(QStringLiteral("kind"), QStringLiteral("pdf"));
-        preview.insert(QStringLiteral("message"), QString());
-        return preview;
-    }
-
     static const QSet<QString> textExtensions = {
         QStringLiteral("txt"), QStringLiteral("md"), QStringLiteral("markdown"),
         QStringLiteral("csv"), QStringLiteral("tsv"), QStringLiteral("log"),
