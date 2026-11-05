@@ -235,6 +235,7 @@ QString normalizedLegacyRelativePath(const QString &relativePath, bool legacyLow
     else if (first == QStringLiteral("cache")) parts[0] = QStringLiteral("Cache");
     else if (first == QStringLiteral("search qr")) parts[0] = QStringLiteral("Search QR");
     else if (first == QStringLiteral("documents")) parts[0] = QStringLiteral("Documents");
+    else if (first == QStringLiteral("argon files")) parts[0] = QStringLiteral("Argon Files");
     else if (first == QStringLiteral("accounts")) parts[0] = QStringLiteral("Accounts");
     else if (first == QStringLiteral("analytics")) parts[0] = QStringLiteral("Analytics");
 
@@ -474,6 +475,7 @@ QString settingsDirectory() { return QDir(userDataDirectory()).filePath(QStringL
 QString cacheDirectory() { return QDir(userDataDirectory()).filePath(QStringLiteral("Cache")); }
 QString searchRootDirectory() { return QDir(userDataDirectory()).filePath(QStringLiteral("Search QR")); }
 QString documentsDirectory() { return QDir(userDataDirectory()).filePath(QStringLiteral("Documents")); }
+QString argonFilesDirectory() { return QDir(userDataDirectory()).filePath(QStringLiteral("Argon Files")); }
 QString accountsDirectory() { return QDir(userDataDirectory()).filePath(QStringLiteral("Accounts")); }
 QString analyticsDirectory()
 {
@@ -500,6 +502,7 @@ bool ensureDirectoryStructure(QString *errorMessage)
         cacheDirectory(),
         searchRootDirectory(),
         documentsDirectory(),
+        argonFilesDirectory(),
         accountsDirectory(),
         analyticsDirectory(),
         updatesDirectory(),
