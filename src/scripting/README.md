@@ -49,13 +49,15 @@ Use **`dev.bat`** for day-to-day development. It uses a separate `build-dev` dir
 - The development build uses the same `%LOCALAPPDATA%\Argon-sim` user-data directory as the installed app.
 - Press **F12** to use the interpreter console.
 
-Use **`run.bat`** when you specifically want to launch the already-deployed app from `%LOCALAPPDATA%\Argon-sim\App\Argon.exe`. It does not compile or deploy.
+Use **`run.bat`** when you want to build and launch the normal installed app. It calls `build.bat /nopause`, which reconfigures as needed, incrementally compiles changed C++ and QML resources in the normal `build/` directory, runs the interpreter tests, deploys the refreshed app and Qt runtime, and then launches the newly deployed executable. It does not reuse the development executable: the installed app is built separately with its packaged QML resources.
 
-Use **`build.bat`** only when you intentionally need the normal full build and deployment workflow.
+Use **`build.bat`** directly only when you want to build and deploy without launching Argon.
+
 
 ## Run interpreter tests
 
-Use **`test-interpreter.bat`** to build only the standalone `ArgonScriptingTests` target and run its CTest test. It does not rebuild the Argon desktop executable or deploy the application. This test command requires the existing `build` directory to have been configured with `ARGON_BUILD_SCRIPTING_TESTS=ON`, as the Windows `build.bat` configuration does.
+Use **`test-interpreter.bat`** to build only the standalone `ArgonScriptingTests` target and run its CTest test. After the tests pass, it calls `run.bat`, which now builds and deploys the normal desktop app before launching it. The interpreter test target itself does not rebuild the desktop executable.
+
 
 ## Current limitations
 
