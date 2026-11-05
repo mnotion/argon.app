@@ -29,7 +29,7 @@ The interpreter has no general-purpose file, process, network, Qt reflection, or
 
 ## Developer console
 
-The Windows development launcher enables the F12 console through `ARGON_ENABLE_SCRIPT_CONSOLE=ON`. Press **F12** while Argon is running to open it. The interpreter session persists between Run clicks; use **Reset session** to clear its variables.
+The Windows development build enables the F12 console through `ARGON_ENABLE_SCRIPT_CONSOLE=ON`. Press **F12** while Argon is running to open it. The interpreter session persists between Run clicks; use **Reset session** to clear its variables.
 
 The console currently exposes only these Argon host functions:
 
@@ -38,13 +38,17 @@ The console currently exposes only these Argon host functions:
 - `nextSearchPage()` — returns the next search page as JSON text.
 - `print(...)` — writes values to the console output.
 
-The console option defaults to OFF, so regular builds do not enable the developer interface. The existing `build.bat` turns it on for local development.
+The console option defaults to OFF, so regular builds do not enable the developer interface. The Windows `build.bat` configuration turns it on.
 
-## Build and test
+## Run without compiling
 
-The scripting engine has no Qt dependency. Configure with `-DARGON_BUILD_SCRIPTING_TESTS=ON`, build, then run `ctest --test-dir build --output-on-failure`.
+Use **`run.bat`** to launch the already-deployed app from `%LOCALAPPDATA%\Argon-sim\App\Argon.exe`. It does not call CMake, compile targets, or deploy Qt files. Press **F12** in the running app to use the interpreter.
 
-The engine sources are also part of the `Argon` executable. The existing Windows `run.bat` remains the one-file build, deployment, and launch entry point.
+Use **`build.bat`** only when you intentionally need to compile and deploy changes to the C++ or QML application. The first deployment also requires this build step. Once the deployed app exists, normal launches should use `run.bat`.
+
+## Run interpreter tests
+
+Use **`test-interpreter.bat`** to build only the standalone `ArgonScriptingTests` target and run its CTest test. It does not rebuild the Argon desktop executable or deploy the application. This test command requires the existing `build` directory to have been configured with `ARGON_BUILD_SCRIPTING_TESTS=ON`, as the Windows `build.bat` configuration does.
 
 ## Current limitations
 
