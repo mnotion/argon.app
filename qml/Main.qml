@@ -2863,11 +2863,15 @@ ApplicationWindow {
 
                                     Text {
                                         Layout.fillWidth: true
-                                        text: (searchPlaceholder.selectedPreview.extension || "FILE").toUpperCase()
-                                              + "  •  "
-                                              + (Number(searchPlaceholder.selectedPreview.size) < 1024
-                                                 ? Number(searchPlaceholder.selectedPreview.size) + " B"
-                                                 : (Number(searchPlaceholder.selectedPreview.size) / 1024).toFixed(1) + " KB")
+                                        text: {
+                                            var fileSize = Number(searchPlaceholder.selectedPreview.size)
+                                            var sizeLabel = isFinite(fileSize)
+                                                    ? (fileSize < 1024 ? fileSize + " B"
+                                                       : (fileSize / 1024).toFixed(1) + " KB")
+                                                    : "File"
+                                            return (searchPlaceholder.selectedPreview.extension || "FILE").toUpperCase()
+                                                    + "  •  " + sizeLabel
+                                        }
                                         color: theme.mutedText
                                         font.pixelSize: 10
                                         elide: Text.ElideRight
@@ -2920,7 +2924,9 @@ ApplicationWindow {
 
                             Text {
                                 Layout.fillWidth: true
-                                text: searchPlaceholder.selectedPreview.path || ""
+                                text: searchPlaceholder.selectedPreview.path
+                                      || (searchPlaceholder.selectedResult
+                                          ? searchPlaceholder.selectedResult.path : "")
                                 color: theme.mutedText
                                 font.pixelSize: 10
                                 elide: Text.ElideMiddle
