@@ -27,6 +27,19 @@ The C++ host can register an explicit function with `Interpreter::registerNative
 
 The interpreter has no general-purpose file, process, network, Qt reflection, or native-code APIs.
 
+## Developer console
+
+The Windows development launcher enables the F12 console through `ARGON_ENABLE_SCRIPT_CONSOLE=ON`. Press **F12** while Argon is running to open it. The interpreter session persists between Run clicks; use **Reset session** to clear its variables.
+
+The console currently exposes only these Argon host functions:
+
+- `applicationVersion()` — returns the running Argon version.
+- `search("text")` — runs Argon's existing name search and returns the first page as JSON text.
+- `nextSearchPage()` — returns the next search page as JSON text.
+- `print(...)` — writes values to the console output.
+
+The console option defaults to OFF, so regular builds do not enable the developer interface. The existing `build.bat` turns it on for local development.
+
 ## Build and test
 
 The scripting engine has no Qt dependency. Configure with `-DARGON_BUILD_SCRIPTING_TESTS=ON`, build, then run `ctest --test-dir build --output-on-failure`.
