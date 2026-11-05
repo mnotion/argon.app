@@ -36,6 +36,7 @@ if exist "%QT_ROOT%\bin" set "PATH=%QT_ROOT%\bin;%PATH%"
 set "QT_QUICK_CONTROLS_STYLE=Basic"
 
 if not exist "%SIM_ROOT%\Logs" mkdir "%SIM_ROOT%\Logs"
+if exist "%SIM_ROOT%\Logs\argon-runtime.log" del /f /q "%SIM_ROOT%\Logs\argon-runtime.log"
 
 echo Launching: "%SIM_APP_DIR%\Argon.exe"
 echo Data root: "%SIM_ROOT%"
