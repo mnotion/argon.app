@@ -199,7 +199,7 @@ const Token &Parser::consume(TokenKind kind, const char *message) { if (check(ki
     m_diagnostics.push_back(Diagnostic{token.line, token.column, message}); throw ParseError{};
 }
 void Parser::synchronize() {
-    if (!atEnd() && previous().kind != TokenKind::Semicolon) advance();
+    if (!atEnd() && (m_current == 0 || previous().kind != TokenKind::Semicolon)) advance();
     while (!atEnd()) {
         if (previous().kind == TokenKind::Semicolon || peek().kind == TokenKind::Let) return;
         advance();
