@@ -81,7 +81,7 @@ if errorlevel 1 goto :build_failed
 
 echo.
 echo === Configuring Argon, Updater, and Bootstrap ===
-cmake -S "%~dp0." -B "%BUILD_DIR%" -G "MinGW Makefiles" -DCMAKE_PREFIX_PATH="%QT_ROOT%" -DCMAKE_CXX_COMPILER="%MINGW_ROOT%\bin\g++.exe" -DCMAKE_MAKE_PROGRAM="%MINGW_ROOT%\bin\mingw32-make.exe" -DARGON_RUNTIME_OUTPUT_DIR="%SIM_STAGE_APP_DIR%" -DARGON_BOOTSTRAP_OUTPUT_DIR="%SIM_STAGE_BOOTSTRAP_DIR%" -DARGON_UPDATER_OUTPUT_DIR="%SIM_ROOT%\Updater" -DARGON_UPDATER_VERSION="1.1.0.0" -DARGON_BOOTSTRAP_VERSION="1.0.0.0"
+cmake -S "%~dp0." -B "%BUILD_DIR%" -G "MinGW Makefiles" -DCMAKE_PREFIX_PATH="%QT_ROOT%" -DCMAKE_CXX_COMPILER="%MINGW_ROOT%\bin\g++.exe" -DCMAKE_MAKE_PROGRAM="%MINGW_ROOT%\bin\mingw32-make.exe" -DARGON_RUNTIME_OUTPUT_DIR="%SIM_STAGE_APP_DIR%" -DARGON_BOOTSTRAP_OUTPUT_DIR="%SIM_STAGE_BOOTSTRAP_DIR%" -DARGON_UPDATER_OUTPUT_DIR="%SIM_ROOT%\Updater" -DARGON_UPDATER_VERSION="1.1.0.0" -DARGON_BOOTSTRAP_VERSION="1.0.0.0" -DARGON_BUILD_SCRIPTING_TESTS=ON
 if errorlevel 1 (
     echo.
     echo [ERROR] CMake configuration failed. See output above.
@@ -93,6 +93,13 @@ echo === Compiling Argon, Updater, and Bootstrap ===
 cmake --build "%BUILD_DIR%" --parallel
 if errorlevel 1 (
     echo [ERROR] Compilation failed. See output above.
+    goto :build_failed
+)
+echo.
+echo === Running Argon Script interpreter tests ===
+ctest --test-dir "%BUILD_DIR%" --output-on-failure -R "^ArgonScriptingTests$"
+if errorlevel 1 (
+    echo [ERROR] Argon Script tests failed. Argon was not deployed.
     goto :build_failed
 )
 if not exist "%SIM_STAGE_APP_DIR%\Argon.exe" (
