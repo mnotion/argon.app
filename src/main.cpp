@@ -24,6 +24,10 @@
 #include "versioning/AppUpdateService.h"
 #include "versioning/UpdaterStatusService.h"
 
+#ifdef ARGON_ENABLE_SCRIPT_CONSOLE
+#include "scripting/ScriptService.h"
+#endif
+
 namespace {
 QMutex logMutex;
 
@@ -84,6 +88,10 @@ int main(int argc, char *argv[])
     UserSettingsService userSettingsService;
     DailyAnalyticsService dailyAnalyticsService;
     SearchService searchService;
+
+#ifdef ARGON_ENABLE_SCRIPT_CONSOLE
+    ScriptService scriptService(searchService, appServices);
+#endif
     ReleaseMetadataService releaseMetadataService;
     UpdaterStatusService updaterStatusService;
     AppUpdateService appUpdateService;
@@ -103,6 +111,13 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty("appSettingsService", &userSettingsService);
     engine.rootContext()->setContextProperty("dailyAnalyticsService", &dailyAnalyticsService);
     engine.rootContext()->setContextProperty("searchService", &searchService);
+
+#ifdef ARGON_ENABLE_SCRIPT_CONSOLE
+    engine.rootContext()->setContextProperty("scriptService", &scriptService);
+    engine.rootContext()->setContextProperty("scriptConsoleEnabled", true);
+#else
+    engine.rootContext()->setContextProperty("scriptConsoleEnabled", false);
+#endif
     engine.rootContext()->setContextProperty("releaseMetadataService", &releaseMetadataService);
     engine.rootContext()->setContextProperty("updaterStatusService", &updaterStatusService);
     engine.rootContext()->setContextProperty("appUpdateService", &appUpdateService);
