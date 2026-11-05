@@ -10,7 +10,7 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
-find_package(Qt6 6.5 REQUIRED COMPONENTS Quick QuickControls2 Network)
+find_package(Qt6 6.5 REQUIRED COMPONENTS Quick QuickControls2 Network Pdf)
 qt_standard_project_setup(REQUIRES 6.5)
 
 qt_add_executable(Argon
@@ -74,6 +74,7 @@ target_link_libraries(Argon PRIVATE
     Qt6::Quick
     Qt6::QuickControls2
     Qt6::Network
+    Qt6::Pdf
 )
 if(WIN32)
     target_link_libraries(Argon PRIVATE crypt32)
