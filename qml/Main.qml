@@ -3056,7 +3056,6 @@ ApplicationWindow {
                                         onClicked: {
                                             searchPlaceholder.currentPage--
                                             searchPlaceholder.clearSelection()
-                                            searchPlaceholder.clearSelection()
                                             searchResultsList.contentY = 0
                                         }
                                     }
@@ -3116,6 +3115,7 @@ ApplicationWindow {
                                                     searchPlaceholder.hasMoreResults = false
                                                 }
                                             }
+                                            searchPlaceholder.clearSelection()
                                             searchResultsList.contentY = 0
                                         }
                                     }
