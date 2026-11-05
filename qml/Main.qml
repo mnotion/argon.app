@@ -2854,7 +2854,8 @@ ApplicationWindow {
                                     Text {
                                         Layout.fillWidth: true
                                         text: searchPlaceholder.selectedPreview.name
-                                              || searchPlaceholder.selectedResult.name
+                                              || (searchPlaceholder.selectedResult
+                                                  ? searchPlaceholder.selectedResult.name : "")
                                         color: theme.text
                                         font.pixelSize: 15
                                         font.weight: Font.DemiBold
