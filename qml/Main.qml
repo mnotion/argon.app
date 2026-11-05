@@ -270,7 +270,7 @@ ApplicationWindow {
     Shortcut {
         sequence: "F12"
         enabled: scriptConsoleEnabled
-        onActivated: developerConsole.open()
+        onActivated: developerConsole.visible ? developerConsole.close() : developerConsole.open()
     }
 
     Rectangle {
