@@ -15,6 +15,14 @@ qt_add_executable(Argon
     src/scripting/Token.h
     src/scripting/Lexer.h
     src/scripting/Lexer.cpp
+    src/scripting/Diagnostic.h
+    src/scripting/AST.h
+    src/scripting/Value.h
+    src/scripting/Value.cpp
+    src/scripting/Parser.h
+    src/scripting/Parser.cpp
+    src/scripting/Interpreter.h
+    src/scripting/Interpreter.cpp
     src/app/AppPaths.cpp
     src/app/AppPaths.h
     src/app/AccountService.cpp
@@ -220,10 +228,18 @@ option(ARGON_BUILD_SCRIPTING_TESTS "Build the standalone Argon scripting tests" 
 if(ARGON_BUILD_SCRIPTING_TESTS)
     enable_testing()
     add_executable(ArgonScriptingTests
-        tests/scripting/LexerTests.cpp
-        src/scripting/Lexer.cpp
-        src/scripting/Lexer.h
+        tests/scripting/InterpreterTests.cpp
         src/scripting/Token.h
+        src/scripting/Lexer.h
+        src/scripting/Lexer.cpp
+        src/scripting/Diagnostic.h
+        src/scripting/AST.h
+        src/scripting/Value.h
+        src/scripting/Value.cpp
+        src/scripting/Parser.h
+        src/scripting/Parser.cpp
+        src/scripting/Interpreter.h
+        src/scripting/Interpreter.cpp
     )
     target_include_directories(ArgonScriptingTests PRIVATE
         "${CMAKE_CURRENT_SOURCE_DIR}/src/scripting"
