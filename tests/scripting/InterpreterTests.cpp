@@ -69,6 +69,8 @@ void testDiagnostics() {
     const auto runtimeError = interpreter.execute("print(missing);");
     check(!runtimeError.success && !runtimeError.diagnostics.empty(), "undefined variable is runtime error");
     check(runtimeError.diagnostics[0].message.find("Undefined variable") != std::string::npos, "undefined variable message");
+    const auto invalidAtStart = interpreter.execute("@;");
+    check(!invalidAtStart.success && !invalidAtStart.diagnostics.empty(), "invalid first character is diagnosed");
     const auto divisionError = interpreter.execute("print(10 / 0);");
     check(!divisionError.success && divisionError.diagnostics[0].message == "Division by zero.", "division by zero");
 }
