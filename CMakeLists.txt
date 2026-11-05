@@ -12,6 +12,9 @@ qt_standard_project_setup(REQUIRES 6.5)
 
 qt_add_executable(Argon
     src/main.cpp
+    src/scripting/Token.h
+    src/scripting/Lexer.h
+    src/scripting/Lexer.cpp
     src/app/AppPaths.cpp
     src/app/AppPaths.h
     src/app/AccountService.cpp
