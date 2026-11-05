@@ -2482,7 +2482,19 @@ ApplicationWindow {
             readonly property int resultsPerPage: 20
             property bool hasMoreResults: false
             property bool searchPending: false
+            property var selectedResult: null
+            property var selectedPreview: ({})
             readonly property int loadedPageCount: Math.ceil(results.length / resultsPerPage)
+
+            function clearSelection() {
+                selectedResult = null
+                selectedPreview = ({})
+            }
+
+            function selectSearchResult(result) {
+                selectedResult = result
+                selectedPreview = searchService.previewFile(result.path)
+            }
             readonly property var pageResults: results.slice(
                 currentPage * resultsPerPage,
                 (currentPage + 1) * resultsPerPage)
@@ -2579,6 +2591,7 @@ ApplicationWindow {
 
                             onTextChanged: {
                                 searchPlaceholder.query = text
+                                searchPlaceholder.clearSelection()
                                 if (text.trim().length === 0) {
                                     searchDebounce.stop()
                                     searchService.startNameSearch("")
@@ -2718,7 +2731,7 @@ ApplicationWindow {
                     ListView {
                         id: searchResultsList
                         anchors.left: parent.left
-                        anchors.right: parent.right
+                        anchors.right: previewPane.visible ? previewPane.left : parent.right
                         anchors.top: parent.top
                         anchors.bottom: paginationControls.top
                         anchors.margins: 8
@@ -2746,10 +2759,14 @@ ApplicationWindow {
                             height: 56
                             radius: 10
                             opacity: 1
-                            color: resultHover.containsMouse
+                            color: (searchPlaceholder.selectedResult
+                                    && searchPlaceholder.selectedResult.path === path)
+                                   || resultHover.containsMouse
                                    ? Qt.rgba(theme.accent.r, theme.accent.g, theme.accent.b, 0.14)
                                    : theme.surface
-                            border.color: resultHover.containsMouse ? theme.accent : theme.border
+                            border.color: (searchPlaceholder.selectedResult
+                                          && searchPlaceholder.selectedResult.path === path)
+                                         || resultHover.containsMouse ? theme.accent : theme.border
                             border.width: 1
                             antialiasing: true
 
@@ -2763,7 +2780,11 @@ ApplicationWindow {
                                 anchors.fill: parent
                                 hoverEnabled: true
                                 cursorShape: Qt.PointingHandCursor
-                                onClicked: Qt.openUrlExternally(fileUrl)
+                                onClicked: searchPlaceholder.selectSearchResult({
+                                    name: name,
+                                    path: path,
+                                    fileUrl: fileUrl
+                                })
                             }
 
                             Text {
@@ -2791,6 +2812,196 @@ ApplicationWindow {
                                 color: fileExtension === "pdf" ? "#C64B4B" : theme.accent
                                 font.pixelSize: 11
                                 font.weight: Font.DemiBold
+                            }
+                        }
+                    }
+
+                    Rectangle {
+                        id: previewPane
+                        x: parent.width - width - 8
+                        width: visible ? Math.min(parent.width * 0.58,
+                                                  Math.max(300, parent.width - 300)) : 0
+                        anchors.top: parent.top
+                        anchors.bottom: paginationControls.top
+                        visible: searchPlaceholder.selectedResult !== null
+                        radius: 10
+                        color: theme.window
+                        border.color: theme.border
+                        border.width: 1
+                        clip: true
+                        z: 2
+
+                        Behavior on x {
+                            NumberAnimation { duration: 220; easing.type: Easing.OutCubic }
+                        }
+                        Behavior on width {
+                            NumberAnimation { duration: 220; easing.type: Easing.OutCubic }
+                        }
+
+                        ColumnLayout {
+                            anchors.fill: parent
+                            anchors.margins: 14
+                            spacing: 10
+
+                            RowLayout {
+                                Layout.fillWidth: true
+                                spacing: 8
+
+                                ColumnLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 3
+
+                                    Text {
+                                        Layout.fillWidth: true
+                                        text: searchPlaceholder.selectedPreview.name
+                                              || searchPlaceholder.selectedResult.name
+                                        color: theme.text
+                                        font.pixelSize: 15
+                                        font.weight: Font.DemiBold
+                                        elide: Text.ElideMiddle
+                                    }
+
+                                    Text {
+                                        Layout.fillWidth: true
+                                        text: (searchPlaceholder.selectedPreview.extension || "FILE").toUpperCase()
+                                              + "  •  "
+                                              + (Number(searchPlaceholder.selectedPreview.size) < 1024
+                                                 ? Number(searchPlaceholder.selectedPreview.size) + " B"
+                                                 : (Number(searchPlaceholder.selectedPreview.size) / 1024).toFixed(1) + " KB")
+                                        color: theme.mutedText
+                                        font.pixelSize: 10
+                                        elide: Text.ElideRight
+                                    }
+                                }
+
+                                Button {
+                                    text: "Open"
+                                    Layout.preferredWidth: 58
+                                    Layout.preferredHeight: 30
+                                    onClicked: {
+                                        var targetUrl = searchPlaceholder.selectedPreview.fileUrl
+                                                || searchPlaceholder.selectedResult.fileUrl
+                                        if (targetUrl)
+                                            Qt.openUrlExternally(targetUrl)
+                                    }
+                                    background: Rectangle {
+                                        radius: 7
+                                        color: parent.hovered ? Qt.darker(theme.accent, 1.08) : theme.accent
+                                    }
+                                    contentItem: Text {
+                                        text: parent.text
+                                        color: theme.accentText
+                                        font.pixelSize: 11
+                                        font.weight: Font.DemiBold
+                                        horizontalAlignment: Text.AlignHCenter
+                                        verticalAlignment: Text.AlignVCenter
+                                    }
+                                }
+
+                                Button {
+                                    text: "×"
+                                    Layout.preferredWidth: 30
+                                    Layout.preferredHeight: 30
+                                    flat: true
+                                    onClicked: searchPlaceholder.clearSelection()
+                                    background: Rectangle {
+                                        radius: 7
+                                        color: parent.hovered ? theme.surfaceRaised : "transparent"
+                                    }
+                                    contentItem: Text {
+                                        text: parent.text
+                                        color: theme.mutedText
+                                        font.pixelSize: 18
+                                        horizontalAlignment: Text.AlignHCenter
+                                        verticalAlignment: Text.AlignVCenter
+                                    }
+                                }
+                            }
+
+                            Text {
+                                Layout.fillWidth: true
+                                text: searchPlaceholder.selectedPreview.path || ""
+                                color: theme.mutedText
+                                font.pixelSize: 10
+                                elide: Text.ElideMiddle
+                            }
+
+                            Rectangle {
+                                Layout.fillWidth: true
+                                height: 1
+                                color: theme.border
+                            }
+
+                            Item {
+                                Layout.fillWidth: true
+                                Layout.fillHeight: true
+
+                                Image {
+                                    anchors.fill: parent
+                                    visible: searchPlaceholder.selectedPreview.kind === "image"
+                                    source: searchPlaceholder.selectedPreview.fileUrl || ""
+                                    fillMode: Image.PreserveAspectFit
+                                    asynchronous: true
+                                    cache: false
+                                }
+
+                                ScrollView {
+                                    id: previewTextScroll
+                                    anchors.fill: parent
+                                    visible: searchPlaceholder.selectedPreview.kind === "text"
+                                    clip: true
+
+                                    TextArea {
+                                        width: previewTextScroll.availableWidth
+                                        text: searchPlaceholder.selectedPreview.content || ""
+                                        color: theme.text
+                                        readOnly: true
+                                        selectByMouse: true
+                                        wrapMode: TextEdit.Wrap
+                                        font.family: "Consolas"
+                                        font.pixelSize: 11
+                                        background: Item {}
+                                    }
+                                }
+
+                                ColumnLayout {
+                                    anchors.centerIn: parent
+                                    width: parent.width - 28
+                                    visible: searchPlaceholder.selectedPreview.kind !== "image"
+                                             && searchPlaceholder.selectedPreview.kind !== "text"
+                                    spacing: 10
+
+                                    Text {
+                                        Layout.fillWidth: true
+                                        text: searchPlaceholder.selectedPreview.available === false
+                                              ? "File unavailable"
+                                              : "Preview not available"
+                                        color: theme.text
+                                        font.pixelSize: 15
+                                        font.weight: Font.DemiBold
+                                        horizontalAlignment: Text.AlignHCenter
+                                    }
+
+                                    Text {
+                                        Layout.fillWidth: true
+                                        text: searchPlaceholder.selectedPreview.message
+                                              || "Select a file to see its preview."
+                                        color: theme.mutedText
+                                        font.pixelSize: 12
+                                        wrapMode: Text.WordWrap
+                                        horizontalAlignment: Text.AlignHCenter
+                                    }
+                                }
+                            }
+
+                            Text {
+                                Layout.fillWidth: true
+                                visible: searchPlaceholder.selectedPreview.kind === "text"
+                                         && searchPlaceholder.selectedPreview.message.length > 0
+                                text: searchPlaceholder.selectedPreview.message
+                                color: theme.mutedText
+                                font.pixelSize: 10
+                                wrapMode: Text.WordWrap
                             }
                         }
                     }
@@ -2837,6 +3048,8 @@ ApplicationWindow {
                                         cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
                                         onClicked: {
                                             searchPlaceholder.currentPage--
+                                            searchPlaceholder.clearSelection()
+                                            searchPlaceholder.clearSelection()
                                             searchResultsList.contentY = 0
                                         }
                                     }
