@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Controls
+import QtQuick.Pdf
 import QtQuick.Layouts
 import QtQuick.Window
 import QtQuick.Effects
@@ -2953,6 +2954,45 @@ ApplicationWindow {
                                     cache: false
                                 }
 
+                                PdfMultiPageView {
+                                    id: previewPdfView
+                                    anchors.fill: parent
+                                    anchors.margins: 8
+                                    visible: searchPlaceholder.selectedPreview.kind === "pdf"
+                                    document: PdfDocument {
+                                        id: previewPdfDocument
+                                        source: searchPlaceholder.selectedPreview.kind === "pdf"
+                                                ? searchPlaceholder.selectedPreview.fileUrl : ""
+                                    }
+                                }
+
+                                ColumnLayout {
+                                    anchors.centerIn: parent
+                                    width: parent.width - 28
+                                    visible: searchPlaceholder.selectedPreview.kind === "pdf"
+                                             && previewPdfDocument.status === PdfDocument.Error
+                                    spacing: 8
+
+                                    Text {
+                                        Layout.fillWidth: true
+                                        text: "PDF preview unavailable"
+                                        color: theme.text
+                                        font.pixelSize: 14
+                                        font.weight: Font.DemiBold
+                                        horizontalAlignment: Text.AlignHCenter
+                                    }
+
+                                    Text {
+                                        Layout.fillWidth: true
+                                        text: previewPdfDocument.error
+                                              || "Argon could not load this PDF. Use Open to view it externally."
+                                        color: theme.mutedText
+                                        font.pixelSize: 11
+                                        wrapMode: Text.WordWrap
+                                        horizontalAlignment: Text.AlignHCenter
+                                    }
+                                }
+
                                 ScrollView {
                                     id: previewTextScroll
                                     anchors.fill: parent
@@ -2977,6 +3017,7 @@ ApplicationWindow {
                                     width: parent.width - 28
                                     visible: searchPlaceholder.selectedPreview.kind !== "image"
                                              && searchPlaceholder.selectedPreview.kind !== "text"
+                                             && searchPlaceholder.selectedPreview.kind !== "pdf"
                                     spacing: 10
 
                                     Text {
