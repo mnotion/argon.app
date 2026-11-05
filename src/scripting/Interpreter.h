@@ -20,6 +20,7 @@ public:
     using NativeFunction = std::function<Value(const std::vector<Value> &, std::vector<std::string> &)>;
     Interpreter();
     [[nodiscard]] ExecutionResult execute(std::string_view source);
+    void reset();
     [[nodiscard]] bool registerNativeFunction(std::string name, NativeFunction function);
     [[nodiscard]] bool hasGlobal(const std::string &name) const;
     [[nodiscard]] std::optional<Value> global(const std::string &name) const;
