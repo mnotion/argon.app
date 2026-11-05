@@ -42,8 +42,10 @@ if errorlevel 1 goto :failed
 
 echo.
 echo Interpreter tests passed.
-pause
-exit /b 0
+echo.
+echo === Launching Argon via run.bat ===
+call "%~dp0run.bat"
+exit /b %errorlevel%
 
 :failed
 echo.
