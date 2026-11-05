@@ -3,3 +3,6 @@
 
 # Generated Qt / CMake build output
 /build/
+
+# Isolated incremental development build
+/build-dev/
