@@ -35,6 +35,7 @@ ExecutionResult Interpreter::execute(std::string_view source) {
     }
     return result;
 }
+void Interpreter::reset() { m_globals.clear(); }
 bool Interpreter::registerNativeFunction(std::string name, NativeFunction function) {
     if (name.empty() || !function || m_nativeFunctions.contains(name)) return false;
     m_nativeFunctions.emplace(std::move(name), std::move(function));
