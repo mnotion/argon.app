@@ -428,6 +428,26 @@ ApplicationWindow {
                 Text { Layout.fillWidth: true; text: "Universal view"; color: theme.text; font.pixelSize: 12 }
                 Switch { checked: window.universalTimerView; onToggled: window.universalTimerView = checked }
             }
+            Rectangle { Layout.fillWidth: true; height: 1; color: theme.border }
+            Button {
+                Layout.fillWidth: true
+                Layout.preferredHeight: 34
+                text: "↻  Sync"
+                // Placeholder only: syncing is intentionally not implemented.
+                background: Rectangle {
+                    radius: 9
+                    color: parent.hovered ? theme.surfaceRaised : theme.surface
+                    border.color: theme.border
+                }
+                contentItem: Text {
+                    text: parent.text
+                    color: theme.text
+                    font.pixelSize: 12
+                    font.weight: Font.DemiBold
+                    horizontalAlignment: Text.AlignHCenter
+                    verticalAlignment: Text.AlignVCenter
+                }
+            }
         }
 
     }
