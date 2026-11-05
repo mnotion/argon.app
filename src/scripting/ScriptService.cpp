@@ -1,8 +1,8 @@
 #include "ScriptService.h"
 
 #include "Interpreter.h"
-#include "app/AppServices.h"
-#include "search/SearchService.h"
+#include "../app/AppServices.h"
+#include "../search/SearchService.h"
 
 #include <QJsonDocument>
 #include <QVariantList>
