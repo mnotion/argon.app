@@ -3,63 +3,57 @@ setlocal EnableExtensions
 cd /d "%~dp0"
 
 echo ========================================
-echo Argon build, deploy, and launch
+echo Argon - launch existing installation
 echo ========================================
+echo This launcher does not compile, configure, or deploy anything.
 echo.
-echo === Building and deploying Argon before launch ===
-call "%~dp0build.bat" /nopause
-if errorlevel 1 (
-    echo.
-    echo [ERROR] Build/deployment failed. Argon was not launched.
-    echo Review the diagnostic output above.
-    echo.
-    pause
-    exit /b 1
-)
 
 set "QT_ROOT=C:\Qt\6.12.0\mingw_64"
 set "MINGW_ROOT=C:\Qt\Tools\mingw1310_64"
-rem Use exactly the same install root as build.bat. Never launch a stale Desktop copy.
 set "SIM_ROOT=%LOCALAPPDATA%\Argon-sim"
 if not defined LOCALAPPDATA set "SIM_ROOT=%USERPROFILE%\AppData\Local\Argon-sim"
 set "SIM_APP_DIR=%SIM_ROOT%\App"
 
-rem Clear any inherited development override. AppPaths will resolve the canonical root.
+rem Always use the canonical installed app, never a stale Desktop or build copy.
+rem Clear inherited development overrides so Argon uses the same data as build.bat.
 set "ARGON_DATA_ROOT="
 
-echo.
-echo === Running freshly built Argon ===
-echo Test installation: %SIM_ROOT%
-echo.
-
 if not exist "%SIM_APP_DIR%\Argon.exe" (
-    echo [ERROR] Build succeeded but deployed Argon.exe was not found at "%SIM_APP_DIR%\Argon.exe".
+    echo [ERROR] The deployed Argon executable was not found:
+    echo "%SIM_APP_DIR%\Argon.exe"
+    echo.
+    echo Run build.bat explicitly once to create the installation.
+    echo After that, run.bat will launch it without compiling.
     echo.
     pause
     exit /b 1
 )
 
-set "PATH=%MINGW_ROOT%\bin;%QT_ROOT%\bin;%PATH%"
+rem The deployment normally carries its Qt runtime beside Argon.exe. Keep the
+rem toolchain paths available as a fallback for the local development install.
+if exist "%MINGW_ROOT%\bin" set "PATH=%MINGW_ROOT%\bin;%PATH%"
+if exist "%QT_ROOT%\bin" set "PATH=%QT_ROOT%\bin;%PATH%"
 set "QT_QUICK_CONTROLS_STYLE=Basic"
 
 if not exist "%SIM_ROOT%\Logs" mkdir "%SIM_ROOT%\Logs"
-if exist "%SIM_ROOT%\Logs\argon-runtime.log" del "%SIM_ROOT%\Logs\argon-runtime.log"
 
+echo Launching: "%SIM_APP_DIR%\Argon.exe"
+echo Data root: "%SIM_ROOT%"
+echo Press F12 inside Argon to open the developer interpreter console.
 echo.
-echo === Launching deployed Argon.exe ===
-echo Canonical runtime data root: %SIM_ROOT%
+
 "%SIM_APP_DIR%\Argon.exe"
 set "ARGON_EXIT_CODE=%errorlevel%"
 
 if not "%ARGON_EXIT_CODE%"=="0" (
     echo.
-    echo Argon exited with an error. Exit code: %ARGON_EXIT_CODE%
+    echo [ERROR] Argon exited with code %ARGON_EXIT_CODE%.
     echo.
-    echo === Runtime error details ===
     if exist "%SIM_ROOT%\Logs\argon-runtime.log" (
+        echo === Runtime log ===
         type "%SIM_ROOT%\Logs\argon-runtime.log"
     ) else (
-        echo No runtime log was created. The process may have failed before Qt logging initialized.
+        echo No runtime log was created.
     )
     echo.
     pause
@@ -67,7 +61,6 @@ if not "%ARGON_EXIT_CODE%"=="0" (
 )
 
 echo.
-echo Argon exited normally.
-echo Runtime log: "%SIM_ROOT%\Logs\argon-runtime.log"
+echo Argon closed normally.
 pause
 exit /b 0
