@@ -40,11 +40,18 @@ The console currently exposes only these Argon host functions:
 
 The console option defaults to OFF, so regular builds do not enable the developer interface. The Windows `build.bat` configuration turns it on.
 
-## Run without compiling
+## Development without release deployment
 
-Use **`run.bat`** to launch the already-deployed app from `%LOCALAPPDATA%\Argon-sim\App\Argon.exe`. It does not call CMake, compile targets, or deploy Qt files. Press **F12** in the running app to use the interpreter.
+Use **`dev.bat`** for day-to-day development. It uses a separate `build-dev` directory, loads QML directly from the repository's `qml/` folder, builds only the `Argon` target, and launches that development executable. It does not run `windeployqt`, copy files into the installed app, or package a release.
 
-Use **`build.bat`** only when you intentionally need to compile and deploy changes to the C++ or QML application. The first deployment also requires this build step. Once the deployed app exists, normal launches should use `run.bat`.
+- QML edits are read from source the next time `dev.bat` launches. They do not require a build.
+- C++ edits use CMake's incremental build. The first development run configures and builds the application; later runs rebuild only C++ files and generated artifacts affected by changes, then relink the app.
+- The development build uses the same `%LOCALAPPDATA%\Argon-sim` user-data directory as the installed app.
+- Press **F12** to use the interpreter console.
+
+Use **`run.bat`** when you specifically want to launch the already-deployed app from `%LOCALAPPDATA%\Argon-sim\App\Argon.exe`. It does not compile or deploy.
+
+Use **`build.bat`** only when you intentionally need the normal full build and deployment workflow.
 
 ## Run interpreter tests
 
