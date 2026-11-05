@@ -413,6 +413,107 @@ QVariantMap SearchService::readNextSearchPage()
     return response;
 }
 
+QVariantMap SearchService::previewFile(const QString &path) const
+{
+    QVariantMap preview;
+    const QString canonicalRoot = QFileInfo(m_searchRoot).canonicalFilePath();
+    const QFileInfo requestedInfo(path);
+    const QString canonicalFile = requestedInfo.canonicalFilePath();
+
+    if (canonicalRoot.isEmpty()
+        || canonicalFile.isEmpty()
+        || requestedInfo.isSymLink()
+        || !requestedInfo.isFile()
+        || !pathIsInsideOrEqual(canonicalFile, canonicalRoot)
+        || normalizedPath(canonicalFile) == normalizedPath(canonicalRoot)) {
+        preview.insert(QStringLiteral("available"), false);
+        preview.insert(QStringLiteral("message"),
+                       QStringLiteral("This file is no longer available in the Argon search folder."));
+        return preview;
+    }
+
+    const QFileInfo info(canonicalFile);
+    const QString extension = info.suffix().toLower();
+    const QString name = info.fileName();
+    const QString fileUrl = QUrl::fromLocalFile(canonicalFile).toString();
+
+    preview.insert(QStringLiteral("available"), true);
+    preview.insert(QStringLiteral("name"), name);
+    preview.insert(QStringLiteral("path"), QDir::toNativeSeparators(canonicalFile));
+    preview.insert(QStringLiteral("fileUrl"), fileUrl);
+    preview.insert(QStringLiteral("extension"), extension);
+    preview.insert(QStringLiteral("size"), info.size());
+    preview.insert(QStringLiteral("modified"),
+                   info.lastModified().toString(Qt::ISODate));
+
+    static const QSet<QString> imageExtensions = {
+        QStringLiteral("png"), QStringLiteral("jpg"), QStringLiteral("jpeg"),
+        QStringLiteral("bmp"), QStringLiteral("gif"), QStringLiteral("webp"),
+        QStringLiteral("svg")
+    };
+    if (imageExtensions.contains(extension)) {
+        preview.insert(QStringLiteral("kind"), QStringLiteral("image"));
+        preview.insert(QStringLiteral("message"), QString());
+        return preview;
+    }
+
+    static const QSet<QString> textExtensions = {
+        QStringLiteral("txt"), QStringLiteral("md"), QStringLiteral("markdown"),
+        QStringLiteral("csv"), QStringLiteral("tsv"), QStringLiteral("log"),
+        QStringLiteral("json"), QStringLiteral("xml"), QStringLiteral("html"),
+        QStringLiteral("htm"), QStringLiteral("qml"), QStringLiteral("js"),
+        QStringLiteral("mjs"), QStringLiteral("cjs"), QStringLiteral("cpp"),
+        QStringLiteral("cc"), QStringLiteral("c"), QStringLiteral("h"),
+        QStringLiteral("hpp"), QStringLiteral("cs"), QStringLiteral("py"),
+        QStringLiteral("ini"), QStringLiteral("cfg"), QStringLiteral("conf"),
+        QStringLiteral("yaml"), QStringLiteral("yml"), QStringLiteral("toml"),
+        QStringLiteral("sql"), QStringLiteral("bat"), QStringLiteral("cmd"),
+        QStringLiteral("sh"), QStringLiteral("cmake"), QStringLiteral("gradle"),
+        QStringLiteral("rs"), QStringLiteral("go"), QStringLiteral("java"),
+        QStringLiteral("kt"), QStringLiteral("swift"), QStringLiteral("rb"),
+        QStringLiteral("php"), QStringLiteral("css"), QStringLiteral("scss"),
+        QStringLiteral("less"), QStringLiteral("properties"), QStringLiteral("env")
+    };
+
+    if (!textExtensions.contains(extension)) {
+        preview.insert(QStringLiteral("kind"), QStringLiteral("unsupported"));
+        preview.insert(QStringLiteral("message"),
+                       QStringLiteral("Argon can show a preview for images and common text files. Use Open to view this file in its default app."));
+        return preview;
+    }
+
+    constexpr qint64 maximumPreviewBytes = 256 * 1024;
+    QFile file(canonicalFile);
+    if (!file.open(QIODevice::ReadOnly)) {
+        preview.insert(QStringLiteral("kind"), QStringLiteral("unsupported"));
+        preview.insert(QStringLiteral("message"),
+                       QStringLiteral("Argon could not read this file. Use Open to try the default app."));
+        return preview;
+    }
+
+    QByteArray bytes = file.read(maximumPreviewBytes + 1);
+    if (bytes.contains(QByteArray::fromHex("00"))) {
+        preview.insert(QStringLiteral("kind"), QStringLiteral("unsupported"));
+        preview.insert(QStringLiteral("message"),
+                       QStringLiteral("This file contains binary data and cannot be shown as text."));
+        return preview;
+    }
+
+    const bool truncated = bytes.size() > maximumPreviewBytes;
+    if (truncated)
+        bytes.truncate(maximumPreviewBytes);
+
+    QString content = QString::fromUtf8(bytes.constData(), bytes.size());
+    if (truncated) {
+        content += QStringLiteral("\n\n[Preview truncated at 256 KB. Open the file to view the remainder.]");
+    }
+
+    preview.insert(QStringLiteral("kind"), QStringLiteral("text"));
+    preview.insert(QStringLiteral("content"), content);
+    preview.insert(QStringLiteral("message"), QString());
+    return preview;
+}
+
 QVariantList SearchService::listFolderContents(const QString &path) const
 {
     QVariantList entries;
