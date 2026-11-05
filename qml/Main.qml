@@ -2500,6 +2500,7 @@ ApplicationWindow {
                 (currentPage + 1) * resultsPerPage)
 
             function performSearch(searchText) {
+                clearSelection()
                 var response = searchService.startNameSearch(searchText)
                 results = response.results || []
                 hasMoreResults = response.hasMore === true
