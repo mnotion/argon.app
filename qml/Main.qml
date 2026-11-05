@@ -2706,9 +2706,6 @@ ApplicationWindow {
                         width: searchResultsContainer.width
                         radius: 14
 
-                        Behavior on width {
-                            NumberAnimation { duration: 220; easing.type: Easing.OutCubic }
-                        }
                     color: theme.surfaceRaised
                     border.color: theme.border
                     border.width: 1
@@ -2824,9 +2821,6 @@ ApplicationWindow {
                         clip: true
                         z: 2
 
-                        Behavior on x {
-                            NumberAnimation { duration: 220; easing.type: Easing.OutCubic }
-                        }
                         ColumnLayout {
                             anchors.fill: parent
                             anchors.margins: 14
