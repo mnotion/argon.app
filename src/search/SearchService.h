@@ -31,6 +31,7 @@ public:
 
     Q_INVOKABLE QVariantMap startNameSearch(const QString &query);
     Q_INVOKABLE QVariantMap nextNameSearchPage();
+    Q_INVOKABLE QVariantMap previewFile(const QString &path) const;
     Q_INVOKABLE QVariantList listFolderContents(const QString &path) const;
     Q_INVOKABLE bool importDroppedUrls(const QVariantList &urls,
                                        const QString &destinationDirectory = QString());
