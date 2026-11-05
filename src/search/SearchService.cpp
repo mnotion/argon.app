@@ -3,6 +3,7 @@
 #include "DropImportWorker.h"
 
 #include <QCoreApplication>
+#include <QDateTime>
 #include <QDir>
 #include <QDirIterator>
 #include <QFile>
