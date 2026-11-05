@@ -211,3 +211,19 @@ if(ARGON_BUILD_VERSIONING_TESTS)
     target_link_libraries(ArgonUserSettingsTests PRIVATE Qt6::Core)
     add_test(NAME ArgonUserSettingsTests COMMAND ArgonUserSettingsTests)
 endif()
+
+
+option(ARGON_BUILD_SCRIPTING_TESTS "Build the standalone Argon scripting tests" OFF)
+if(ARGON_BUILD_SCRIPTING_TESTS)
+    enable_testing()
+    add_executable(ArgonScriptingTests
+        tests/scripting/LexerTests.cpp
+        src/scripting/Lexer.cpp
+        src/scripting/Lexer.h
+        src/scripting/Token.h
+    )
+    target_include_directories(ArgonScriptingTests PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/src/scripting"
+    )
+    add_test(NAME ArgonScriptingTests COMMAND ArgonScriptingTests)
+endif()
