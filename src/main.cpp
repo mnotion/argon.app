@@ -204,30 +204,35 @@ int main(int argc, char *argv[])
         qCritical() << "Argon could not create its QML root window; skipping background update checks.";
         return 1;
     }
-    // Bootstrap is launched as a background companion. It owns the updater version
-    // comparison and writes a status JSON that the Argon menu reads.
-    QTimer *updaterStatusRetryTimer = new QTimer(&app);
-    updaterStatusRetryTimer->setInterval(300000);
-    QObject::connect(
-        updaterStatusRetryTimer,
-        &QTimer::timeout,
-        &updaterStatusService,
-        &UpdaterStatusService::checkForUpdates);
-    updaterStatusRetryTimer->start();
-    QTimer::singleShot(0, &updaterStatusService, &UpdaterStatusService::checkForUpdates);
+    if (devQmlDirectory.isEmpty()) {
+        // Bootstrap is launched as a background companion. It owns the updater version
+        // comparison and writes a status JSON that the Argon menu reads.
+        QTimer *updaterStatusRetryTimer = new QTimer(&app);
+        updaterStatusRetryTimer->setInterval(300000);
+        QObject::connect(
+            updaterStatusRetryTimer,
+            &QTimer::timeout,
+            &updaterStatusService,
+            &UpdaterStatusService::checkForUpdates);
+        updaterStatusRetryTimer->start();
+        QTimer::singleShot(0, &updaterStatusService, &UpdaterStatusService::checkForUpdates);
 
-    // Check the Argon application release metadata immediately and retry periodically.
-    QTimer *releaseMetadataRetryTimer = new QTimer(&app);
-    releaseMetadataRetryTimer->setTimerType(Qt::PreciseTimer);
-    releaseMetadataRetryTimer->setInterval(10000);
-    QObject::connect(
-        releaseMetadataRetryTimer,
-        &QTimer::timeout,
-        &releaseMetadataService,
-        &ReleaseMetadataService::checkForUpdates);
-    releaseMetadataRetryTimer->start();
+        // Check the Argon application release metadata immediately and retry periodically.
+        QTimer *releaseMetadataRetryTimer = new QTimer(&app);
+        releaseMetadataRetryTimer->setTimerType(Qt::PreciseTimer);
+        releaseMetadataRetryTimer->setInterval(10000);
+        QObject::connect(
+            releaseMetadataRetryTimer,
+            &QTimer::timeout,
+            &releaseMetadataService,
+            &ReleaseMetadataService::checkForUpdates);
+        releaseMetadataRetryTimer->start();
 
-    QTimer::singleShot(0, &releaseMetadataService, &ReleaseMetadataService::checkForUpdates);
+        QTimer::singleShot(0, &releaseMetadataService, &ReleaseMetadataService::checkForUpdates);
+
+    } else {
+        qInfo() << "[Development] Skipping installed-app and updater release checks.";
+    }
 
     return app.exec();
 }
