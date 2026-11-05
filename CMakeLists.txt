@@ -40,10 +40,6 @@ qt_add_executable(Argon
     src/search/SearchService.h
     src/search/DropImportWorker.cpp
     src/search/DropImportWorker.h
-    src/documents/ArgonDocument.cpp
-    src/documents/ArgonDocument.h
-    src/documents/ArgonDocumentService.cpp
-    src/documents/ArgonDocumentService.h
     src/versioning/VersionNumber.cpp
     src/versioning/VersionNumber.h
     src/versioning/LatestReleaseMetadata.cpp
@@ -265,20 +261,4 @@ if(ARGON_BUILD_SCRIPTING_TESTS)
         "${CMAKE_CURRENT_SOURCE_DIR}/src/scripting"
     )
     add_test(NAME ArgonScriptingTests COMMAND ArgonScriptingTests)
-endif()
-
-
-option(ARGON_BUILD_DOCUMENT_TESTS "Build offline Argon document format tests" OFF)
-if(ARGON_BUILD_DOCUMENT_TESTS)
-    enable_testing()
-    add_executable(ArgonDocumentTests
-        tests/documents/ArgonDocumentTests.cpp
-        src/documents/ArgonDocument.cpp
-        src/documents/ArgonDocument.h
-    )
-    target_include_directories(ArgonDocumentTests PRIVATE
-        "${CMAKE_CURRENT_SOURCE_DIR}/src/documents"
-    )
-    target_link_libraries(ArgonDocumentTests PRIVATE Qt6::Core)
-    add_test(NAME ArgonDocumentTests COMMAND ArgonDocumentTests)
 endif()

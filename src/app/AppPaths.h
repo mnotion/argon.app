@@ -14,7 +14,6 @@ QString settingsDirectory();
 QString cacheDirectory();
 QString searchRootDirectory();
 QString documentsDirectory();
-QString argonFilesDirectory();
 QString accountsDirectory();
 QString analyticsDirectory();
 

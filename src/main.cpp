@@ -22,7 +22,6 @@
 #include "app/UserSettingsService.h"
 #include "analytics/DailyAnalyticsService.h"
 #include "search/SearchService.h"
-#include "documents/ArgonDocumentService.h"
 #include "versioning/ReleaseMetadataService.h"
 #include "versioning/AppUpdateService.h"
 #include "versioning/UpdaterStatusService.h"
@@ -91,7 +90,6 @@ int main(int argc, char *argv[])
     UserSettingsService userSettingsService;
     DailyAnalyticsService dailyAnalyticsService;
     SearchService searchService;
-    ArgonDocumentService argonDocumentService;
 
 #ifdef ARGON_ENABLE_SCRIPT_CONSOLE
     ScriptService scriptService(searchService, appServices);
@@ -115,7 +113,6 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty("appSettingsService", &userSettingsService);
     engine.rootContext()->setContextProperty("dailyAnalyticsService", &dailyAnalyticsService);
     engine.rootContext()->setContextProperty("searchService", &searchService);
-    engine.rootContext()->setContextProperty("argonDocumentService", &argonDocumentService);
 
 #ifdef ARGON_ENABLE_SCRIPT_CONSOLE
     engine.rootContext()->setContextProperty("scriptService", &scriptService);
