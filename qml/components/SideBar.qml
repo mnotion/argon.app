@@ -145,7 +145,7 @@ Item {
 
     Repeater {
         model: [
-            { side: "left", symbol: "●", label: "Profile" },
+            { side: "left", symbol: "ⓘ", label: "About" },
             { side: "right", symbol: "⚙", label: "Settings" }
         ]
 
@@ -215,10 +215,10 @@ Item {
 
             Text {
                 anchors.centerIn: parent
-                text: utilityButton.modelData.label === "Profile" ? utilityButton.modelData.symbol : ""
+                text: utilityButton.modelData.label === "About" ? utilityButton.modelData.symbol : ""
                 color: theme.text
                 font.pixelSize: 20
-                visible: utilityButton.modelData.label === "Profile"
+                visible: utilityButton.modelData.label === "About"
             }
 
             MouseArea {
@@ -227,7 +227,7 @@ Item {
                 hoverEnabled: true
                 cursorShape: Qt.PointingHandCursor
                 onClicked: {
-                    if (utilityButton.modelData.label === "Profile")
+                    if (utilityButton.modelData.label === "About")
                         root.profileRequested()
                     else
                         root.settingsRequested()

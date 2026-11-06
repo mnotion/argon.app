@@ -15,7 +15,6 @@
 #include <cstdio>
 
 #include "app/AppPaths.h"
-#include "app/AccountService.h"
 #include "app/AppServices.h"
 #include "app/UserSettingsService.h"
 #include "analytics/DailyAnalyticsService.h"
@@ -80,7 +79,6 @@ int main(int argc, char *argv[])
     }
 
     AppServices appServices;
-    AccountService accountService;
     UserSettingsService userSettingsService;
     DailyAnalyticsService dailyAnalyticsService;
     SearchService searchService;
@@ -99,7 +97,6 @@ int main(int argc, char *argv[])
 
     QQmlApplicationEngine engine;
     engine.rootContext()->setContextProperty("appServices", &appServices);
-    engine.rootContext()->setContextProperty("accountService", &accountService);
     engine.rootContext()->setContextProperty("appSettingsService", &userSettingsService);
     engine.rootContext()->setContextProperty("dailyAnalyticsService", &dailyAnalyticsService);
     engine.rootContext()->setContextProperty("searchService", &searchService);

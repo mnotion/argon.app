@@ -235,7 +235,6 @@ QString normalizedLegacyRelativePath(const QString &relativePath, bool legacyLow
     else if (first == QStringLiteral("cache")) parts[0] = QStringLiteral("Cache");
     else if (first == QStringLiteral("search qr")) parts[0] = QStringLiteral("Search QR");
     else if (first == QStringLiteral("documents")) parts[0] = QStringLiteral("Documents");
-    else if (first == QStringLiteral("accounts")) parts[0] = QStringLiteral("Accounts");
     else if (first == QStringLiteral("analytics")) parts[0] = QStringLiteral("Analytics");
 
     if (parts.size() > 1
@@ -271,6 +270,14 @@ bool copyLegacyDirectoryContents(const QString &sourceDirectoryPath,
             : relativePrefix + QLatin1Char('/') + entry.fileName();
         const QString mappedRelativePath =
             normalizedLegacyRelativePath(relativePath, legacyLowercaseLayout);
+
+        // Old account folders are inert now; leave their contents where they are.
+        const QString foldedRelativePath = mappedRelativePath.toCaseFolded();
+        if (foldedRelativePath == QStringLiteral("accounts")
+            || foldedRelativePath.startsWith(QStringLiteral("accounts/"))) {
+            continue;
+        }
+
         const QString destinationPath = QDir(destinationDirectoryPath).filePath(
             mappedRelativePath.mid(mappedRelativePath.lastIndexOf(QLatin1Char('/')) + 1));
 
@@ -474,7 +481,6 @@ QString settingsDirectory() { return QDir(userDataDirectory()).filePath(QStringL
 QString cacheDirectory() { return QDir(userDataDirectory()).filePath(QStringLiteral("Cache")); }
 QString searchRootDirectory() { return QDir(userDataDirectory()).filePath(QStringLiteral("Search QR")); }
 QString documentsDirectory() { return QDir(userDataDirectory()).filePath(QStringLiteral("Documents")); }
-QString accountsDirectory() { return QDir(userDataDirectory()).filePath(QStringLiteral("Accounts")); }
 QString analyticsDirectory()
 {
     return QDir(userDataDirectory()).filePath(QStringLiteral("Analytics/Daily"));
@@ -500,7 +506,6 @@ bool ensureDirectoryStructure(QString *errorMessage)
         cacheDirectory(),
         searchRootDirectory(),
         documentsDirectory(),
-        accountsDirectory(),
         analyticsDirectory(),
         updatesDirectory(),
         downloadsDirectory(),
