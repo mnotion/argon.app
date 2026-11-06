@@ -2,9 +2,9 @@ name: Desktop build
 
 on:
   push:
-    branches: ["account-system-ui"]
+    branches: ["development"]
   pull_request:
-    branches: ["sync-config"]
+    branches: ["main"]
 
 jobs:
   windows-qt-build:
