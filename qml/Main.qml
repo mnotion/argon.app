@@ -34,9 +34,9 @@ ApplicationWindow {
     property bool settingsOpen: false
     property bool settingsExpanded: false
     property real settingsBaseY: 0
-    property bool profileOpen: false
-    property bool profileExpanded: false
-    property real profileBaseY: 0
+    property bool aboutOpen: false
+    property bool aboutExpanded: false
+    property real aboutBaseY: 0
     property bool lightMode: false
     property string accentColor: "#8CBFFF"
     readonly property var accentPalette: [
@@ -213,9 +213,9 @@ ApplicationWindow {
         onClicked: {
             sideBar.bannerOpen = false
             window.settingsOpen = false
-            window.profileOpen = false
+            window.aboutOpen = false
             window.settingsExpanded = false
-            window.profileExpanded = false
+            window.aboutExpanded = false
         }
     }
 
@@ -242,9 +242,9 @@ ApplicationWindow {
             function onBannerOpenChanged() {
                 if (!sideBar.bannerOpen) {
                     window.settingsOpen = false
-                    window.profileOpen = false
+                    window.aboutOpen = false
                     window.settingsExpanded = false
-                    window.profileExpanded = false
+                    window.aboutExpanded = false
                 }
             }
         }
@@ -390,10 +390,10 @@ ApplicationWindow {
     }
 
     Rectangle {
-        id: profilePanel
+        id: aboutPanel
 
         Component.onCompleted: {
-            profileBaseY = Math.max(
+            aboutBaseY = Math.max(
                 12,
                 Math.min(window.height - height - 12, window.height * 0.25 - height / 2)
             )
@@ -402,19 +402,19 @@ ApplicationWindow {
         width: 292
         height: Math.min(
             window.height - 24,
-            (aboutColumn.implicitHeight + 30) * (window.profileExpanded ? 1.08 : 1)
+            (aboutColumn.implicitHeight + 30) * (window.aboutExpanded ? 1.08 : 1)
         )
 
         property bool tuckedByNavigation: sideBar.bannerOpen
 
-        x: window.profileOpen
+        x: window.aboutOpen
            ? 10
            : (tuckedByNavigation ? -width + 24 : -width)
 
-        y: profileBaseY
+        y: aboutBaseY
         z: 150
         radius: 14
-        visible: window.profileOpen || x > -width
+        visible: window.aboutOpen || x > -width
         color: Qt.rgba(
             theme.surfaceRaised.r,
             theme.surfaceRaised.g,
@@ -424,7 +424,7 @@ ApplicationWindow {
         border.color: theme.border
         border.width: 1
         clip: true
-        opacity: window.profileOpen ? 1 : (sideBar.bannerOpen ? 0.55 : 0)
+        opacity: window.aboutOpen ? 1 : (sideBar.bannerOpen ? 0.55 : 0)
 
         Behavior on x {
             NumberAnimation {
@@ -441,7 +441,7 @@ ApplicationWindow {
         }
 
         onHeightChanged: {
-            profileBaseY = Math.max(
+            aboutBaseY = Math.max(
                 12,
                 Math.min(window.height - height - 12, window.height * 0.25 - height / 2)
             )
@@ -459,9 +459,9 @@ ApplicationWindow {
 
             function onBannerOpenChanged() {
                 if (!sideBar.bannerOpen) {
-                    window.profileOpen = false
+                    window.aboutOpen = false
                     window.settingsOpen = false
-                    window.profileExpanded = false
+                    window.aboutExpanded = false
                     window.settingsExpanded = false
                 }
             }
@@ -479,7 +479,7 @@ ApplicationWindow {
             anchors.bottomMargin: 32
             spacing: 10
 
-            opacity: window.profileOpen ? 1 : 0
+            opacity: window.aboutOpen ? 1 : 0
 
             Behavior on opacity {
                 NumberAnimation {
@@ -510,8 +510,8 @@ ApplicationWindow {
                     flat: true
 
                     onClicked: {
-                        window.profileOpen = false
-                        window.profileExpanded = false
+                        window.aboutOpen = false
+                        window.aboutExpanded = false
                     }
 
                     background: Rectangle {
@@ -537,7 +537,7 @@ ApplicationWindow {
 
             RowLayout {
                 Layout.fillWidth: true
-                visible: !window.profileExpanded
+                visible: !window.aboutExpanded
                 spacing: 6
 
                 Text {
@@ -558,7 +558,7 @@ ApplicationWindow {
 
             Rectangle {
                 Layout.fillWidth: true
-                visible: window.profileExpanded
+                visible: window.aboutExpanded
                 radius: 12
                 color: theme.surface
                 border.color: theme.border
@@ -670,7 +670,7 @@ ApplicationWindow {
 
             Text {
                 Layout.fillWidth: true
-                visible: window.profileExpanded
+                visible: window.aboutExpanded
                 text: "Argon keeps your settings, search data, and focus history on this device. The only network activity in the desktop app is checking for and downloading Argon updates."
                 color: theme.mutedText
                 font.pixelSize: 11
@@ -681,16 +681,16 @@ ApplicationWindow {
 
 
     Rectangle {
-        id: profileExpandHandle
-        x: profilePanel.x + (profilePanel.width - width) / 2
-        y: profilePanel.y + profilePanel.height + 4
+        id: aboutExpandHandle
+        x: aboutPanel.x + (aboutPanel.width - width) / 2
+        y: aboutPanel.y + aboutPanel.height + 4
         width: 52
         height: 22
         radius: 7
         z: 151
-        visible: profilePanel.visible
-        opacity: (window.profileOpen || sideBar.bannerOpen) ? 1 : 0
-        color: profileHandleMouse.containsMouse ? theme.surfaceRaised : theme.surface
+        visible: aboutPanel.visible
+        opacity: (window.aboutOpen || sideBar.bannerOpen) ? 1 : 0
+        color: aboutHandleMouse.containsMouse ? theme.surfaceRaised : theme.surface
         border.color: theme.border
         border.width: 1
 
@@ -706,11 +706,11 @@ ApplicationWindow {
             }
         }
         MouseArea {
-            id: profileHandleMouse
+            id: aboutHandleMouse
             anchors.fill: parent
             hoverEnabled: true
             cursorShape: Qt.PointingHandCursor
-            onClicked: window.profileExpanded = !window.profileExpanded
+            onClicked: window.aboutExpanded = !window.aboutExpanded
         }
     }
 
@@ -1083,17 +1083,17 @@ ApplicationWindow {
             onPageSelected: function(pageName) {
                 window.activePage = pageName
                 window.settingsOpen = false
-                window.profileOpen = false
+                window.aboutOpen = false
                 sideBar.bannerOpen = false
             }
             onFullscreenRequested: window.toggleFullscreen()
             onSettingsRequested: {
-                window.profileOpen = false
+                window.aboutOpen = false
                 window.settingsOpen = !window.settingsOpen
             }
-            onProfileRequested: {
+            onAboutRequested: {
                 window.settingsOpen = false
-                window.profileOpen = !window.profileOpen
+                window.aboutOpen = !window.aboutOpen
             }
             clip: false
         }

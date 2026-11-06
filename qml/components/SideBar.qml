@@ -8,7 +8,7 @@ Item {
     id: root
     property string activePage: "Home"
     signal pageSelected(string pageName)
-    signal profileRequested()
+    signal aboutRequested()
     signal settingsRequested()
     signal fullscreenRequested()
     property bool bannerOpen: false
@@ -228,7 +228,7 @@ Item {
                 cursorShape: Qt.PointingHandCursor
                 onClicked: {
                     if (utilityButton.modelData.label === "About")
-                        root.profileRequested()
+                        root.aboutRequested()
                     else
                         root.settingsRequested()
                 }
